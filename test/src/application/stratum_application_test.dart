@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:stratum_ui/src/components/common/l10n/stratum_labels.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
@@ -1483,4 +1484,162 @@ void main() {
       expect(find.text('home'), findsOneWidget);
     });
   });
+
+  testWidgets(
+    'fo03/us13/fr01, co05_07/us01/fr05/e13: the default notice shortcut '
+    'reaches a notice through StratumApplication and types nothing into a '
+    'focused text field',
+    (tester) async {
+      final controller = await _controller();
+      addTearDown(controller.dispose);
+      final field = FocusNode(debugLabel: 'field');
+      addTearDown(field.dispose);
+      final fieldText = TextEditingController();
+      addTearDown(fieldText.dispose);
+      await tester.pumpWidget(
+        StratumApplication(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          appBuilder: (context, config) => MaterialApp(
+            builder: config.builder,
+            theme: config.theme,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ColumnLayout(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(focusNode: field, controller: fieldText),
+                    ContainerLayout(
+                      interaction: Interaction(
+                        onTap: () =>
+                            context.showToast(message: 'From the real app'),
+                      ),
+                      semantics: const SemanticsProperties(label: 'Notify'),
+                      child: const Text('Notify'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Notify'));
+      await tester.pumpAndSettle();
+      expect(find.text('From the real app'), findsOneWidget);
+      field.requestFocus();
+      await tester.pump();
+      fieldText.text = 'hi';
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, field);
+
+      final appleShortcut =
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS;
+      final bool handled;
+      if (appleShortcut) {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        // Option+T types a dagger on a Mac; the character lets a layer that
+        // lets the key through change the field.
+        handled = await tester.sendKeyEvent(
+          LogicalKeyboardKey.keyT,
+          character: '\u2020',
+        );
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      } else {
+        handled = await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      }
+      await tester.pumpAndSettle();
+
+      expect(handled, isTrue, reason: 'the default shortcut claims the key');
+      expect(
+        fieldText.text,
+        'hi',
+        reason:
+            'the shortcut moves focus to the notice, never a keystroke '
+            'into the field it left',
+      );
+      expect(FocusManager.instance.primaryFocus, isNot(field));
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
+  );
+
+  testWidgets(
+    'fo03/us13/fr02/e02: StratumApplication over a go_router config starts '
+    'in its theme, shows a notice from a routed page, and keeps navigation '
+    'working',
+    (tester) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(themes: {'brand': _brandTheme}),
+      );
+      await controller.switchTo('brand');
+      addTearDown(controller.dispose);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => Scaffold(
+              body: ContainerLayout(
+                interaction: Interaction(onTap: () => context.go('/second')),
+                semantics: const SemanticsProperties(label: 'Go'),
+                child: const Text('Home'),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/second',
+            builder: (context, state) => Scaffold(
+              body: ContainerLayout(
+                interaction: Interaction(
+                  onTap: () =>
+                      context.showToast(message: 'From the second page'),
+                ),
+                semantics: const SemanticsProperties(label: 'Notify'),
+                child: const Text('Second'),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      StratumAppConfig? handed;
+      await tester.pumpWidget(
+        StratumApplication(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          appBuilder: (context, config) {
+            handed = config;
+            return MaterialApp.router(
+              routerConfig: router,
+              builder: config.builder,
+              theme: config.theme,
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        handed!.theme.colorScheme.primary,
+        _brandRed,
+        reason: 'the application hands the app its active theme',
+      );
+      expect(
+        Theme.of(tester.element(find.text('Home'))).colorScheme.primary,
+        _brandRed,
+        reason: 'the app starts already in the active theme',
+      );
+
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      expect(find.text('Second'), findsOneWidget);
+
+      await tester.tap(find.text('Second'));
+      await tester.pumpAndSettle();
+      expect(find.text('From the second page'), findsOneWidget);
+    },
+  );
 }

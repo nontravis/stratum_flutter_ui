@@ -1042,5 +1042,41 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      "fo07/us04/fr03/e06: a remounted application reads the probe's last "
+      'radius before its own first event',
+      (tester) async {
+        mockProbe(tester);
+        final seen = <BorderRadius?>[];
+        final reader = Builder(
+          builder: (context) {
+            seen.add(context.deviceWindow.radius);
+            return const SizedBox();
+          },
+        );
+        await tester.pumpWidget(application(reader));
+        await tester.pump();
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+        seen.clear();
+
+        await tester.pumpWidget(
+          KeyedSubtree(key: UniqueKey(), child: application(reader)),
+        );
+
+        expect(seen, isNotEmpty);
+        expect(
+          seen.first,
+          all(20),
+          reason:
+              'the remounted scope seeds from the last event, not from the '
+              'first listen answer (46) and not from null',
+        );
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }

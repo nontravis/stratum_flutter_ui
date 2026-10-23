@@ -162,4 +162,108 @@ void main() {
       expect(_dx(tester, 'innerPage'), greaterThan(0));
     },
   );
+
+  testWidgets(
+    'fo05/us05/fr01/e06: every ScreenTransitionType in the nested page list '
+    'moves only the nested pages',
+    (tester) async {
+      final pages = ValueNotifier<List<Page<Object?>>>(const [_innerHome]);
+      addTearDown(pages.dispose);
+      await tester.pumpWidget(
+        _app(
+          GlobalKey<NavigatorState>(),
+          fadeTheme,
+          ValueListenableBuilder<List<Page<Object?>>>(
+            valueListenable: pages,
+            builder: (context, list, _) =>
+                Navigator(pages: list, onDidRemovePage: (_) {}),
+          ),
+        ),
+      );
+
+      const innerPage = ValueKey('innerPage');
+
+      /// What the nested page shows now: where it sits, how big it is, how
+      /// opaque, and how much of it a size transition reveals; null while it
+      /// is not in the tree.
+      (Offset, Size, double, double)? shown() {
+        final page = find.byKey(innerPage);
+        if (page.evaluate().isEmpty) return null;
+        var opacity = 1.0;
+        for (final fade in tester.widgetList<FadeTransition>(
+          find.ancestor(of: page, matching: find.byType(FadeTransition)),
+        )) {
+          opacity *= fade.opacity.value;
+        }
+        var revealed = 1.0;
+        for (final size in tester.widgetList<SizeTransition>(
+          find.ancestor(of: page, matching: find.byType(SizeTransition)),
+        )) {
+          revealed *= size.sizeFactor.value;
+        }
+        return (
+          tester.getTopLeft(page),
+          tester.getSize(page),
+          opacity,
+          revealed,
+        );
+      }
+
+      /// Pumps frames until none is scheduled, failing at the first frame
+      /// whose host bar is off the origin, and returns what the nested page
+      /// showed at each frame it was in the tree.
+      Future<List<(Offset, Size, double, double)>> settleWatching(
+        String label,
+      ) async {
+        final frames = <(Offset, Size, double, double)>[];
+        var count = 0;
+        do {
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(
+            tester.getTopLeft(_bar),
+            Offset.zero,
+            reason: '$label: the host bar moved',
+          );
+          final frame = shown();
+          if (frame != null) frames.add(frame);
+          expect(++count, lessThan(300), reason: '$label: never settled');
+        } while (tester.binding.hasScheduledFrame);
+        return frames;
+      }
+
+      for (final type in ScreenTransitionType.values) {
+        pages.value = [
+          _innerHome,
+          StratumTransitionPage<void>(
+            key: const ValueKey('innerPagePage'),
+            type: type,
+            child: const SizedBox.expand(key: innerPage),
+          ),
+        ];
+        final opening = await settleWatching('${type.name}, opening');
+        expect(tester.takeException(), isNull, reason: type.name);
+        expect(find.byKey(innerPage), findsOneWidget);
+        final resting = shown();
+        final opened = opening.any((frame) => frame != resting);
+
+        pages.value = const [_innerHome];
+        final closing = await settleWatching('${type.name}, closing');
+        expect(tester.takeException(), isNull, reason: type.name);
+        expect(
+          find.byKey(innerPage, skipOffstage: false),
+          findsNothing,
+          reason: '${type.name}: the nested page is gone',
+        );
+        final closed = closing.any((frame) => frame != resting);
+
+        expect(
+          [opened, closed],
+          type == ScreenTransitionType.none ? [false, false] : [true, true],
+          reason:
+              '${type.name}: the nested page moves or fades on open and on '
+              'close, except with no animation',
+        );
+      }
+    },
+  );
 }
