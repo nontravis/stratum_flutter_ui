@@ -7,19 +7,15 @@ session-scoped Appium server fixture.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Iterator
 
 import pytest
 
 from stratum_e2e.appium_server import AppiumServer, default_android_home
+from stratum_e2e.paths import APPIUM_BIN, APPIUM_HOME
 from stratum_e2e.ports import free_port
 
 pytest_plugins = ["pytester"]  # unit/test_conftest_hook.py runs the hook in a sandbox
-
-E2E_ROOT = Path(__file__).resolve().parent
-APPIUM_BIN = E2E_ROOT / ".tools" / "node_modules" / ".bin" / "appium"
-APPIUM_HOME = E2E_ROOT / ".tools" / "appium-home"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

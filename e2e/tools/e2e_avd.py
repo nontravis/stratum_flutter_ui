@@ -31,6 +31,7 @@ from stratum_e2e.android.talkback import (
     avd_name,
 )
 from stratum_e2e.appium_server import AppiumServer, default_android_home
+from stratum_e2e.paths import APPIUM_BIN, APPIUM_HOME
 from stratum_e2e.ports import free_port
 
 SYSTEM_IMAGE = "system-images;android-35;google_apis_playstore_tablet;arm64-v8a"
@@ -54,10 +55,6 @@ EXIT_FAILED = 1
 EXIT_AVD_EXISTS = 2
 
 FIND_TIMEOUT_S = 15
-
-E2E_ROOT = Path(__file__).resolve().parents[1]
-APPIUM_BIN = E2E_ROOT / ".tools" / "node_modules" / ".bin" / "appium"
-APPIUM_HOME = E2E_ROOT / ".tools" / "appium-home"
 
 _SERVICES_SETTING = "enabled_accessibility_services"
 _ENABLED_SETTING = "accessibility_enabled"

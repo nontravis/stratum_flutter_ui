@@ -7,10 +7,11 @@ from typing import Any
 import pytest
 
 from stratum_e2e.fixtures import open_fixture
-from stratum_e2e.locate import by_id
+from stratum_e2e.locate import by_id, label_of
 
 
 @pytest.mark.android
+@pytest.mark.ios
 def test_fixture_opens_by_route_and_id_locates(
     driver: Any, platform: str, app_id: str
 ) -> None:
@@ -20,5 +21,5 @@ def test_fixture_opens_by_route_and_id_locates(
     assert button.is_displayed()
     button.click()
 
-    # Flutter publishes a Text's string as the node's content-desc, not its text.
-    assert by_id(driver, platform, "smoke.taps").get_attribute("content-desc") == "taps: 1"
+    # Flutter publishes a Text's string as the node's label (content-desc on Android), not its text.
+    assert label_of(by_id(driver, platform, "smoke.taps"), platform) == "taps: 1"

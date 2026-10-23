@@ -15,9 +15,12 @@ def by_id(driver: Any, platform: str, identifier: str) -> Any:
     Android matches the node's resource-id exactly through a UiSelector, because
     neither `AppiumBy.ID` form (bare id or `<app_id>:id/<id>`) reaches a Flutter
     identifier: Flutter publishes it as a bare resource-id with no package prefix.
-    Raises ValueError for any other platform, or for an identifier holding a quote
-    or backslash.
+    iOS matches the accessibility id, which Flutter fills from the identifier.
+    Raises ValueError for any other platform, or for an Android identifier holding a
+    quote or backslash.
     """
+    if platform == "ios":
+        return driver.find_element(AppiumBy.ACCESSIBILITY_ID, identifier)
     if platform != "android":
         raise ValueError(f"by_id does not support platform {platform!r} yet")
     if any(char in identifier for char in _FORBIDDEN_IN_SELECTOR):
@@ -42,3 +45,14 @@ def by_label(driver: Any, platform: str, label: str) -> Any:
     return driver.find_element(
         AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().descriptionContains("{label}")'
     )
+
+
+def label_of(node: Any, platform: str) -> str:
+    """Return the text Flutter publishes for [node]: `content-desc` on Android, `label` on iOS.
+
+    Raises ValueError for any other platform.
+    """
+    attributes = {"android": "content-desc", "ios": "label"}
+    if platform not in attributes:
+        raise ValueError(f"label_of does not support platform {platform!r} yet")
+    return str(node.get_attribute(attributes[platform]))

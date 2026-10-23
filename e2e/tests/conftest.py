@@ -11,11 +11,16 @@ from typing import Any, Iterator
 import pytest
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
+from appium.options.common import AppiumOptions
+from appium.options.ios import XCUITestOptions
 
 from stratum_e2e.android.session import android_capabilities, install_apk
 from stratum_e2e.android.talkback import AVD_NAME, TalkBackLog, TalkBackSession, avd_name
 from stratum_e2e.android.uhid_keyboard import UhidKeyboard
 from stratum_e2e.appium_server import AppiumServer
+from stratum_e2e.ios.session import WDA_DERIVED_DATA, install_app, ios_capabilities
+from stratum_e2e.ios.voiceover import VoiceOver
+from stratum_e2e.ports import free_port
 from stratum_e2e.selection import skip_reason
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -47,12 +52,23 @@ def installed_app(request: pytest.FixtureRequest, platform: str) -> None:
     A streamed `install -r` of a debug APK plus Flutter's asset copy after it filled a 5.8 GB
     /data within 8 tests, and with `noReset` a reinstall per test buys no isolation.
     """
-    if platform != "android":
+    device = _required_option(request.config, "device")
+    app = Path(_required_option(request.config, "app"))
+    if platform == "android":
+        install_apk(device, app)
+    elif platform == "ios":
+        install_app(device, app)
+    else:
         pytest.fail(f"no driver for platform {platform!r} yet", pytrace=False)
-    install_apk(
-        _required_option(request.config, "device"),
-        Path(_required_option(request.config, "app")),
-    )
+
+
+def _session_options(platform: str, device: str, app_id: str) -> AppiumOptions:
+    """Return the Appium options of the --platform leg's session on [device]."""
+    if platform == "ios":
+        return XCUITestOptions().load_capabilities(
+            ios_capabilities(device, app_id, WDA_DERIVED_DATA, free_port())
+        )
+    return UiAutomator2Options().load_capabilities(android_capabilities(device, app_id))
 
 
 @pytest.fixture
@@ -64,8 +80,8 @@ def driver(
     installed_app: None,
 ) -> Iterator[Any]:
     """An Appium session on --device with --app installed; always quit afterwards."""
-    serial = _required_option(request.config, "device")
-    options = UiAutomator2Options().load_capabilities(android_capabilities(serial, app_id))
+    device = _required_option(request.config, "device")
+    options = _session_options(platform, device, app_id)
     session = webdriver.Remote(appium_server.url, options=options)
     try:
         yield session
@@ -79,6 +95,13 @@ def talkback(request: pytest.FixtureRequest) -> Iterator[TalkBackLog]:
     serial = _required_option(request.config, "device")
     with TalkBackSession(serial) as log:
         yield log
+
+
+@pytest.fixture
+def voiceover(driver: Any) -> Iterator[VoiceOver]:
+    """VoiceOver on inside the iOS simulator for the test, switched off afterwards."""
+    with VoiceOver(driver) as running:
+        yield running
 
 
 @pytest.fixture
