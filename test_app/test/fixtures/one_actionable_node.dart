@@ -35,7 +35,8 @@ List<SemanticsNode> _actionableRelatives(SemanticsNode node) {
 /// its label, its role, its actions, and [customActions] custom actions.
 ///
 /// The role is a button with a tap, or with [slider] a slider with the adjust
-/// actions. A semantics identifier makes its node a boundary, which would
+/// actions, or with [role] that semantics role with a tap (a Material `Tab`
+/// reads `SemanticsRole.tab` and sets no button flag). A semantics identifier makes its node a boundary, which would
 /// split these onto two nodes and give a screen reader two stops for one
 /// control. Call it under `tester.ensureSemantics()`.
 void expectOneActionableNode(
@@ -44,6 +45,7 @@ void expectOneActionableNode(
   required String label,
   int customActions = 0,
   bool slider = false,
+  SemanticsRole? role,
 }) {
   final node = tester.getSemantics(finder);
   final data = node.getSemanticsData();
@@ -58,7 +60,11 @@ void expectOneActionableNode(
       reason: 'adjust actions of $label',
     );
   } else {
-    expect(data.flagsCollection.isButton, isTrue, reason: 'role of $label');
+    if (role == null) {
+      expect(data.flagsCollection.isButton, isTrue, reason: 'role of $label');
+    } else {
+      expect(data.role, role, reason: 'role of $label');
+    }
     expect(
       data.hasAction(SemanticsAction.tap),
       isTrue,
