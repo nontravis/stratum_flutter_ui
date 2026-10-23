@@ -11,6 +11,13 @@ def resource_ids(page_source: str) -> set[str]:
     return {node.get("resource-id") or "" for node in root.iter()} - {""}
 
 
+def labels(page_source: str) -> list[str]:
+    """Return the labels (`text`, else `content-desc`) of every labeled node, in tree order."""
+    root = ET.fromstring(page_source.encode("utf-8"))
+    found = (node.get("text") or node.get("content-desc") or "" for node in root.iter())
+    return [label for label in found if label]
+
+
 def labels_with(page_source: str, attribute: str) -> list[str]:
     """Return the labels of nodes whose [attribute] is "true" in [page_source], in tree order.
 

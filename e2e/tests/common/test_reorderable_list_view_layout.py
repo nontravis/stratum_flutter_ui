@@ -1,4 +1,4 @@
-"""Reorder list on Android: TalkBack takes Alt+Up, offers valid moves, moves and speaks.
+"""Reorder list: the screen reader takes Alt+Up (TalkBack), offers valid moves, moves and speaks.
 
 Drives the `common/reorderable_list_view_layout` fixture (FO-06 US-11). TalkBack's actions
 for the focused item open through its own keyboard shortcuts on the uhid keyboard, measured
@@ -6,6 +6,13 @@ on the e2e AVD (TalkBack 15): Alt+Space opens the TalkBack menu, Alt+Enter on it
 entry opens the item's actions, Alt+Right steps through them and Alt+Enter runs the one in
 focus. The menu lives in a TalkBack window Appium cannot read, so its entries are read from
 the speech log.
+
+On iOS, VoiceOver can be walked but not driven: with it on, an Appium touch does not reach
+the app, and Appium has no command that runs a VoiceOver action. Level 2 therefore reads the
+focus order and the speech. The drop a move announcement needs cannot happen with VoiceOver
+on (measured: a drag from Item 3 above Item 2 left the order and the log unchanged, 4 of 4
+attempts, while the same drag with VoiceOver off dropped), so no iOS test claims the spoken
+move announcement.
 """
 
 from __future__ import annotations
@@ -29,6 +36,9 @@ from stratum_e2e.android.screen_reader import (
 from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
 from stratum_e2e.android.uhid_keyboard import KEY_ENTER, KEY_RIGHT, KEY_UP, MOD_LALT, UhidKeyboard
 from stratum_e2e.fixtures import open_fixture
+from stratum_e2e.ios import tree as ios_tree
+from stratum_e2e.ios.focus_order import focus_order, matches_order
+from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.locate import by_id
 from stratum_e2e.waits import wait_until
 
@@ -43,6 +53,16 @@ MOVE_TO_START = "Move to the start"
 MOVE_TO_END = "Move to the end"
 ALL_MOVES = {MOVE_UP, MOVE_DOWN, MOVE_TO_START, MOVE_TO_END}
 WAIT_TIMEOUT_S = 10
+
+ACTIONS_HINT = "Actions available"
+# What VoiceOver speaks in turn, item 1 to the last element on screen: each movable item
+# reads as `Item <n> Button Actions available` at one stop; the disabled Item 6 reads
+# `dimmed` and offers no actions; the log follows (VoiceOver cuts an utterance at 64 characters).
+IOS_FOCUS_ORDER = [
+    *(f"Item {n} Button {ACTIONS_HINT}" for n in range(1, ITEM_COUNT)),
+    f"Item {ITEM_COUNT} dimmed Button",
+    "Log: nothing yet.",
+]
 
 _ITEM_LABEL = re.compile(r"Item \d+")
 _BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
@@ -61,7 +81,18 @@ def _item_nodes(driver: Any) -> list[tuple[str, int, ET.Element]]:
     return sorted(found.values(), key=lambda entry: entry[1])
 
 
-def _order(driver: Any) -> list[str]:
+def _ios_items(driver: Any) -> dict[str, ios_tree.Node]:
+    """Return the distinct `Item <n>` buttons by label, top to bottom."""
+    found: dict[str, ios_tree.Node] = {}
+    for node in ios_tree.nodes(driver.page_source):
+        if node.kind == "Button" and _ITEM_LABEL.fullmatch(node.label):
+            found.setdefault(node.label, node)
+    return dict(sorted(found.items(), key=lambda entry: entry[1].y))
+
+
+def _order(driver: Any, platform: str) -> list[str]:
+    if platform == "ios":
+        return list(_ios_items(driver))
     return [label for label, _, _ in _item_nodes(driver)]
 
 
@@ -73,7 +104,7 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
     """Cold-start the fixture and wait until all six items are on screen."""
     open_fixture(driver, platform, app_id, FIXTURE_ID)
     wait_until(
-        lambda: _order(driver) == INITIAL_ORDER,
+        lambda: _order(driver, platform) == INITIAL_ORDER,
         "the six items on screen",
         timeout_s=WAIT_TIMEOUT_S,
     )
@@ -139,7 +170,7 @@ def test_talkback_takes_alt_up_before_the_app(
 
     spoken = talkback.since_mark()
     assert spoken[0].startswith("Item 2"), spoken
-    assert _order(driver) == INITIAL_ORDER
+    assert _order(driver, platform) == INITIAL_ORDER
     assert "moved" not in _app_log(driver)
 
 
@@ -177,7 +208,7 @@ def test_talkback_move_up_moves_item_and_speaks_position(
 
     run_action(keyboard, talkback, MOVE_UP)
     wait_until(
-        lambda: _order(driver)[1] == "Item 3",
+        lambda: _order(driver, platform)[1] == "Item 3",
         "Item 3 in the second slot",
         timeout_s=WAIT_TIMEOUT_S,
     )
@@ -187,7 +218,7 @@ def test_talkback_move_up_moves_item_and_speaks_position(
         timeout_s=WAIT_TIMEOUT_S,
     )
 
-    assert _order(driver) == ["Item 1", "Item 3", "Item 2", "Item 4", "Item 5", "Item 6"]
+    assert _order(driver, platform) == ["Item 1", "Item 3", "Item 2", "Item 4", "Item 5", "Item 6"]
     assert _app_log(driver).count("moved") == 1
 
 
@@ -199,7 +230,7 @@ def test_os_tree_exposes_items_and_disabled_item_6(
 ) -> None:
     _open(driver, platform, app_id)
 
-    assert _order(driver) == INITIAL_ORDER
+    assert _order(driver, platform) == INITIAL_ORDER
     enabled = {
         label: node.get("enabled") for label, _, node in _item_nodes(driver)
     }
@@ -207,3 +238,33 @@ def test_os_tree_exposes_items_and_disabled_item_6(
     assert {label for label, value in enabled.items() if value == "true"} == set(
         INITIAL_ORDER[:-1]
     )
+
+
+@pytest.mark.ios
+@pytest.mark.level1
+@pytest.mark.req("fo06/us11/fr03/e03")
+def test_ios_tree_exposes_items_and_disabled_item_6(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    items = _ios_items(driver)
+
+    assert list(items) == INITIAL_ORDER
+    assert not items["Item 6"].enabled
+    assert "NotEnabled" in items["Item 6"].traits
+    assert {label for label, node in items.items() if node.enabled} == set(INITIAL_ORDER[:-1])
+
+
+@pytest.mark.ios
+@pytest.mark.level2
+@pytest.mark.req("fo06/us11/fr03/e03")
+def test_voiceover_reads_each_item_at_one_stop(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    with VoiceOver(driver) as voiceover:
+        spoken = focus_order(driver, voiceover)
+
+    assert matches_order(spoken, IOS_FOCUS_ORDER), spoken

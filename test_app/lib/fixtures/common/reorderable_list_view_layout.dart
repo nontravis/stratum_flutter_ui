@@ -8,8 +8,10 @@ const _logLength = 6;
 
 /// Reorder list fixture mirroring the reorder check of the screen reader demo.
 ///
-/// Rows `Item 1` to `Item 6` (ids `reorder.item.<n>` by original number),
-/// `Item 6` disabled. Text `Log: nothing yet.` or the entries joined by
+/// Rows `Item 1` to `Item 6`, `Item 6` disabled. Each row carries no id: a
+/// semantics identifier would split its label, button role, and tap from its
+/// move actions onto two nodes, so a test finds a row by its label `Item <n>`
+/// (the original number). Text `Log: nothing yet.` or the entries joined by
 /// `"; "` after `Log: ` (id `reorder.log`). A tap logs `Item <n> tapped`; a
 /// move logs `Item <n> moved to position <p>`.
 class ReorderableListViewLayoutFixture extends StatefulWidget {
@@ -58,21 +60,18 @@ class _ReorderableListViewLayoutFixtureState
           onReorderItem: _move,
           itemBuilder: (context, index) {
             final number = _numbers[index];
-            return Semantics(
+            return ContainerLayout(
               key: ValueKey(number),
-              identifier: 'reorder.item.$number',
-              child: ContainerLayout(
-                style: const WidgetStyle(
-                  height: 48,
-                  padding: EdgeInsetsDirectional.symmetric(horizontal: 12),
-                  alignment: AlignmentDirectional.centerStart,
-                ),
-                interaction: Interaction(
-                  onTap: () => _tap(number),
-                  disabled: number == _disabledNumber,
-                ),
-                child: Text('Item $number'),
+              style: const WidgetStyle(
+                height: 48,
+                padding: EdgeInsetsDirectional.symmetric(horizontal: 12),
+                alignment: AlignmentDirectional.centerStart,
               ),
+              interaction: Interaction(
+                onTap: () => _tap(number),
+                disabled: number == _disabledNumber,
+              ),
+              child: Text('Item $number'),
             );
           },
         ),

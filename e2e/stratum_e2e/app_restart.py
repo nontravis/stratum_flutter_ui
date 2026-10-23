@@ -12,9 +12,11 @@ def restart_app(driver: Any, platform: str, app_id: str, fixture_id: str) -> Any
 
     Returns the live handle; every caller rebinds to it. Android returns the same
     [driver], because `open_fixture` force-stops the process and relaunches it
-    outside the Appium session. Web returns a new `Page` once M5-T28 adds it.
+    outside the Appium session; iOS returns the same [driver] too, because
+    `open_fixture` terminates the app and launches it again inside the session.
+    Web returns a new `Page` once M5-T28 adds it.
     Raises ValueError for web, and for any platform `open_fixture` does not
-    support yet (M4-T24 and M5-T28 add the other platforms).
+    support yet (M5-T28 adds the other platforms).
     """
     if platform == "web":
         raise ValueError("restart_app does not support platform 'web' yet")

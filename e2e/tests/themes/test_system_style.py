@@ -1,4 +1,8 @@
-"""System-bar e2e on Android (FO-03 US-14): the probe checks, driven live.
+"""System-bar e2e (FO-03 US-14): the probe checks, driven live; Android, and iOS for the painted fill.
+
+The iOS legs stop at the painted fill: the iPhone Duo simulator (iOS 27.1) draws no status bar
+in its framebuffer, so an icon's brightness cannot be read from a screenshot there, and the
+sampler would read the debug banner instead.
 
 Drives the `themes/system_style` fixture. The verdicts live outside the app:
 `dumpsys window`'s appearance bit and bar visibility, `dumpsys activity
@@ -27,7 +31,7 @@ from stratum_e2e.android.immersive import (
     dismiss_immersive_confirmation,
 )
 from stratum_e2e.fixtures import open_fixture
-from stratum_e2e.locate import by_id
+from stratum_e2e.locate import by_label
 from stratum_e2e.system_bars import (
     Brightness,
     SystemBarsError,
@@ -41,11 +45,12 @@ from stratum_e2e.waits import wait_until, wait_until_held
 
 FIXTURE_ID = "themes/system_style"
 
-# The fixture's button ids (test_app/lib/fixtures/themes/system_style.dart).
-OPEN_DARK_HEADER = "system_style.open_dark_header"
-OPEN_WHITE_PAGE = "system_style.open_white_page"
-OPEN_DARK_STATUSBAR = "system_style.open_dark_statusbar"
-OPEN_VIDEO = "system_style.open_video"
+# The fixture's button labels (test_app/lib/fixtures/themes/system_style.dart); the buttons
+# carry no id, since an id would split a button's label from its tap onto two nodes.
+OPEN_DARK_HEADER = "Open dark header"
+OPEN_WHITE_PAGE = "Open white page"
+OPEN_DARK_STATUSBAR = "Open dark status bar"
+OPEN_VIDEO = "Open video"
 
 # The route push and the OS's answer to the SystemChrome write land a beat after the click.
 SETTLE_TIMEOUT_S = 25
@@ -58,11 +63,10 @@ def _serial(driver: Any) -> str:
 def _menu_displayed(driver: Any, platform: str) -> bool:
     """Whether the menu's first open button is on screen.
 
-    The id node carries no text or content-desc (Flutter puts the label on an id-less
-    child), so the node itself is the signal. A page pushed over the menu removes it.
+    A page pushed over the menu removes it.
     """
     try:
-        return bool(by_id(driver, platform, OPEN_DARK_HEADER).is_displayed())
+        return bool(by_label(driver, platform, OPEN_DARK_HEADER).is_displayed())
     except WebDriverException:
         return False
 
@@ -82,17 +86,17 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
     _wait_menu_up(driver, platform)
 
 
-def _open_page(driver: Any, platform: str, identifier: str) -> None:
-    """Click a menu button and wait until its page is up."""
+def _open_page(driver: Any, platform: str, label: str) -> None:
+    """Click the menu button labeled [label] and wait until its page is up."""
 
     def clicked() -> bool:
         try:
-            by_id(driver, platform, identifier).click()
+            by_label(driver, platform, label).click()
         except WebDriverException:
             return False
         return True
 
-    wait_until(clicked, f"{identifier} to be clickable")
+    wait_until(clicked, f"{label!r} to be clickable")
     _wait_page_up(driver, platform)
 
 
@@ -189,12 +193,16 @@ def test_a_dark_bar_color_turns_the_status_bar_icons_light(
 
 
 @pytest.mark.android
+@pytest.mark.ios
 @pytest.mark.req("fo03/us14/s16")
 @pytest.mark.req("fo03/us14/fr01/e06")
 def test_the_painted_bar_color_is_the_topmost_fill(
     driver: Any, platform: str, app_id: str
 ) -> None:
-    """dark_statusbar_fill (probes.py:708-718; dart:141): the strip under the bar reads dark."""
+    """dark_statusbar_fill (probes.py:708-718; dart:141): the strip under the bar reads dark.
+
+    On iOS the strip is the app's own top pixels, which is all the screenshot holds there.
+    """
     _open(driver, platform, app_id)
     _open_page(driver, platform, OPEN_DARK_STATUSBAR)
 

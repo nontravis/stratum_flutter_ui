@@ -4,15 +4,38 @@ import 'package:stratum_ui/src/themes/system/system_style_resolver.dart'
     show SystemStyleRoot;
 import 'package:stratum_ui_test_app/fixture_app.dart';
 
+import '../one_actionable_node.dart';
+
 /// The pages and styles of `system_style_device_test.dart:28-95` hosted as
 /// one fixture, opened by button; M3-T19 reads them through Appium.
 void main() {
+  testWidgets('each open button is one node with its label, role, and tap', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _open(tester);
+
+    for (final label in [
+      'Open dark header',
+      'Open white page',
+      'Open dark status bar',
+      'Open video',
+    ]) {
+      expectOneActionableNode(
+        tester,
+        find.bySemanticsLabel(label),
+        label: label,
+      );
+    }
+    handle.dispose();
+  });
+
   testWidgets('dark_header: the page turns the status bar icons light', (
     tester,
   ) async {
     final calls = await _open(tester);
 
-    await tester.tap(_id('system_style.open_dark_header'));
+    await tester.tap(find.text('Open dark header'));
     await tester.pumpAndSettle();
 
     expect(find.text('Dark header'), findsOneWidget);
@@ -22,7 +45,7 @@ void main() {
   testWidgets('white_page: the page turns the icons dark', (tester) async {
     final calls = await _open(tester);
 
-    await tester.tap(_id('system_style.open_white_page'));
+    await tester.tap(find.text('Open white page'));
     await tester.pumpAndSettle();
 
     expect(find.text('White page'), findsOneWidget);
@@ -34,7 +57,7 @@ void main() {
     (tester) async {
       final calls = await _open(tester);
 
-      await tester.tap(_id('system_style.open_dark_statusbar'));
+      await tester.tap(find.text('Open dark status bar'));
       await tester.pumpAndSettle();
 
       expect(find.text('Dark status bar'), findsOneWidget);
@@ -51,7 +74,7 @@ void main() {
     (tester) async {
       final calls = await _open(tester);
 
-      await tester.tap(_id('system_style.open_video'));
+      await tester.tap(find.text('Open video'));
       await tester.pumpAndSettle(const Duration(seconds: 1));
 
       expect(find.text('Video'), findsOneWidget);
@@ -88,7 +111,7 @@ void main() {
     'back from video restores the app-wide edge-to-edge bars and label',
     (tester) async {
       final calls = await _open(tester);
-      await tester.tap(_id('system_style.open_video'));
+      await tester.tap(find.text('Open video'));
       await tester.pumpAndSettle(const Duration(seconds: 1));
 
       // The OS back button, as the e2e leg presses it; the pages carry
@@ -96,7 +119,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle(const Duration(seconds: 1));
 
-      expect(_id('system_style.open_dark_header'), findsOneWidget);
+      expect(find.text('Open dark header'), findsOneWidget);
       expect(
         argumentsOf(
           calls,
@@ -107,8 +130,6 @@ void main() {
     },
   );
 }
-
-Finder _id(String identifier) => find.bySemanticsIdentifier(identifier);
 
 /// Paints the bar color strips the theme application's root holds, as the
 /// `paints` matcher's subject, so the child's own draws stay out of the

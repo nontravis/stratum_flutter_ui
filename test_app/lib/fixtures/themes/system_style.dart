@@ -20,15 +20,19 @@ const systemStyleFixtureDarkBarColor = Color(0xFF101828);
 /// (`system_style_device_test.dart:117`).
 const systemStyleFixtureDarkHeaderColor = Color(0xFF101828);
 
+const _openDarkHeader = 'Open dark header';
+const _openWhitePage = 'Open white page';
+const _openDarkStatusBar = 'Open dark status bar';
+const _openVideo = 'Open video';
+
 /// The system-style fixture: the pages and styles of
 /// `system_style_device_test.dart:28-95`, hosted for the M3-T19 Appium
 /// legs.
 ///
-/// Buttons `Open dark header` (id `system_style.open_dark_header`),
-/// `Open white page` (id `system_style.open_white_page`), `Open dark
-/// status bar` (id `system_style.open_dark_statusbar`), and `Open video`
-/// (id `system_style.open_video`) each push their page onto the
-/// navigator; the menu page holds [systemStyleFixtureAppWide] in a scope,
+/// Buttons `Open dark header`, `Open white page`, `Open dark status bar`, and
+/// `Open video` each push their page onto the navigator. They carry no id: a
+/// semantics identifier would split a button's label and role from its tap
+/// onto two nodes, so a test finds each by its label. The menu page holds [systemStyleFixtureAppWide] in a scope,
 /// so back from a page restores the app-wide bars, rotation, and label
 /// with no restore code.
 class SystemStyleFixture extends StatelessWidget {
@@ -41,34 +45,30 @@ class SystemStyleFixture extends StatelessWidget {
       child: ColumnLayout(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (final entry in const [
-            ('system_style.open_dark_header', 'Open dark header'),
-            ('system_style.open_white_page', 'Open white page'),
-            ('system_style.open_dark_statusbar', 'Open dark status bar'),
-            ('system_style.open_video', 'Open video'),
+          for (final label in const [
+            _openDarkHeader,
+            _openWhitePage,
+            _openDarkStatusBar,
+            _openVideo,
           ])
-            Semantics(
-              identifier: entry.$1,
-              button: true,
-              child: FilledButton(
-                onPressed: () => _open(context, entry.$1),
-                child: Text(entry.$2),
-              ),
+            FilledButton(
+              onPressed: () => _open(context, label),
+              child: Text(label),
             ),
         ],
       ),
     );
   }
 
-  void _open(BuildContext context, String id) {
+  void _open(BuildContext context, String label) {
     Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (context) => _page(id)));
+        .push(MaterialPageRoute<void>(builder: (context) => _page(label)));
   }
 
-  static Widget _page(String id) => switch (id) {
-    'system_style.open_dark_header' => _headerPage(),
-    'system_style.open_white_page' => const _WhitePage(),
-    'system_style.open_dark_statusbar' => _statusBarPage(),
+  static Widget _page(String label) => switch (label) {
+    _openDarkHeader => _headerPage(),
+    _openWhitePage => const _WhitePage(),
+    _openDarkStatusBar => _statusBarPage(),
     _ => const _VideoPage(),
   };
 }

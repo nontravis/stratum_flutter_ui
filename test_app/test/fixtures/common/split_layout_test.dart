@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart' show StratumThemeController;
 import 'package:stratum_ui_test_app/fixture_app.dart';
 
+import '../one_actionable_node.dart';
+
 const _fixtureId = 'common/split_layout';
 const _listId = 'split.list_pane';
 const _detailId = 'split.detail_pane';
@@ -20,6 +22,20 @@ Future<void> _openFixture(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('the divider is one node with its label, role, and adjust '
+      'actions', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _openFixture(tester);
+
+    expectOneActionableNode(
+      tester,
+      find.bySemanticsLabel('Resize panes'),
+      label: 'Resize panes',
+      slider: true,
+    );
+    handle.dispose();
+  });
+
   testWidgets('has the list and detail pane ids', (tester) async {
     await _openFixture(tester);
 

@@ -25,11 +25,11 @@ const _landPoll = Duration(milliseconds: 200);
 /// Restart fixture for the left pane width a `PageLayout` remembers.
 ///
 /// A left pane (id `page_layout.left_pane`) that stays inline on every window
-/// size, and these controls above it: button `Set left width to 300` (id
-/// `page_layout.set_400`) sets [pageLayoutFixtureStoredLeftWidth] through the
-/// page's own controller;
-/// button `Reset settings` (id `page_layout.reset`) resets the Stratum
-/// settings. Text `stored left width: <n|none>` (id `page_layout.stored`)
+/// size, and these controls above it: button `Set left width to 300` sets
+/// [pageLayoutFixtureStoredLeftWidth] through the page's own controller;
+/// button `Reset settings` resets the Stratum settings. The buttons carry no
+/// id: a semantics identifier would split a button's label and role from its
+/// tap onto two nodes, so a test finds each by its label. Text `stored left width: <n|none>` (id `page_layout.stored`)
 /// reads a fresh store once the change has landed; text
 /// `first frame left width: <n>` (id `page_layout.first_frame_width`) is the
 /// left pane's logical width on its first frame.
@@ -97,23 +97,15 @@ class _PageLayoutFixtureState extends State<PageLayoutFixture> {
         header: ColumnLayout(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Semantics(
-              identifier: 'page_layout.set_400',
-              button: true,
-              child: FilledButton(
-                onPressed: _setLeftWidth,
-                child: Text(
-                  'Set left width to ${_format(pageLayoutFixtureStoredLeftWidth)}',
-                ),
+            FilledButton(
+              onPressed: _setLeftWidth,
+              child: Text(
+                'Set left width to ${_format(pageLayoutFixtureStoredLeftWidth)}',
               ),
             ),
-            Semantics(
-              identifier: 'page_layout.reset',
-              button: true,
-              child: FilledButton(
-                onPressed: _resetSettings,
-                child: const Text('Reset settings'),
-              ),
+            FilledButton(
+              onPressed: _resetSettings,
+              child: const Text('Reset settings'),
             ),
             Semantics(
               identifier: 'page_layout.stored',

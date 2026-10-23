@@ -30,20 +30,28 @@ def by_id(driver: Any, platform: str, identifier: str) -> Any:
     )
 
 
-def by_label(driver: Any, platform: str, label: str) -> Any:
-    """Find the node whose accessibility label contains [label].
+def by_label(driver: Any, platform: str, label: str, *, exact: bool = False) -> Any:
+    """Find the node whose accessibility label contains [label], or equals it when [exact].
 
-    For a node with no semantics identifier. Android matches `content-desc` through a
-    UiSelector `descriptionContains`, since Flutter merges a node's value into its label
-    (`30%, Resize panes`). Raises ValueError for any other platform, or for a label
-    holding a quote or backslash.
+    For a node with no semantics identifier: Flutter splits a node that carries one, so an
+    actionable node (a button, a row, a slider) is found by its label. Android matches
+    `content-desc` through a UiSelector `descriptionContains`, or `description` when
+    [exact], since Flutter merges a node's value into its label (`30%, Resize panes`).
+    iOS matches `label` through a predicate `CONTAINS`, or `==` when [exact]; Flutter
+    keeps a value apart from the label there (`Resize panes`, value `30%`). Use [exact]
+    when another node's label contains this one (`Item 3` inside `Log: Item 3 moved`).
+    Raises ValueError for any other platform, or for a label holding a quote or backslash.
     """
-    if platform != "android":
+    if platform not in ("android", "ios"):
         raise ValueError(f"by_label does not support platform {platform!r} yet")
     if any(char in label for char in _FORBIDDEN_IN_SELECTOR):
         raise ValueError(f"label {label!r} holds a quote or backslash")
+    if platform == "ios":
+        operator = "==" if exact else "CONTAINS"
+        return driver.find_element(AppiumBy.IOS_PREDICATE, f'label {operator} "{label}"')
+    method = "description" if exact else "descriptionContains"
     return driver.find_element(
-        AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().descriptionContains("{label}")'
+        AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().{method}("{label}")'
     )
 
 

@@ -5,8 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart' show StratumThemeController;
 import 'package:stratum_ui_test_app/fixture_app.dart';
 
+import '../one_actionable_node.dart';
+
 const _fixtureId = 'common/ink_well';
-const _buttonId = 'ink_well.button';
 const _logId = 'ink_well.log';
 
 Future<void> _openFixture(WidgetTester tester) async {
@@ -22,33 +23,32 @@ Future<void> _openFixture(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('has the button and a nothing-yet log', (tester) async {
-    await _openFixture(tester);
-
-    expect(find.bySemanticsIdentifier(_buttonId), findsOneWidget);
-    expect(find.bySemanticsIdentifier(_logId), findsOneWidget);
-    expect(find.text('Log: nothing yet.'), findsOneWidget);
-  });
-
-  testWidgets('the id node is tappable under the button node with the menu '
+  testWidgets('the button is one node with its label, role, tap, and menu '
       'action', (tester) async {
     final handle = tester.ensureSemantics();
     await _openFixture(tester);
 
-    final node = tester.getSemantics(find.bySemanticsIdentifier(_buttonId));
-    final button = node.parent!.getSemanticsData();
-
-    expect(node.identifier, _buttonId);
-    expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
-    expect(button.flagsCollection.isButton, isTrue);
-    expect(button.customSemanticsActionIds, hasLength(1));
+    expectOneActionableNode(
+      tester,
+      find.bySemanticsLabel('Menu target'),
+      label: 'Menu target',
+      customActions: 1,
+    );
     handle.dispose();
+  });
+
+  testWidgets('has the button and a nothing-yet log', (tester) async {
+    await _openFixture(tester);
+
+    expect(find.text('Menu target'), findsOneWidget);
+    expect(find.bySemanticsIdentifier(_logId), findsOneWidget);
+    expect(find.text('Log: nothing yet.'), findsOneWidget);
   });
 
   testWidgets('a tap logs the tap', (tester) async {
     await _openFixture(tester);
 
-    await tester.tap(find.bySemanticsIdentifier(_buttonId));
+    await tester.tap(find.text('Menu target'));
     await tester.pump();
 
     expect(find.text('Log: tapped'), findsOneWidget);
@@ -71,9 +71,7 @@ void main() {
     final handle = tester.ensureSemantics();
     await _openFixture(tester);
 
-    final button = tester
-        .getSemantics(find.bySemanticsIdentifier(_buttonId))
-        .parent!;
+    final button = tester.getSemantics(find.bySemanticsLabel('Menu target'));
     final actionId = button.getSemanticsData().customSemanticsActionIds!.single;
     button.owner!.performAction(
       button.id,

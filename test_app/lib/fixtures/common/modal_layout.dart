@@ -9,13 +9,14 @@ const _chooseB = 'Choose B';
 /// Modal fixture for the page-behind block and the result of a
 /// `ModalLayout` shown by `showModalLayout` (FO-06 US-20 FR-02 E03, E04).
 ///
-/// A page with button `Page control` (id `modal_layout.page_button`) that
-/// counts in text `page taps: <n>` (id `modal_layout.page_taps`), button
-/// `Open modal` (id `modal_layout.open`), and text `result: none`, then
-/// `result: <value>` or `result: dismissed` once the modal closes (id
-/// `modal_layout.result`). The open modal holds buttons `Choose A` (id
-/// `modal_layout.choose_a`) and `Choose B` (id `modal_layout.choose_b`),
-/// each closing it with its own text, and the built-in close button.
+/// A page with button `Page control` that counts in text `page taps: <n>`
+/// (id `modal_layout.page_taps`), button `Open modal`, and text `result: none`,
+/// then `result: <value>` or `result: dismissed` once the modal closes (id
+/// `modal_layout.result`). The open modal holds buttons `Choose A` and
+/// `Choose B`, each closing it with its own text, and the built-in close
+/// button. The buttons carry no id: a semantics identifier would split a
+/// button's label and role from its tap onto two nodes, so a test finds each
+/// by its label, one node with both.
 class ModalLayoutFixture extends StatefulWidget {
   const ModalLayoutFixture({super.key});
 
@@ -38,12 +39,12 @@ class _ModalLayoutFixtureState extends State<ModalLayoutFixture> {
     return ColumnLayout(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _button('modal_layout.page_button', 'Page control', _tapPage),
+        FilledButton(onPressed: _tapPage, child: const Text('Page control')),
         Semantics(
           identifier: 'modal_layout.page_taps',
           child: Text('page taps: $_pageTaps'),
         ),
-        _button('modal_layout.open', 'Open modal', _openModal),
+        FilledButton(onPressed: _openModal, child: const Text('Open modal')),
         Semantics(
           identifier: 'modal_layout.result',
           child: Text('result: ${_result ?? 'none'}'),
@@ -62,15 +63,13 @@ class _ModalLayoutFixtureState extends State<ModalLayoutFixture> {
       builder: (modalContext) => ModalLayout(
         body: ColumnLayout(
           children: [
-            _button(
-              'modal_layout.choose_a',
-              _chooseA,
-              () => Navigator.of(modalContext).pop(_chooseA),
+            FilledButton(
+              onPressed: () => Navigator.of(modalContext).pop(_chooseA),
+              child: const Text(_chooseA),
             ),
-            _button(
-              'modal_layout.choose_b',
-              _chooseB,
-              () => Navigator.of(modalContext).pop(_chooseB),
+            FilledButton(
+              onPressed: () => Navigator.of(modalContext).pop(_chooseB),
+              child: const Text(_chooseB),
             ),
           ],
         ),
@@ -78,13 +77,5 @@ class _ModalLayoutFixtureState extends State<ModalLayoutFixture> {
     );
     if (!mounted) return;
     setState(() => _result = value ?? 'dismissed');
-  }
-
-  Widget _button(String id, String label, VoidCallback onPressed) {
-    return Semantics(
-      identifier: id,
-      button: true,
-      child: FilledButton(onPressed: onPressed, child: Text(label)),
-    );
   }
 }

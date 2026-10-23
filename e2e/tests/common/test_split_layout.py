@@ -1,8 +1,10 @@
-"""Split divider on Android: the OS exposes a slider at "30%", TalkBack speaks it and adjusts it.
+"""Split divider: the OS exposes a slider at "30%", the screen reader speaks it (TalkBack adjusts it).
 
 Drives the `common/split_layout` fixture (FO-06 US-21 FR-04). The divider has no semantics
-identifier, so every step finds it by its label "Resize panes"; Flutter merges the value in
-front of the label, so the node reads "30%, Resize panes".
+identifier, so every step finds it by its label "Resize panes"; Android merges the value in
+front of the label, so the node reads "30%, Resize panes", while iOS keeps the label
+"Resize panes" and the value "30%" apart. Appium cannot swipe VoiceOver's adjustable (a touch
+does not reach the app while VoiceOver is on), so iOS level 2 reads order and speech only.
 """
 
 from __future__ import annotations
@@ -16,6 +18,9 @@ from selenium.common.exceptions import WebDriverException
 from stratum_e2e.android import screen_reader
 from stratum_e2e.android.talkback import TalkBackLog
 from stratum_e2e.fixtures import open_fixture
+from stratum_e2e.ios import tree as ios_tree
+from stratum_e2e.ios.focus_order import focus_order, matches_order
+from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.locate import by_id, by_label
 from stratum_e2e.waits import wait_until
 
@@ -26,6 +31,14 @@ DIVIDER_LABEL = "Resize panes"
 START_PERCENT = 30
 SLIDER_ROLE = "Slider"
 ANDROID_SLIDER_CLASS = "android.widget.SeekBar"
+IOS_ADJUSTABLE_TRAIT = "Adjustable"
+# What VoiceOver speaks in turn: the list pane, the divider with its value, role and hint
+# (VoiceOver cuts an utterance at 64 characters), then the detail pane, the last stop.
+IOS_FOCUS_ORDER = [
+    "List",
+    f"{DIVIDER_LABEL} {START_PERCENT}% adjustable Swipe up or down with one finger to adjust the value",
+    "Detail",
+]
 WAIT_TIMEOUT_S = 10
 
 _DIVIDER_DESC = re.compile(r"(\d+)%, Resize panes")
@@ -35,10 +48,18 @@ def _divider(driver: Any, platform: str) -> Any:
     return by_label(driver, platform, DIVIDER_LABEL)
 
 
+def _divider_desc(driver: Any, platform: str) -> str:
+    """The divider's spoken value and label as `<percent>%, Resize panes`, whichever the platform splits."""
+    divider = _divider(driver, platform)
+    if platform == "ios":
+        return f"{divider.get_attribute('value')}, {divider.get_attribute('label')}"
+    return str(divider.get_attribute("content-desc"))
+
+
 def _percent(driver: Any, platform: str) -> int | None:
     """The divider's percent, or None while the node is absent or reads no percent."""
     try:
-        match = _DIVIDER_DESC.fullmatch(str(_divider(driver, platform).get_attribute("content-desc")))
+        match = _DIVIDER_DESC.fullmatch(_divider_desc(driver, platform))
     except WebDriverException:
         return None
     return int(match.group(1)) if match else None
@@ -148,3 +169,41 @@ def test_talkback_increase_and_decrease_move_the_divider_and_speak_the_new_perce
         f"TalkBack to speak {decreased}%",
         timeout_s=WAIT_TIMEOUT_S,
     )
+
+
+@pytest.mark.ios
+@pytest.mark.level1
+@pytest.mark.req("fo06/us21/fr04/e01")
+def test_ios_tree_exposes_the_divider_as_an_enabled_adjustable_between_the_panes(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    source = driver.page_source
+    divider = ios_tree.find(source, DIVIDER_LABEL)
+    list_pane = ios_tree.find(source, LIST_PANE_ID)
+    detail_pane = ios_tree.find(source, DETAIL_PANE_ID)
+
+    assert divider is not None and list_pane is not None and detail_pane is not None
+    assert IOS_ADJUSTABLE_TRAIT in divider.traits
+    assert divider.label == DIVIDER_LABEL
+    assert divider.value == f"{START_PERCENT}%"
+    assert divider.enabled and divider.accessible
+    list_right = list_pane.x + list_pane.width
+    divider_centre = divider.x + divider.width // 2
+    assert abs(divider_centre - list_right) <= divider.width
+    assert list_pane.x < divider.x <= detail_pane.x
+
+
+@pytest.mark.ios
+@pytest.mark.level2
+@pytest.mark.req("fo06/us21/fr04/e01")
+def test_voiceover_reads_the_list_the_divider_label_slider_and_percent_then_the_detail(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    with VoiceOver(driver) as voiceover:
+        order = focus_order(driver, voiceover)
+
+    assert matches_order(order, IOS_FOCUS_ORDER), order

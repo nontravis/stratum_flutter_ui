@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:stratum_ui_test_app/fixtures/common/page_layout.dart';
 
+import '../one_actionable_node.dart';
+
 /// The storage key of the left pane width: the device box, namespace
 /// `stratum.page_layout`, global part, value `left_width`.
 const _storedLeftWidthKey = 'stratum/d/stratum.page_layout/g/left_width';
@@ -45,6 +47,22 @@ Future<void> _open(
 Finder _id(String identifier) => find.bySemanticsIdentifier(identifier);
 
 void main() {
+  testWidgets('each control is one node with its label, role, and tap', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _open(tester, store: StratumMemorySettingStore());
+
+    for (final label in ['Set left width to 300', 'Reset settings']) {
+      expectOneActionableNode(
+        tester,
+        find.bySemanticsLabel(label),
+        label: label,
+      );
+    }
+    handle.dispose();
+  });
+
   testWidgets('a fresh pump shows the default width on the first frame', (
     tester,
   ) async {
@@ -55,32 +73,36 @@ void main() {
     expect(tester.getSize(_id('page_layout.left_pane')).width, 260);
   });
 
-  testWidgets('set_400 makes the pane the stored width and reports it', (
-    tester,
-  ) async {
-    final store = StratumMemorySettingStore();
-    await _open(tester, store: store);
+  testWidgets(
+    'the set-width button makes the pane the stored width and reports it',
+    (tester) async {
+      final store = StratumMemorySettingStore();
+      await _open(tester, store: store);
 
-    await tester.tap(_id('page_layout.set_400'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Set left width to 300'));
+      await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(_id('page_layout.left_pane')).width,
-      pageLayoutFixtureStoredLeftWidth,
-    );
-    expect(store.values[_storedLeftWidthKey], pageLayoutFixtureStoredLeftWidth);
-    expect(find.text('stored left width: 300'), findsOneWidget);
-    // The first frame keeps the width the page opened with.
-    expect(find.text('first frame left width: 260'), findsOneWidget);
-  });
+      expect(
+        tester.getSize(_id('page_layout.left_pane')).width,
+        pageLayoutFixtureStoredLeftWidth,
+      );
+      expect(
+        store.values[_storedLeftWidthKey],
+        pageLayoutFixtureStoredLeftWidth,
+      );
+      expect(find.text('stored left width: 300'), findsOneWidget);
+      // The first frame keeps the width the page opened with.
+      expect(find.text('first frame left width: 260'), findsOneWidget);
+    },
+  );
 
   testWidgets('reset clears the stored width', (tester) async {
     final store = StratumMemorySettingStore();
     await _open(tester, store: store);
-    await tester.tap(_id('page_layout.set_400'));
+    await tester.tap(find.text('Set left width to 300'));
     await tester.pumpAndSettle();
 
-    await tester.tap(_id('page_layout.reset'));
+    await tester.tap(find.text('Reset settings'));
     await tester.pumpAndSettle();
 
     expect(store.values.containsKey(_storedLeftWidthKey), isFalse);
@@ -122,7 +144,7 @@ void main() {
 
       expect(find.text('first frame left width: 260'), findsOneWidget);
 
-      await tester.tap(_id('page_layout.set_400'));
+      await tester.tap(find.text('Set left width to 300'));
       await tester.pumpAndSettle();
 
       expect(

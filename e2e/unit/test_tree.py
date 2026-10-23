@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from stratum_e2e.android.tree import key_focused, labels_with, parent_attributes, resource_ids
+from stratum_e2e.android.tree import key_focused, labels, labels_with, parent_attributes, resource_ids
 
 PAGE = """<hierarchy>
   <node resource-id="" content-desc="" text="" focused="true"/>
@@ -62,3 +62,7 @@ def test_labels_with_reads_the_attribute_it_is_given() -> None:
     assert labels_with(page, "a11y-focused") == ["Item 2"]
     assert labels_with(page, "focused") == ["Item 3"]
     assert labels_with(page, "absent") == []
+
+
+def test_labels_list_every_labeled_node_in_tree_order() -> None:
+    assert labels(PAGE) == ["Choose A", "Close", "Log: menu", "Choose A"]

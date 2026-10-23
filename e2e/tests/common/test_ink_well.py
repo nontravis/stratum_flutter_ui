@@ -1,8 +1,11 @@
-"""Shortcut-bearing button on Android: the menu key and TalkBack's `Show menu` action run the secondary tap.
+"""Shortcut-bearing button: the menu key and the screen reader's action run the secondary tap.
 
-Drives the `common/ink_well` fixture (FO-06 US-05 FR-01). The button's id sits on the
-focusable child node; the button role and the custom action sit on its parent, so level 2
-checks that TalkBack offers the action on the node it actually focuses.
+Drives the `common/ink_well` fixture (FO-06 US-05 FR-01). The button carries no id (an id
+would split its role and action from its label onto two nodes), so every step finds it by its
+label `Menu target`: one node with the label, the button role, the tap and the `Show menu`
+action. Level 2 checks that the screen reader offers the action on the node it focuses; on
+iOS that is the stop that speaks the button's name. Appium cannot run a VoiceOver action
+(a tap does not reach the app while VoiceOver is on), so iOS level 2 reads speech only.
 """
 
 from __future__ import annotations
@@ -15,14 +18,16 @@ from selenium.common.exceptions import WebDriverException
 from stratum_e2e.android.keyboard_focus import tab_to_first_label
 from stratum_e2e.android.screen_reader import focus_by_touch, run_action
 from stratum_e2e.android.talkback import TalkBackLog
-from stratum_e2e.android.tree import key_focused, parent_attributes
+from stratum_e2e.android.tree import key_focused
 from stratum_e2e.android.uhid_keyboard import KEY_MENU, KEY_TAB, UhidKeyboard
 from stratum_e2e.fixtures import open_fixture
-from stratum_e2e.locate import by_id
+from stratum_e2e.ios import tree as ios_tree
+from stratum_e2e.ios.focus_order import focus_order
+from stratum_e2e.ios.voiceover import VoiceOver, matches_prefix
+from stratum_e2e.locate import by_id, by_label, label_of
 from stratum_e2e.waits import wait_until
 
 FIXTURE_ID = "common/ink_well"
-BUTTON_ID = "ink_well.button"
 LOG_ID = "ink_well.log"
 BUTTON_LABEL = "Menu target"
 LOG_NOTHING = "Log: nothing yet."
@@ -31,17 +36,18 @@ MENU_ACTION = "Show menu"
 WAIT_TIMEOUT_S = 10
 
 ANDROID_BUTTON_CLASS = "android.widget.Button"
+ACTIONS_HINT = "Actions available"
 
 
-def _log(driver: Any) -> str:
-    return str(by_id(driver, "android", LOG_ID).get_attribute("content-desc"))
+def _log(driver: Any, platform: str) -> str:
+    return label_of(by_id(driver, platform, LOG_ID), platform)
 
 
 def _open(driver: Any, platform: str, app_id: str) -> None:
     """Cold-start the fixture and wait until the button and the untouched log are on screen."""
     open_fixture(driver, platform, app_id, FIXTURE_ID)
     wait_until(
-        lambda: _log(driver) == LOG_NOTHING,
+        lambda: _log(driver, platform) == LOG_NOTHING,
         f"the log to read {LOG_NOTHING!r}",
         timeout_s=WAIT_TIMEOUT_S,
         catch=(WebDriverException,),
@@ -51,19 +57,18 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
 @pytest.mark.android
 @pytest.mark.level1
 @pytest.mark.req("fo06/us05/fr01")
-def test_os_tree_exposes_a_focusable_enabled_button_under_a_button_node(
+def test_os_tree_exposes_one_focusable_enabled_button_node_with_the_label(
     driver: Any, platform: str, app_id: str
 ) -> None:
     _open(driver, platform, app_id)
 
-    node = by_id(driver, platform, BUTTON_ID)
-    parent = parent_attributes(driver.page_source, BUTTON_ID)
+    node = by_label(driver, platform, BUTTON_LABEL)
 
     assert node.get_attribute("content-desc") == BUTTON_LABEL
+    assert node.get_attribute("class") == ANDROID_BUTTON_CLASS
     assert node.get_attribute("enabled") == "true"
     assert node.get_attribute("focusable") == "true"
     assert node.get_attribute("clickable") == "true"
-    assert parent is not None and parent["class"] == ANDROID_BUTTON_CLASS
 
 
 @pytest.mark.android
@@ -80,7 +85,7 @@ def test_os_tree_marks_the_button_focused_after_tab_and_the_menu_key_runs_the_se
 
     keyboard.press(KEY_MENU)
     wait_until(
-        lambda: _log(driver) == LOG_MENU,
+        lambda: _log(driver, platform) == LOG_MENU,
         f"the log to read {LOG_MENU!r}",
         timeout_s=WAIT_TIMEOUT_S,
     )
@@ -96,18 +101,50 @@ def test_talkback_speaks_the_button_and_offers_show_menu_on_the_node_it_focuses(
     _open(driver, platform, app_id)
 
     talkback.mark()
-    focus_by_touch(driver, by_id(driver, platform, BUTTON_ID), BUTTON_LABEL)
+    focus_by_touch(driver, by_label(driver, platform, BUTTON_LABEL), BUTTON_LABEL)
     wait_until(
         lambda: any(text.startswith(BUTTON_LABEL) for text in talkback.since_mark()),
         f"TalkBack to speak {BUTTON_LABEL}",
         timeout_s=WAIT_TIMEOUT_S,
     )
-    assert _log(driver) == LOG_NOTHING
+    assert _log(driver, platform) == LOG_NOTHING
 
     run_action(keyboard, talkback, MENU_ACTION)
 
     wait_until(
-        lambda: _log(driver) == LOG_MENU,
+        lambda: _log(driver, platform) == LOG_MENU,
         f"the log to read {LOG_MENU!r} after {MENU_ACTION!r}",
         timeout_s=WAIT_TIMEOUT_S,
     )
+
+
+@pytest.mark.ios
+@pytest.mark.level1
+@pytest.mark.req("fo06/us05/fr01")
+def test_ios_tree_exposes_one_enabled_button_node_with_the_label(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    nodes = [node for node in ios_tree.nodes(driver.page_source) if node.label == BUTTON_LABEL]
+
+    assert len(nodes) == 1, nodes
+    assert nodes[0].kind == "Button"
+    assert nodes[0].enabled and nodes[0].accessible
+    assert "Button" in nodes[0].traits
+
+
+@pytest.mark.ios
+@pytest.mark.level2
+@pytest.mark.req("fo06/us05/fr01")
+def test_voiceover_speaks_the_button_name_and_offers_its_actions_at_one_stop(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    with VoiceOver(driver) as voiceover:
+        order = focus_order(driver, voiceover)
+
+    assert any(
+        matches_prefix(stop, f"{BUTTON_LABEL} Button {ACTIONS_HINT}") for stop in order
+    ), order
