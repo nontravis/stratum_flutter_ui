@@ -207,8 +207,28 @@ def test_reused_target_is_recorded(tmp_path: Path) -> None:
     rec = Recorder()
     rec.target("pixel_8", "android", "emulator-5556", reused=True)
     data = json.loads((_write(tmp_path, rec).path / "summary.json").read_text(encoding="utf-8"))
-    assert data["targets"] == [{"name": "pixel_8", "platform": "android", "device": "emulator-5556", "reused": True}]
+    assert data["targets"] == [
+        {"name": "pixel_8", "platform": "android", "device": "emulator-5556", "reused": True, "setting_failures": []}
+    ]
     assert data["targets"][0]["reused"] is True
+
+
+def test_setting_failures_reach_both_summaries(tmp_path: Path) -> None:
+    rec = Recorder()
+    rec.target("pixel_8", "android", "emulator-5556", reused=False)
+    failures = [
+        "global window_animation_scale 0 (status 255: denied)",
+        "secure show_ime_with_hard_keyboard 1 (status 1: )",
+    ]
+    rec.target("pixel_8", "android", "emulator-5556", reused=False, setting_failures=failures)
+    rec.target("mac", "macos", "mac", reused=False)
+    made = _write(tmp_path, rec)
+    data = json.loads((made.path / "summary.json").read_text(encoding="utf-8"))
+    assert [t["setting_failures"] for t in data["targets"]] == [failures, []]
+    text = (made.path / "summary.md").read_text(encoding="utf-8")
+    assert f"- boot setting on `pixel_8` failed: {failures[0]}" in text
+    assert f"- boot setting on `pixel_8` failed: {failures[1]}" in text
+    assert "`mac` failed" not in text
 
 
 def test_targets_keep_round_order_and_a_second_call_updates_in_place(tmp_path: Path) -> None:

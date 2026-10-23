@@ -2,11 +2,12 @@
 
 The tests/-only skip hook lives in ``tests/conftest.py`` so ``unit/`` runs under
 any ``--platform``; this root conftest only adds the CLI options and the
-session-scoped Appium server fixture.
+session's Appium server fixture.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Iterator
 
 import pytest
@@ -48,16 +49,28 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 @pytest.fixture(scope="session")
-def appium_server() -> Iterator[AppiumServer]:
-    """Start one Appium server for the session; always stopped afterwards."""
-    server = AppiumServer(
-        appium_bin=APPIUM_BIN,
-        appium_home=APPIUM_HOME,
-        port=free_port(),
-        android_home=default_android_home(),
-    )
-    server.start()
+def appium_server() -> Iterator[Callable[[], AppiumServer]]:
+    """Return the getter of the session's Appium server; every server it started stops at session end.
+
+    The getter starts the server on its first call and again after a failed start, which raises
+    AppiumStartError (or OSError) and is not kept, so a device round's re-run of an item retries it.
+    """
+    started: list[AppiumServer] = []
+
+    def get() -> AppiumServer:
+        if not started:
+            server = AppiumServer(
+                appium_bin=APPIUM_BIN,
+                appium_home=APPIUM_HOME,
+                port=free_port(),
+                android_home=default_android_home(),
+            )
+            server.start()
+            started.append(server)
+        return started[0]
+
     try:
-        yield server
+        yield get
     finally:
-        server.stop()
+        for server in started:
+            server.stop()

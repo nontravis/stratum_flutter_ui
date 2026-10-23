@@ -189,6 +189,7 @@ class _RoundState:
 _STATE_KEY: Final = pytest.StashKey[_RoundState]()
 _SIGTERM_KEY: Final = pytest.StashKey[_Handler]()
 _SINCE_KEY: Final = pytest.StashKey[datetime]()
+_STOPPED_KEY: Final = pytest.StashKey[bool]()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -290,9 +291,13 @@ def round_target(request: pytest.FixtureRequest) -> Iterator[RoundTarget | None]
         raise
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def round_app(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> Path:
-    """The app under test: `--app` when given, else the e2e app build of the target's platform, built once per round."""
+    """The app under test: `--app` when given, else the e2e app build of the target's platform, built once per round.
+
+    Function-scoped, so pytest never keeps a failed build: the round keeps each finished build, and the re-run of an
+    item whose build failed builds again (C9).
+    """
     if round_target is None:
         app = request.config.getoption("app", None)
         if app is None:
@@ -398,6 +403,7 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     if state is None or target is None or _is_integration(item):
         return
     if state.ledger.blocked(target.name):
+        item.stash[_STOPPED_KEY] = True
         raise RoundEnvError(_BLOCKED)
 
 
@@ -429,8 +435,8 @@ def pytest_runtest_protocol(item: pytest.Item, nextitem: pytest.Item | None) -> 
 def pytest_runtest_makereport(
     item: pytest.Item, call: pytest.CallInfo[None]
 ) -> Generator[None, pytest.TestReport, pytest.TestReport]:
-    """Class a failed phase `env` when it raised `RoundEnvError`, else `fail`; on an e2e item, keep the device log
-    since setup began and, on failure, a screenshot."""
+    """Class a failed phase `env` when it raised `RoundEnvError`, else `fail`; on an e2e item that ran, keep the device
+    log since setup began and, on failure, a screenshot."""
     report = yield
     state = item.config.stash.get(_STATE_KEY, None)
     target = item_target(item)
@@ -445,7 +451,8 @@ def pytest_runtest_makereport(
         else:
             reason = _first_line(call.excinfo.exconly())
             report.user_properties += [(_CLASS_PROPERTY, "fail"), (_REASON_PROPERTY, reason)]
-    if not _is_integration(item) and (call.when == "call" or report.failed):
+    ran = not _is_integration(item) and not item.stash.get(_STOPPED_KEY, False)
+    if ran and (call.when == "call" or report.failed):
         _capture(state, item, target, failed=report.failed)
     return report
 
@@ -476,9 +483,10 @@ def _brought_up(state: _RoundState, backends: Backends, target: Target) -> Itera
         booter = backends.booter_for(target)
         boot_dir = round_dir.item_dir(target.name, _BOOT_DIR)
         record = _boot(state, backends, booter, target, boot_dir / "boot.log")
-        stack.callback(_keep_setting_failures, record, boot_dir)
+        # Runs after shutdown, which adds the settings that failed to restore.
+        stack.callback(_record_target, state, target, record)
         stack.callback(booter.shutdown, record)
-        state.recorder.target(target.name, target.platform, record.device_id, record.reused)
+        _record_target(state, target, record)
         if target.avd == AVD_NAME:
             _check_talkback_avd(record.device_id)
         brought_up = _resolve(state, target, record)
@@ -529,10 +537,9 @@ def _check_talkback_avd(serial: str) -> None:
         raise RoundEnvError(f"tools.e2e_avd talkback|diagnosis: {' '.join(printed.getvalue().split())}")
 
 
-def _keep_setting_failures(record: BootRecord, boot_dir: Path) -> None:
-    """Write the boot settings that failed to apply or restore beside the boot log; the Recorder has no field yet."""
-    if record.setting_failures:
-        (boot_dir / "setting_failures.txt").write_text("\n".join(record.setting_failures) + "\n", encoding="utf-8")
+def _record_target(state: _RoundState, target: Target, record: BootRecord) -> None:
+    """Record the target's device and the boot settings that failed so far (T4: they never fail the boot)."""
+    state.recorder.target(target.name, target.platform, record.device_id, record.reused, record.setting_failures)
 
 
 def _resolve(state: _RoundState, target: Target, record: BootRecord) -> RoundTarget:

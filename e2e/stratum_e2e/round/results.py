@@ -129,6 +129,7 @@ class _Target:
     platform: str
     device_id: str
     reused: bool
+    setting_failures: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -147,9 +148,14 @@ class Recorder:
         self._builds: list[_Build] = []
         self._rows: dict[str, _Row] = {}
 
-    def target(self, name: str, platform: str, device_id: str, reused: bool) -> None:
-        """Record a target; a repeat call for one name updates it and keeps its column."""
-        self._targets[name] = _Target(name, platform, device_id, reused)
+    def target(
+        self, name: str, platform: str, device_id: str, reused: bool, setting_failures: Sequence[str] = ()
+    ) -> None:
+        """Record a target and the boot settings that failed to apply or restore on it.
+
+        A repeat call for one name updates it and keeps its column.
+        """
+        self._targets[name] = _Target(name, platform, device_id, reused, tuple(setting_failures))
 
     def build(self, target: str, argv: Sequence[str], seconds: float, reused: bool) -> None:
         """Record one app build or integration run command and how long it took."""
@@ -194,8 +200,13 @@ class Recorder:
                 cell = row.cells.get(name)
                 if cell is not None and cell.cls != "pass":
                     reasons.append(_reason_line(test, name, cell))
-        if reasons:
-            lines += ["", *reasons]
+        settings = [
+            f"- boot setting on `{t.name}` failed: {failure}"
+            for t in self._targets.values()
+            for failure in t.setting_failures
+        ]
+        if reasons or settings:
+            lines += ["", *reasons, *settings]
         return "\n".join(lines) + "\n"
 
     def _data(self, stamp: str, mode: str, repeat: int, wall_seconds: float) -> dict[str, object]:
@@ -206,7 +217,13 @@ class Recorder:
             "repeat": repeat,
             "wall_seconds": wall_seconds,
             "targets": [
-                {"name": t.name, "platform": t.platform, "device": t.device_id, "reused": t.reused}
+                {
+                    "name": t.name,
+                    "platform": t.platform,
+                    "device": t.device_id,
+                    "reused": t.reused,
+                    "setting_failures": list(t.setting_failures),
+                }
                 for t in self._targets.values()
             ],
             "builds": [

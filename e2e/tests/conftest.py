@@ -8,7 +8,9 @@ Appium server, install, or session failure raises `RoundEnvError`, so the round 
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -58,8 +60,8 @@ def app_id(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> 
 
 
 @pytest.fixture(scope="session")
-def _installed() -> set[tuple[str, Path]]:
-    """The (device, app) pairs this session installed."""
+def _installed(round_target: RoundTarget | None) -> set[tuple[str, Path]]:
+    """The (device, app) pairs installed so far; per target in a round, since a later emulator can reuse a serial."""
     return set()
 
 
@@ -102,11 +104,31 @@ def _session_options(config: pytest.Config, platform: str, app_id: str, app: Pat
     return UiAutomator2Options().load_capabilities(android_capabilities(device, app_id))
 
 
+class _StaticServers:
+    """Serves each web build on its own free port from its first use until the session ends."""
+
+    def __init__(self, stack: contextlib.ExitStack) -> None:
+        self._stack = stack
+        self._servers: dict[Path, StaticServer] = {}
+
+    def serve(self, root: Path) -> StaticServer:
+        server = self._servers.get(root)
+        if server is None:
+            server = self._servers[root] = self._stack.enter_context(StaticServer(root))
+        return server
+
+
 @pytest.fixture(scope="session")
-def static_server(round_app: Path) -> Iterator[StaticServer]:
-    """Serve the web build under test on a free port, per target in a round; always stopped afterwards."""
-    with StaticServer(round_app) as server:
-        yield server
+def _static_servers() -> Iterator[_StaticServers]:
+    """The session's web build servers; always stopped afterwards."""
+    with contextlib.ExitStack() as stack:
+        yield _StaticServers(stack)
+
+
+@pytest.fixture
+def static_server(round_app: Path, _static_servers: _StaticServers) -> StaticServer:
+    """The server of the web build under test, started on first use and kept for the session."""
+    return _static_servers.serve(round_app)
 
 
 @pytest.fixture(scope="session")
@@ -151,12 +173,12 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
 
 
 def _appium_server(request: pytest.FixtureRequest) -> AppiumServer:
-    """The session's Appium server; one that never started raises `RoundEnvError`."""
+    """The session's Appium server; a start that fails raises `RoundEnvError`, and the next call starts it again."""
+    start: Callable[[], AppiumServer] = request.getfixturevalue("appium_server")
     try:
-        server: AppiumServer = request.getfixturevalue("appium_server")
+        return start()
     except (AppiumStartError, OSError) as error:
         raise RoundEnvError(f"appium server did not start: {_first_line(str(error))}") from error
-    return server
 
 
 def _first_line(text: str) -> str:

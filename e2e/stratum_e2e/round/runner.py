@@ -65,7 +65,8 @@ class SubprocessRunner:
         env: Mapping[str, str] | None = None,
         log: Path | None = None,
     ) -> Completed:
-        """Run `argv` and capture its output; on timeout kill its whole process group.
+        """Run `argv` and capture its output; on timeout kill its whole process group, and on any exception (an
+        interrupt included) kill and reap it before the exception goes on.
 
         A binary that does not exist yields status 127 with the reason on stderr, as a shell would.
         With `log`, stdout then stderr are also written to that file.
@@ -95,6 +96,13 @@ class SubprocessRunner:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             stdout, stderr = process.communicate()
+        except BaseException:
+            # A KeyboardInterrupt (a round's SIGTERM) lands here; the child runs in its own session, so no signal
+            # reaches it unless the group is ended before the interrupt goes on.
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise
 
         status = _TIMEOUT_STATUS if timed_out else process.returncode
         done = Completed(command, status, stdout or "", stderr or "", timed_out)

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -36,6 +39,42 @@ def test_subprocess_runner_timeout_sets_timed_out() -> None:
 def test_subprocess_runner_timeout_kills_the_child_group() -> None:
     done = SubprocessRunner().run(["sh", "-c", "sleep 5 & wait"], timeout_s=0.2)
     assert done.timed_out is True
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_subprocess_runner_interrupted_run_kills_and_reaps_the_child_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A KeyboardInterrupt (SIGTERM in a round) inside `communicate` ends the child and its children, then re-raises."""
+    pid_file = tmp_path / "grandchild.pid"
+    started: list[int] = []
+    real_communicate = subprocess.Popen.communicate
+
+    def interrupted(self: subprocess.Popen[str], *args: object, **kwargs: object) -> tuple[str, str]:
+        if not started:
+            started.append(self.pid)
+            deadline = time.monotonic() + 5
+            while not pid_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            raise KeyboardInterrupt
+        return real_communicate(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(subprocess.Popen, "communicate", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        SubprocessRunner().run(["sh", "-c", f"sleep 30 & echo $! > '{pid_file}'; wait"])
+    grandchild = int(pid_file.read_text().strip())
+    assert not _alive(started[0])
+    deadline = time.monotonic() + 5
+    while _alive(grandchild) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(grandchild)
 
 
 def test_subprocess_runner_writes_output_to_the_log(tmp_path: Path) -> None:

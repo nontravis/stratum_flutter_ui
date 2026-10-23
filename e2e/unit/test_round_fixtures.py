@@ -80,6 +80,7 @@ FAKE_SOURCE = r'''
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -88,6 +89,7 @@ import pytest
 import tools.e2e_avd
 from selenium.common.exceptions import WebDriverException
 
+import stratum_e2e.android.session as android_session
 import stratum_e2e.round.plugin as plugin
 from stratum_e2e.appium_server import AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
@@ -134,6 +136,8 @@ class FakeRunner:
             stdout = "64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms\n"
         elif call[:2] == ("dart", "run"):
             status = SCENARIO.get("perf_status", 0)
+        elif call[0] == "screencapture":
+            Path(call[-1]).write_bytes(b"png")
         if log is not None:
             Path(log).parent.mkdir(parents=True, exist_ok=True)
             Path(log).write_text(stdout, encoding="utf-8")
@@ -160,6 +164,7 @@ class FakeBooter:
             self._failures[target.name] = left - 1
             raise RoundEnvError("emulator never ready")
         device = target.name if target.platform in HOST_PLATFORMS else f"dev-{target.name}"
+        device = SCENARIO.get("devices", {}).get(target.name, device)
         return BootRecord(target.name, target.platform, device, reused=self.is_running(target))
 
     def before_file(self, record):
@@ -167,10 +172,17 @@ class FakeBooter:
 
     def shutdown(self, record):
         event(f"shutdown {record.target}")
+        record.setting_failures.extend(SCENARIO.get("setting_failures", {}).get(record.target, []))
+
+
+_build_failures = dict(SCENARIO.get("build_fail", {}))
 
 
 def build(app_dir, package_root, platform, wasm, runner, log):
     event(f"build {platform}")
+    if _build_failures.get(platform, 0):
+        _build_failures[platform] -= 1
+        raise RoundEnvError("flutter build failed (exit 1): Gradle daemon died")
     return AppBuild(path=ROOT / f"app-{platform}", argv=("flutter", "build", platform), seconds=2.0, reused=False)
 
 
@@ -222,11 +234,23 @@ class _Server:
     url = "http://127.0.0.1:4723"
 
 
+_appium_failures = [SCENARIO.get("appium_fail", 0)]
+
+
 @pytest.fixture(scope="session")
 def appium_server():
-    if SCENARIO.get("appium_fail"):
-        raise AppiumStartError("Appium never answered /status")
-    return _Server()
+    started = []
+
+    def get():
+        if not started:
+            event("appium start")
+            if _appium_failures[0]:
+                _appium_failures[0] -= 1
+                raise AppiumStartError("Appium never answered /status")
+            started.append(_Server())
+        return started[0]
+
+    return get
 
 
 class _Session:
@@ -246,6 +270,20 @@ def _remote(url, options=None):
 
 
 appium.webdriver.Remote = _remote
+
+
+class _Adb:
+    """Stands in for `subprocess` inside `stratum_e2e.android.session`: an install only logs its serial."""
+
+    CalledProcessError = subprocess.CalledProcessError
+
+    @staticmethod
+    def run(argv, check=False):
+        event(f"install {argv[2]}")
+        return subprocess.CompletedProcess(argv, 0)
+
+
+android_session.subprocess = _Adb
 
 _real_acquire = plugin.acquire_lane
 
@@ -458,7 +496,9 @@ def test_reused_target_gets_no_settings_no_restore_no_kill(
     result = _round(pytester, "--target", "pixel_8")
     result.assert_outcomes(passed=3)
     summary = _summary(pytester)
-    assert summary["targets"][0] == {"name": "pixel_8", "platform": "android", "device": REUSED_SERIAL, "reused": True}
+    assert summary["targets"][0] == {
+        "name": "pixel_8", "platform": "android", "device": REUSED_SERIAL, "reused": True, "setting_failures": []
+    }
     device_calls = [line for line in _events(root, "run ", "spawn ") if REUSED_SERIAL in line or "emulator" in line]
     assert device_calls, "the reused emulator was never asked anything"
     assert not [line for line in device_calls if "settings" in line or "kill" in line or line.startswith("spawn")]
@@ -533,9 +573,9 @@ def test_mac_fails(round_target):
     assert "assert 1 == 2" in failed["reason"]
     assert "assert 1 == 2" in (round_dir / failed["log"]).read_text()
     assert (round_dir / cells["test_e2e.py::test_mac_a"]["mac"]["log"]).is_file()
-    screenshots = _events(root, "run screencapture")
-    assert len(screenshots) == 1
-    assert screenshots[0].endswith("/screenshot.png") and str(round_dir) in screenshots[0]
+    assert len(_events(root, "run screencapture")) == 1
+    assert (round_dir / failed["log"]).with_name("screenshot.png").read_bytes() == b"png"
+    assert not (round_dir / cells["test_e2e.py::test_mac_a"]["mac"]["log"]).with_name("screenshot.png").exists()
 
 
 def test_low_level_override_wins(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -676,10 +716,69 @@ def test_second_appium_failure_on_a_module_blocks_the_target(
         assert (cells[test]["mac"]["class"], cells[test]["mac"]["reason"]) == ("env", "target blocked")
     assert cells["test_e2e.py::test_web_a"]["chrome"]["class"] == "pass"
     assert "release mac" in _events(root)
+    assert len(_events(root, "run screencapture")) == 2  # both runs of driver_a; a blocked item captures nothing
+    round_dir = _round_dirs(pytester)[-1]
+    blocked_dir = (round_dir / cells["test_e2e.py::test_mac_driver_b"]["mac"]["log"]).parent
+    assert sorted(path.name for path in blocked_dir.iterdir()) == ["pytest.log"]
+
+
+ANDROID_DRIVER = """\
+@pytest.mark.android
+def test_android_driver(round_target, driver):
+    event(f"item {round_target.target.name} android_driver")
+"""
+
+
+def test_appium_start_failure_once_is_retried_and_spares_the_next_target(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS + ANDROID_DRIVER, {"appium_fail": 1})
+    result = _round(pytester, "--target", "mac,pixel_8")
+    result.assert_outcomes(passed=8)
+    assert _events(root, "appium start") == ["appium start", "appium start"]
+    cells = _cells(_summary(pytester))
+    assert cells["test_e2e.py::test_mac_driver_a"]["mac"]["class"] == "pass"
+    assert cells["test_e2e.py::test_android_driver"]["pixel_8"]["class"] == "pass"
+
+
+def test_each_target_installs_even_on_a_serial_an_earlier_target_used(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario = {"devices": {"pixel_8": "emulator-5554", "tablet": "emulator-5554"}}
+    root = _make_tree(pytester, monkeypatch, ANDROID_DRIVER, scenario)
+    result = _round(pytester, "--target", "pixel_8,tablet")
+    result.assert_outcomes(passed=6)
+    assert _events(root, "install ") == ["install emulator-5554", "install emulator-5554"]
+    assert _events(root, "build ") == ["build android"]
+
+
+def test_app_build_env_once_is_built_again_on_the_rerun(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mac_app = """\
+@pytest.mark.macos
+def test_mac_app(round_app):
+    event(f"app {round_app.name}")
+"""
+    root = _make_tree(pytester, monkeypatch, mac_app + MAC_A, {"build_fail": {"macos": 1}})
+    result = _round(pytester, "--target", "mac")
+    result.assert_outcomes(passed=4)
+    assert _events(root, "build ", "app ") == ["build macos", "build macos", "app app-macos"]
+    assert _cells(_summary(pytester))["test_e2e.py::test_mac_app"]["mac"]["class"] == "pass"
+
+
+def test_setting_failures_reach_the_summary(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    failure = "global window_animation_scale 0 (status 255: denied)"
+    _make_tree(pytester, monkeypatch, MAC_A, {"setting_failures": {"mac": [failure]}})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=3)
+    round_dir = _round_dirs(pytester)[-1]
+    assert _summary(pytester)["targets"][0]["setting_failures"] == [failure]
+    assert f"- boot setting on `mac` failed: {failure}" in (round_dir / "summary.md").read_text()
+    assert not list(round_dir.rglob("setting_failures.txt"))
 
 
 def test_appium_server_failure_is_env(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-    _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"appium_fail": True})
+    _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"appium_fail": 99})
     result = _round(pytester, "--target", "mac")
     result.assert_outcomes(passed=2, errors=3)
     cells = _cells(_summary(pytester))

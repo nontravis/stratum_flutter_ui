@@ -17,6 +17,8 @@ from unit.round_fakes import FakeRunner
 
 SINCE = datetime(2026, 10, 24, 1, 2, 3, 456000, tzinfo=UTC)
 EPOCH = "1792803723"
+PNG = b"\x89PNG\r\n\x1a\nnew"
+EARLIER = b"\x89PNG\r\n\x1a\nearlier"
 
 
 def _record(platform: str, device_id: str = "emulator-5556") -> BootRecord:
@@ -28,10 +30,12 @@ def _done(status: int = 0, stdout: str = "") -> Completed:
 
 
 class _ImageProcess:
-    """A spawned screenshot command: writes its PNG bytes to the log path, then exits with `status`."""
+    """A spawned screenshot command: appends its PNG bytes to the log path, as `SubprocessRunner.spawn` opens it, then
+    exits with `status`."""
 
     def __init__(self, log: Path, status: int, hangs: bool) -> None:
-        log.write_bytes(b"\x89PNG\r\n\x1a\n")
+        with log.open("ab") as sink:
+            sink.write(PNG if status == 0 else b"error: device offline\n")
         self._status = status
         self._hangs = hangs
         self.killed = False
@@ -133,14 +137,30 @@ def test_android_screenshot_streams_the_png_bytes_into_the_file(tmp_path: Path) 
     runner = _SpawnRunner()
     shot = tmp_path / "screenshot.png"
     assert save_screenshot(runner, _record("android"), shot) is True
-    assert runner.spawned == [(("adb", "-s", "emulator-5556", "exec-out", "screencap", "-p"), shot)]
-    assert shot.read_bytes().startswith(b"\x89PNG")
+    assert [argv for argv, _ in runner.spawned] == [("adb", "-s", "emulator-5556", "exec-out", "screencap", "-p")]
+    assert shot.read_bytes() == PNG
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["screenshot.png"]
+
+
+def test_android_screenshot_replaces_an_earlier_one_instead_of_appending(tmp_path: Path) -> None:
+    shot = tmp_path / "screenshot.png"
+    shot.write_bytes(EARLIER)
+    assert save_screenshot(_SpawnRunner(), _record("android"), shot) is True
+    assert shot.read_bytes() == PNG
 
 
 def test_android_screenshot_that_fails_leaves_no_file(tmp_path: Path) -> None:
     shot = tmp_path / "screenshot.png"
     assert save_screenshot(_SpawnRunner(status=1), _record("android"), shot) is False
-    assert not shot.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_failed_screenshot_keeps_the_earlier_one(tmp_path: Path) -> None:
+    shot = tmp_path / "screenshot.png"
+    shot.write_bytes(EARLIER)
+    assert save_screenshot(_SpawnRunner(status=1), _record("android"), shot) is False
+    assert shot.read_bytes() == EARLIER
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["screenshot.png"]
 
 
 def test_android_screenshot_that_hangs_is_killed(tmp_path: Path) -> None:
@@ -148,18 +168,52 @@ def test_android_screenshot_that_hangs_is_killed(tmp_path: Path) -> None:
     shot = tmp_path / "screenshot.png"
     assert save_screenshot(runner, _record("android"), shot) is False
     assert runner.process is not None and runner.process.killed
-    assert not shot.exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_android_screenshot_without_adb_is_reported(tmp_path: Path) -> None:
     assert save_screenshot(_SpawnRunner(fails=True), _record("android"), tmp_path / "screenshot.png") is False
 
 
-def test_ios_screenshot_runs_simctl_io(tmp_path: Path) -> None:
+class _FileRunner(FakeRunner):
+    """A FakeRunner whose command writes the PNG to the path it is given last, or fails and writes nothing."""
+
+    def __init__(self, status: int = 0) -> None:
+        super().__init__([])
+        self._status = status
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout_s: float | None = None,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        log: Path | None = None,
+    ) -> Completed:
+        self.calls.append(tuple(argv))
+        if self._status == 0:
+            Path(argv[-1]).write_bytes(PNG)
+        return _done(status=self._status)
+
+
+@pytest.mark.parametrize(("platform", "prefix"), [("ios", ("xcrun", "simctl", "io", "UDID-1", "screenshot")),
+                                                  ("macos", ("screencapture", "-x"))])
+def test_ios_and_mac_screenshots_land_at_the_path(platform: str, prefix: tuple[str, ...], tmp_path: Path) -> None:
     shot = tmp_path / "screenshot.png"
-    runner = FakeRunner([(("xcrun", "simctl", "io"), _done())])
-    assert save_screenshot(runner, _record("ios", "UDID-1"), shot) is True
-    assert runner.calls == [("xcrun", "simctl", "io", "UDID-1", "screenshot", str(shot))]
+    shot.write_bytes(EARLIER)
+    runner = _FileRunner()
+    assert save_screenshot(runner, _record(platform, "UDID-1"), shot) is True
+    assert [call[: len(prefix)] for call in runner.calls] == [prefix]
+    assert shot.read_bytes() == PNG
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["screenshot.png"]
+
+
+def test_failed_ios_screenshot_keeps_the_earlier_one(tmp_path: Path) -> None:
+    shot = tmp_path / "screenshot.png"
+    shot.write_bytes(EARLIER)
+    assert save_screenshot(_FileRunner(status=1), _record("ios", "UDID-1"), shot) is False
+    assert shot.read_bytes() == EARLIER
 
 
 def test_screenshot_runs_nothing_on_web(tmp_path: Path) -> None:
