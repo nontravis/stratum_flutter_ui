@@ -1,5 +1,5 @@
 // Proves the page-layout M5 device cases code can reach:
-// `docs/superpowers/specs/2026-10-10-page-layout-design.md:890-897`.
+// the cases are listed below by what proves them.
 //
 // Already proven, not re-derived here (`test/src/application/stratum_application_test.dart`):
 // - The app starts in its active theme (Scenario 1), a notice shows from

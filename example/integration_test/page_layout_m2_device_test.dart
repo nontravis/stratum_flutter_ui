@@ -1,5 +1,5 @@
 // Proves the page-layout M2 device cases code can reach:
-// `docs/superpowers/specs/2026-10-10-page-layout-design.md:821-837`.
+// the cases are listed below by what proves them.
 //
 // Already proven, not re-derived here (`test/src/components/common/layout/modal_layout_test.dart`,
 // group `showModalLayout`):

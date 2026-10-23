@@ -1,5 +1,5 @@
 // Proves the page-layout M4 device cases code can reach:
-// `docs/superpowers/specs/2026-10-10-page-layout-design.md:871-888`.
+// the cases are listed below by what proves them.
 //
 // Already proven, not re-derived here:
 // - A solid top notice runs under the status bar (Scenario 3), a bottom

@@ -1,5 +1,5 @@
 // Proves the page-layout M3 device cases code can reach:
-// `docs/superpowers/specs/2026-10-10-page-layout-design.md:839-857`.
+// the cases are listed below by what proves them.
 //
 // Already proven, not re-derived here (`test/src/components/common/layout/page_drawer_test.dart`):
 // - An Android edge swipe opens the start drawer, and off the start edge

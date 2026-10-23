@@ -3,7 +3,7 @@
 // `context.deviceWindow.radius`), on whichever of pixel_8, pixel_2,
 // iphone, mac, chrome, or linux the round runs this on; gated by the
 // platform and probe behavior the run observes, never by device name
-// (`docs/superpowers/specs/2026-10-10-page-layout-design.md:803-819`).
+// (the cases are listed below by what proves them).
 //
 // Already proven, not re-derived here:
 // - The mocked Dart-side consequence of each probe answer (a mocked
