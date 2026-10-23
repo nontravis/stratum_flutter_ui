@@ -60,7 +60,9 @@ class RunPlan:
     """One run of one entry (or one marked file, or one sequence) that targets share when their plans are equal.
 
     `wrapped` maps a file to the block prefixes that run `repeat` times as a wrapped sibling; `plain_name` is the
-    `--plain-name` text of a `plain_name` run. `key` names the entry file.
+    `--plain-name` text of a `plain_name` run; `sequence` is the `RunSequence.name` of a sequence run, `None` for the
+    rest. `key` names the entry file and counts the wrapped block prefixes, so two entries that wrap different blocks
+    of one file never share a name.
     """
 
     key: str
@@ -71,6 +73,7 @@ class RunPlan:
     wrapped: Mapping[str, tuple[str, ...]] = field(hash=False)
     repeat: int
     plain_name: str | None = None
+    sequence: str | None = None
 
 
 def platform_files(integration_dir: Path, platform: str) -> list[str]:
@@ -98,8 +101,11 @@ def plan_runs(
 ) -> dict[str, list[RunPlan]]:
     """Returns, per target name, the runs of one round: its entry, then its `plain_name` runs, then its sequences.
 
-    Raises `ValueError` when a target belongs to another platform or marks a file the platform does not run.
+    Raises `ValueError` when `repeat` is below 1, a target belongs to another platform, a target marks a file the
+    platform does not run, or a target marks one file for both a repeat wrap and a `plain_name` or sequence run.
     """
+    if repeat < 1:
+        raise ValueError(f"repeat must be at least 1, got {repeat}")
     shared: dict[RunPlan, RunPlan] = {}
     plans: dict[str, list[RunPlan]] = {}
     for target in targets:
@@ -158,25 +164,41 @@ def _target_plans(
     if missing:
         raise ValueError(f"target {target.name} marks {', '.join(missing)}, which {platform} does not run")
 
+    clash = sorted(alone & set(target.repeat))
+    if clash:
+        raise ValueError(f"target {target.name} repeats {', '.join(clash)}, which it also runs alone")
+
     def build(
         kind: Literal["entry", "plain_name", "sequence"],
         run_files: tuple[str, ...],
         wrapped: Mapping[str, tuple[str, ...]],
         plain_name: str | None = None,
+        sequence: str | None = None,
     ) -> RunPlan:
         draft = RunPlan(
             key="", platform=platform, build_mode=target.build_mode, kind=kind, files=run_files,
-            wrapped=MappingProxyType(dict(wrapped)), repeat=repeat, plain_name=plain_name,
+            wrapped=MappingProxyType(dict(wrapped)), repeat=repeat, plain_name=plain_name, sequence=sequence,
         )
-        digest = hashlib.sha1(entry_source(draft).encode("utf-8"), usedforsecurity=False).hexdigest()
-        return replace(draft, key=f"{target.build_mode or 'none'}-{digest[:_KEY_HEX_LENGTH]}")
+        return replace(draft, key=f"{target.build_mode or 'none'}-{_digest(draft)}")
 
     in_entry = tuple(file for file in files if file not in alone)
     wrapped = {file: prefixes for file, prefixes in target.repeat.items() if file in in_entry} if repeat > 1 else {}
     runs = [build("entry", in_entry, wrapped)] if in_entry else []
     runs += [build("plain_name", (file,), {}, name) for file, name in target.plain_name.items()]
-    runs += [build("sequence", sequence.files, {}) for sequence in own_sequences]
+    runs += [build("sequence", sequence.files, {}, sequence=sequence.name) for sequence in own_sequences]
     return runs
+
+
+def _digest(plan: RunPlan) -> str:
+    """Returns the first hex digits of the sha1 over the entry source and the wrapped blocks' prefixes.
+
+    The siblings' text is the source files' text with these prefixes wrapped, and no source file is read at planning
+    time, so the prefixes stand for it.
+    """
+    wrapped = "".join(f"\n{relative}\0{'\0'.join(prefixes)}" for relative, prefixes in sorted(plan.wrapped.items()))
+    return hashlib.sha1((entry_source(plan) + wrapped).encode("utf-8"), usedforsecurity=False).hexdigest()[
+        :_KEY_HEX_LENGTH
+    ]
 
 
 def _import_path(plan: RunPlan, relative: str) -> str:

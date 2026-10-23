@@ -179,6 +179,59 @@ def test_a_repeat_file_the_platform_does_not_run_is_an_error() -> None:
         plan_runs("android", [target], platform_files(FIXTURE, "android"), [], 10)
 
 
+def test_a_repeat_file_also_run_alone_is_an_error() -> None:
+    plain = Target(name="pixel_2", platform="android",
+                   plain_name=MappingProxyType({WEB_VIEW: "group B"}), repeat=MappingProxyType({WEB_VIEW: ("a",)}))
+    linux = Target(name="linux", platform="linux", repeat=MappingProxyType({RESTART_1: ("a",)}))
+    sequence = RunSequence(name="fo10_cold_restart", target="linux", files=(RESTART_1, RESTART_2))
+
+    with pytest.raises(ValueError, match=WEB_VIEW):
+        plan_runs("android", [plain], platform_files(FIXTURE, "android"), [], 10)
+    with pytest.raises(ValueError, match=RESTART_1):
+        plan_runs("linux", [linux], platform_files(FIXTURE, "linux"), [sequence], 10)
+
+
+@pytest.mark.parametrize("repeat", [0, -1])
+def test_a_repeat_below_one_is_an_error(repeat: int) -> None:
+    with pytest.raises(ValueError, match="repeat"):
+        plan_runs("android", [Target(name="p", platform="android")], [SMOKE], [], repeat)
+
+
+def test_entries_that_wrap_different_blocks_get_different_keys_and_paths() -> None:
+    first = Target(name="a", platform="android", build_mode="profile",
+                   repeat=MappingProxyType({WEB_VIEW: ("co01_02/us03/s1",)}))
+    second = Target(name="b", platform="android", build_mode="profile",
+                    repeat=MappingProxyType({WEB_VIEW: ("co01_02/us03/s3",)}))
+    files = platform_files(FIXTURE, "android")
+
+    plans = plan_runs("android", [first, second], files, [], 10)
+
+    assert entry_source(plans["a"][0]) == entry_source(plans["b"][0])
+    assert plans["a"][0].key != plans["b"][0].key
+    assert plans["a"][0] != plans["b"][0]
+    assert plans["a"][0].key.startswith("profile-")
+
+
+def test_the_key_does_not_move_when_nothing_is_wrapped() -> None:
+    files = platform_files(FIXTURE, "android")
+    plain = plan_runs("android", [Target(name="p", platform="android")], files, [], 1)["p"][0]
+    marked = Target(name="m", platform="android", repeat=MappingProxyType({WEB_VIEW: ("a",)}))
+
+    assert plan_runs("android", [marked], files, [], 1)["m"][0] == plain
+
+
+def test_sequences_with_equal_files_stay_two_plans_named_by_their_sequence() -> None:
+    linux = Target(name="linux", platform="linux")
+    first = RunSequence(name="first", target="linux", files=(RESTART_1, RESTART_2))
+    second = RunSequence(name="second", target="linux", files=(RESTART_1, RESTART_2))
+
+    plans = plan_runs("linux", [linux], platform_files(FIXTURE, "linux"), [first, second], 10)["linux"]
+
+    assert [(plan.kind, plan.sequence) for plan in plans] == [("entry", None), ("sequence", "first"),
+                                                              ("sequence", "second")]
+    assert plans[1] != plans[2]
+
+
 def test_a_target_of_another_platform_is_an_error() -> None:
     with pytest.raises(ValueError, match="pixel_8"):
         plan_runs("linux", _android_targets(), platform_files(FIXTURE, "linux"), [], 1)
