@@ -1,0 +1,161 @@
+{
+  "runtimes": [
+    {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-18-1",
+      "name": "iOS 18.1",
+      "version": "18.1",
+      "isAvailable": true
+    },
+    {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-18-4",
+      "name": "iOS 18.4",
+      "version": "18.4",
+      "isAvailable": true
+    },
+    {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-18-5",
+      "name": "iOS 18.5",
+      "version": "18.5",
+      "isAvailable": true
+    },
+    {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-2",
+      "name": "iOS 26.2",
+      "version": "26.2",
+      "isAvailable": true
+    },
+    {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+      "name": "iOS 27.0",
+      "version": "27.0",
+      "isAvailable": true
+    },
+    {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+      "name": "iOS 27.1",
+      "version": "27.1",
+      "isAvailable": true
+    }
+  ],
+  "devices": {
+    "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+      {
+        "name": "iPhone 18 Pro",
+        "udid": "97864D80-1312-46D5-81A9-7D7CDC83F0E4",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 18 Pro Max",
+        "udid": "1E8A55E0-1142-4847-B845-FDB694E34CDE",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 17e",
+        "udid": "EA1B76AE-EBC3-46B9-9D3C-BE51ADF8484C",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone Air",
+        "udid": "F9C040E4-C3FE-4727-848E-7CFA04BFFB0A",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 17",
+        "udid": "74238C3E-C961-4109-8038-2CC315B8DF74",
+        "state": "Shutdown",
+        "isAvailable": true
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-27-1": [
+      {
+        "name": "iPhone Duo",
+        "udid": "8ED795EF-EEA8-47F3-A063-A2B9CE441EEF",
+        "state": "Shutdown",
+        "isAvailable": true
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-18-4": [
+      {
+        "name": "iPhone 16e",
+        "udid": "88F3E304-C06F-427B-AB35-C61FAB7F9EE7",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 16",
+        "udid": "A473EBE4-6D39-4308-82B6-ECE7C4E8DFE3",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 16 Plus",
+        "udid": "135DA2FC-3E50-4EFA-ADBF-DECD75150F68",
+        "state": "Shutdown",
+        "isAvailable": true
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
+      {
+        "name": "iPhone 16 Pro",
+        "udid": "332D26D1-DF59-419D-B50A-E7B33C3D9ABF",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 16 Pro Max",
+        "udid": "1676065D-ADFC-4D44-AD25-E6C7CB4A2063",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 16e",
+        "udid": "C1D2CAFE-EC69-4813-81FC-673544E30919",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 16",
+        "udid": "BF9DA873-0A04-4DEC-AFAC-7583214CFEE9",
+        "state": "Shutdown",
+        "isAvailable": true
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+      {
+        "name": "iPhone 17 Pro",
+        "udid": "E0DE205F-6DD7-4BF9-964A-0E2F10F5C7E4",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 17 Pro Max",
+        "udid": "DFC04344-B5FA-4CC5-BB9A-2AB396E5720E",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone Air",
+        "udid": "CFA142C4-549F-4DBD-A7FD-A047BF8DF8D4",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 17",
+        "udid": "AE960A6A-1F65-4535-960B-385602CF65F5",
+        "state": "Shutdown",
+        "isAvailable": true
+      },
+      {
+        "name": "iPhone 16e",
+        "udid": "168BFFC8-27BB-4603-AFA0-B3940B4409C6",
+        "state": "Shutdown",
+        "isAvailable": true
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-18-1": []
+  }
+}
