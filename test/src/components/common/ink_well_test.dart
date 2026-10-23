@@ -3,6 +3,8 @@
 // NFR-U09 n/a: every gesture the surface offers is a single tap, and Enter
 // runs the same action (US-04 gate block).
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/ink_well.dart'
     show tapSurfaceCallerSemantics, tapSurfaceHeadingLevel;
@@ -19,6 +21,21 @@ const _small = SizedBox(width: 20, height: 20);
 const _large = SizedBox(width: 60, height: 60);
 
 void _noop() {}
+
+/// The labels of the custom actions [node] holds, as a set so a test does not
+/// depend on their order.
+Set<String?> _customLabels(SemanticsNode node) => {
+  for (final id in node.getSemanticsData().customSemanticsActionIds ?? <int>[])
+    CustomSemanticsAction.getAction(id)?.label,
+};
+
+/// Runs the custom action [label] names on [node] through the semantics owner.
+void _performCustom(SemanticsNode node, String label) =>
+    node.owner!.performAction(
+      node.id,
+      SemanticsAction.customAction,
+      CustomSemanticsAction.getIdentifier(CustomSemanticsAction(label: label)),
+    );
 
 class _Probe extends StatefulWidget {
   const new();
@@ -1546,6 +1563,137 @@ void main() {
       expect(node, isSemantics(identifier: 'surface', label: 'Open'));
       expect(node.rect.size, tester.getSize(find.byType(StratumInkWell)));
       handle.dispose();
+    });
+
+    testWidgets("fo06/us04/fr02: a caller's custom actions share the surface "
+        'node with its secondary action', (tester) async {
+      tester.platformDispatcher.localeTestValue = const Locale('en');
+      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+      final handle = tester.ensureSemantics();
+      final log = <String>[];
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onTap: () => log.add('tap'),
+            onSecondaryTap: () => log.add('secondary'),
+            semantics: SemanticsProperties(
+              label: 'Row',
+              customSemanticsActions: {
+                const CustomSemanticsAction(label: 'Archive'): () =>
+                    log.add('archive'),
+              },
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      final node = tester.getSemantics(find.byType(StratumInkWell));
+      expect(
+        node,
+        isSemantics(label: 'Row', isButton: true, hasTapAction: true),
+      );
+      expect(_customLabels(node), {'Archive', 'Show menu'});
+      expect(node.childrenCount, 0);
+
+      _performCustom(node, 'Archive');
+      expect(log, ['archive']);
+      _performCustom(node, 'Show menu');
+      expect(log, ['archive', 'secondary']);
+      handle.dispose();
+    });
+
+    testWidgets('fo06/us04/fr02: a caller action with the secondary '
+        "action's label wins", (tester) async {
+      final handle = tester.ensureSemantics();
+      final log = <String>[];
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onTap: () => log.add('tap'),
+            onSecondaryTap: () => log.add('secondary'),
+            secondaryTapSemanticsLabel: 'More',
+            semantics: SemanticsProperties(
+              customSemanticsActions: {
+                const CustomSemanticsAction(label: 'More'): () =>
+                    log.add('caller'),
+              },
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      final node = tester.getSemantics(find.byType(StratumInkWell));
+      expect(node.getSemanticsData().customSemanticsActionIds?.length, 1);
+      expect(_customLabels(node), {'More'});
+
+      _performCustom(node, 'More');
+      expect(log, ['caller']);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e03: with excludeFromSemantics the caller keeps '
+      'its custom actions',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            StratumInkWell(
+              onTap: _noop,
+              excludeFromSemantics: true,
+              semantics: SemanticsProperties(
+                label: 'Row',
+                customSemanticsActions: {
+                  const CustomSemanticsAction(label: 'Archive'): _noop,
+                },
+              ),
+              child: _box,
+            ),
+          ),
+        );
+
+        final node = tester.getSemantics(find.byType(StratumInkWell));
+        expect(_customLabels(node), contains('Archive'));
+        expect(node.rect.size, tester.getSize(find.byType(StratumInkWell)));
+        handle.dispose();
+      },
+    );
+
+    test('fo06/us04/fr02: _withoutCustomActions copies every field of '
+        'SemanticsProperties but the custom actions', () {
+      // `flutter test` disables `Isolate.resolvePackageUri`, so read the
+      // package config the project resolved against.
+      final config = File('.dart_tool/package_config.json');
+      final packages =
+          (jsonDecode(config.readAsStringSync())
+                  as Map<String, Object?>)['packages']!
+              as List<Object?>;
+      final flutter = packages.cast<Map<String, Object?>>().singleWhere(
+        (package) => package['name'] == 'flutter',
+      );
+      // A package root names a directory, with or without the final slash.
+      final root = config.absolute.uri.resolve('${flutter['rootUri']}/');
+      final source = File.fromUri(
+        root.resolve('lib/src/semantics/semantics.dart'),
+      ).readAsStringSync();
+      final start = source.indexOf('const SemanticsProperties({');
+      final end = source.indexOf('}) : assert(', start);
+      final parameters = RegExp(r'this\.\w+')
+          .allMatches(source.substring(start, end))
+          .length;
+
+      // The fields `_withoutCustomActions` copies, plus the custom actions.
+      const copiedFields = 77;
+      expect(
+        parameters,
+        copiedFields + 1,
+        reason:
+            'Flutter changed the SemanticsProperties constructor: copy the '
+            'new field in _withoutCustomActions in ink_well.dart, then update '
+            'this count',
+      );
     });
   });
 

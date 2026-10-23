@@ -683,9 +683,18 @@ class _StratumInkWellState extends State<StratumInkWell>
       excludeFromSemantics: widget.excludeFromSemantics,
       semantics: properties,
     );
+    // The surface owns every custom action of its one node (the caller's
+    // beside its secondary tap, a caller action of an equal key winning),
+    // since two configs with custom actions do not merge; with
+    // excludeFromSemantics the caller node is the only one.
+    final callerActions = properties?.customSemanticsActions;
+    final surfaceOwnsActions =
+        !widget.excludeFromSemantics && callerActions != null;
     if (properties != null) {
       result = tapSurfaceCallerSemantics(
-        properties: properties,
+        properties: surfaceOwnsActions
+            ? _withoutCustomActions(properties)
+            : properties,
         withoutHeading: headingLevel != null,
         underSurface: !widget.excludeFromSemantics,
         child: result,
@@ -700,11 +709,13 @@ class _StratumInkWellState extends State<StratumInkWell>
             ? !disabled
             : null,
         button: hasActivation && !_setsRole(properties) ? true : null,
-        customActions: secondary == null || disabled
+        customActions: callerActions == null && (secondary == null || disabled)
             ? null
             : {
-                CustomSemanticsAction(label: _secondaryTapLabel(context)):
-                    secondary,
+                if (secondary != null && !disabled)
+                  CustomSemanticsAction(label: _secondaryTapLabel(context)):
+                      secondary,
+                ...?callerActions,
               },
         // Whether this surface's own node (or a caller's own `enabled` it
         // merges) ever sets the enabled tristate; a pass node above it
@@ -769,6 +780,96 @@ bool _setsRole(SemanticsProperties? properties) =>
         properties.mixed != null ||
         properties.toggled != null ||
         (properties.role != null && properties.role != SemanticsRole.none));
+
+/// A copy of [p] that carries every field but `customSemanticsActions`.
+///
+/// Lets the surface own every custom action of its one node: two configs that
+/// both carry custom actions cannot merge into one node
+/// (`semantics.dart:6755@3.47.7`), and [SemanticsProperties] has no `copyWith`
+/// to clear the field. A field a later Flutter adds is lost unless it is
+/// copied here; the guard test in `ink_well_test.dart` counts the
+/// constructor's parameters and fails then.
+SemanticsProperties _withoutCustomActions(SemanticsProperties p) =>
+    SemanticsProperties(
+      enabled: p.enabled,
+      checked: p.checked,
+      mixed: p.mixed,
+      expanded: p.expanded,
+      selected: p.selected,
+      toggled: p.toggled,
+      button: p.button,
+      link: p.link,
+      linkUrl: p.linkUrl,
+      header: p.header,
+      headingLevel: p.headingLevel,
+      textField: p.textField,
+      slider: p.slider,
+      keyboardKey: p.keyboardKey,
+      readOnly: p.readOnly,
+      // ignore: deprecated_member_use, the field still exists and must copy
+      focusable: p.focusable,
+      focused: p.focused,
+      accessibilityFocusBlockType: p.accessibilityFocusBlockType,
+      inMutuallyExclusiveGroup: p.inMutuallyExclusiveGroup,
+      hidden: p.hidden,
+      obscured: p.obscured,
+      multiline: p.multiline,
+      scopesRoute: p.scopesRoute,
+      namesRoute: p.namesRoute,
+      image: p.image,
+      liveRegion: p.liveRegion,
+      isRequired: p.isRequired,
+      maxValueLength: p.maxValueLength,
+      currentValueLength: p.currentValueLength,
+      identifier: p.identifier,
+      traversalParentIdentifier: p.traversalParentIdentifier,
+      traversalChildIdentifier: p.traversalChildIdentifier,
+      label: p.label,
+      attributedLabel: p.attributedLabel,
+      value: p.value,
+      attributedValue: p.attributedValue,
+      increasedValue: p.increasedValue,
+      attributedIncreasedValue: p.attributedIncreasedValue,
+      decreasedValue: p.decreasedValue,
+      attributedDecreasedValue: p.attributedDecreasedValue,
+      hint: p.hint,
+      tooltip: p.tooltip,
+      attributedHint: p.attributedHint,
+      hintOverrides: p.hintOverrides,
+      textDirection: p.textDirection,
+      sortKey: p.sortKey,
+      tagForChildren: p.tagForChildren,
+      role: p.role,
+      controlsNodes: p.controlsNodes,
+      inputType: p.inputType,
+      validationResult: p.validationResult,
+      hitTestBehavior: p.hitTestBehavior,
+      onTap: p.onTap,
+      onLongPress: p.onLongPress,
+      onScrollLeft: p.onScrollLeft,
+      onScrollRight: p.onScrollRight,
+      onScrollUp: p.onScrollUp,
+      onScrollDown: p.onScrollDown,
+      onIncrease: p.onIncrease,
+      onDecrease: p.onDecrease,
+      onCopy: p.onCopy,
+      onCut: p.onCut,
+      onPaste: p.onPaste,
+      onMoveCursorForwardByCharacter: p.onMoveCursorForwardByCharacter,
+      onMoveCursorBackwardByCharacter: p.onMoveCursorBackwardByCharacter,
+      onMoveCursorForwardByWord: p.onMoveCursorForwardByWord,
+      onMoveCursorBackwardByWord: p.onMoveCursorBackwardByWord,
+      onSetSelection: p.onSetSelection,
+      onSetText: p.onSetText,
+      onDidGainAccessibilityFocus: p.onDidGainAccessibilityFocus,
+      onDidLoseAccessibilityFocus: p.onDidLoseAccessibilityFocus,
+      onFocus: p.onFocus,
+      onDismiss: p.onDismiss,
+      onExpand: p.onExpand,
+      onCollapse: p.onCollapse,
+      minValue: p.minValue,
+      maxValue: p.maxValue,
+    );
 
 /// A [Semantics.fromProperties] for a caller's node that can drop `header`
 /// and `headingLevel` ([withoutHeading]) and merge into the surface node
@@ -889,7 +990,7 @@ class ReorderItemRoot extends StatelessWidget {
   /// The node `_wrapWithSemantics` builds around a reorder item, above its
   /// marker: a [Semantics] with [container] and the item's move
   /// [customSemanticsActions] that, while the item's root surface joins
-  /// it, also describes that surface's own custom actions, such as its
+  /// it, also describes that surface's custom actions, the caller's and its
   /// secondary tap, so the two share the one config Flutter merges into
   /// (layout s03 invariant 81, D6(a)). A leaving item builds it too, with
   /// no container and no actions, so its element stays across the leave.
@@ -1310,9 +1411,9 @@ class _SurfaceSemantics extends Semantics {
     super.child,
   });
 
-  /// The surface's own custom actions, such as its secondary tap; kept
-  /// out of [properties], since the item node describes them in its
-  /// place while this surface joins it (D6(a)).
+  /// Every custom action of the surface's node: the caller's own and its
+  /// secondary tap. Kept out of [properties], since the item node describes
+  /// them in its place while this surface joins it (D6(a)).
   final Map<CustomSemanticsAction, VoidCallback>? customActions;
 
   /// Whether this surface's own node, or a caller's own `enabled` it

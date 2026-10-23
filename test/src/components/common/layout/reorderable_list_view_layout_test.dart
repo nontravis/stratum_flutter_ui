@@ -979,6 +979,13 @@ List<String> _rootMoves(SemanticsData data) => [
       CustomSemanticsAction.getAction(id)!.label!,
 ];
 
+/// The labels of every custom action on [data], as a set so a pin does not
+/// depend on their order.
+Set<String?> _customLabels(SemanticsData data) => {
+  for (final id in data.customSemanticsActionIds ?? const <int>[])
+    CustomSemanticsAction.getAction(id)?.label,
+};
+
 /// [node] as one line, the spike's vocabulary.
 String _shape(SemanticsNode node) {
   final data = node.getSemanticsData();
@@ -18285,6 +18292,56 @@ void main() {
       final data = _rootNode(tester, 'Item 2').getSemanticsData();
       expect(data.identifier, 'item-2');
       expect(_rootMoves(data), hasLength(4));
+      handle.dispose();
+    });
+
+    testWidgets("fo06/us04/fr02/e11: a root surface's caller custom actions "
+        'join the item node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => StratumInkWell(
+          onTap: _tapRow,
+          semantics: SemanticsProperties(
+            customSemanticsActions: {
+              const CustomSemanticsAction(label: 'Archive'): () {},
+            },
+          ),
+          child: Text('Item $id'),
+        ),
+        // The caller's actions make the surface carried, so the link lands
+        // one frame after mount (s03/inv81 D6(e)).
+        frames: 1,
+      );
+      final data = _rootNode(tester, 'Item 2').getSemanticsData();
+      expect(_rootMoves(data), hasLength(4));
+      expect(_customLabels(data), contains('Archive'));
+      handle.dispose();
+    });
+
+    testWidgets("fo06/us04/fr02/e11: a root surface's caller custom actions "
+        'and secondary tap join the item node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => StratumInkWell(
+          onTap: _tapRow,
+          onSecondaryTap: _secondaryTapRow,
+          semantics: SemanticsProperties(
+            customSemanticsActions: {
+              const CustomSemanticsAction(label: 'Archive'): () {},
+            },
+          ),
+          child: Text('Item $id'),
+        ),
+        frames: 1,
+      );
+      final data = _rootNode(tester, 'Item 2').getSemanticsData();
+      expect(_rootMoves(data), hasLength(4));
+      expect(
+        _customLabels(data),
+        containsAll(<String>['Archive', _secondaryLabel]),
+      );
       handle.dispose();
     });
 
