@@ -8,6 +8,7 @@ session's Appium server fixture.
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import TracebackType
 from typing import Iterator
 
 import pytest
@@ -49,15 +50,24 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 @pytest.fixture(scope="session")
-def appium_server() -> Iterator[Callable[[], AppiumServer]]:
+def appium_server(request: pytest.FixtureRequest) -> Iterator[Callable[[], AppiumServer]]:
     """Return the getter of the session's Appium server; every server it started stops at session end.
 
-    The getter starts the server on its first call and again after a failed start, which raises
-    AppiumStartError (or OSError) and is not kept, so a device round's re-run of an item retries it.
+    The getter starts the server on its first call. A failed start raises AppiumStartError (or OSError).
+    In a device round the failure is not kept, so the round's re-run of an item starts the server again;
+    outside a round every later call raises it at once, so a leg never waits out the start timeout twice.
     """
+    # Imported here: importing a plugin this file registers before pytest loads it stops its assert rewriting.
+    from stratum_e2e.round.plugin import ROUND_KEY
+
+    in_round = request.config.stash.get(ROUND_KEY, None) is not None
     started: list[AppiumServer] = []
+    failure: list[tuple[Exception, TracebackType | None]] = []
 
     def get() -> AppiumServer:
+        if failure:
+            error, traceback = failure[0]
+            raise error.with_traceback(traceback)
         if not started:
             server = AppiumServer(
                 appium_bin=APPIUM_BIN,
@@ -65,7 +75,12 @@ def appium_server() -> Iterator[Callable[[], AppiumServer]]:
                 port=free_port(),
                 android_home=default_android_home(),
             )
-            server.start()
+            try:
+                server.start()
+            except Exception as error:
+                if not in_round:
+                    failure.append((error, error.__traceback__))
+                raise
             started.append(server)
         return started[0]
 

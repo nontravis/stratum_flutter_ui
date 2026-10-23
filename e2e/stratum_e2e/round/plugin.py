@@ -148,6 +148,8 @@ class _RoundState:
         self.outcomes: dict[str, dict[str, FileResult]] = {}
         self.run_dirs: dict[tuple[str, str], Path] = {}
         self.flutter_version: str | None = None
+        # target -> boot settings that failed in its finished bring-ups (the last item's re-run brings one up twice).
+        self.past_setting_failures: dict[str, list[str]] = {}
         # test -> target -> result; written to the recorder at session end, when every target's stories are known.
         self.results: dict[str, dict[str, _Result]] = {}
 
@@ -475,7 +477,8 @@ def item_target(item: pytest.Item) -> Target | None:
 def _brought_up(state: _RoundState, backends: Backends, target: Target) -> Iterator[RoundTarget]:
     """Hold the lane and the booted device of `target` while the block runs; end the device, then free the lane."""
     round_dir = state.open_round_dir(backends.now)
-    state.recorder.target(target.name, target.platform, "", reused=False)
+    past_failures = state.past_setting_failures.get(target.name, ())
+    state.recorder.target(target.name, target.platform, "", reused=False, setting_failures=past_failures)
     if state.ledger.blocked(target.name):
         raise RoundEnvError(_BLOCKED)
     with contextlib.ExitStack() as stack:
@@ -484,7 +487,7 @@ def _brought_up(state: _RoundState, backends: Backends, target: Target) -> Itera
         boot_dir = round_dir.item_dir(target.name, _BOOT_DIR)
         record = _boot(state, backends, booter, target, boot_dir / "boot.log")
         # Runs after shutdown, which adds the settings that failed to restore.
-        stack.callback(_record_target, state, target, record)
+        stack.callback(_record_target, state, target, record, finished=True)
         stack.callback(booter.shutdown, record)
         _record_target(state, target, record)
         if target.avd == AVD_NAME:
@@ -537,9 +540,16 @@ def _check_talkback_avd(serial: str) -> None:
         raise RoundEnvError(f"tools.e2e_avd talkback|diagnosis: {' '.join(printed.getvalue().split())}")
 
 
-def _record_target(state: _RoundState, target: Target, record: BootRecord) -> None:
-    """Record the target's device and the boot settings that failed so far (T4: they never fail the boot)."""
-    state.recorder.target(target.name, target.platform, record.device_id, record.reused, record.setting_failures)
+def _record_target(state: _RoundState, target: Target, record: BootRecord, *, finished: bool = False) -> None:
+    """Record the target's device and every boot setting that failed on it so far (T4: they never fail the boot).
+
+    `finished` closes the bring-up of `record`, so a later bring-up of the target keeps its failures.
+    """
+    past = state.past_setting_failures.setdefault(target.name, [])
+    failures = [*past, *record.setting_failures]
+    state.recorder.target(target.name, target.platform, record.device_id, record.reused, failures)
+    if finished:
+        past.extend(record.setting_failures)
 
 
 def _resolve(state: _RoundState, target: Target, record: BootRecord) -> RoundTarget:

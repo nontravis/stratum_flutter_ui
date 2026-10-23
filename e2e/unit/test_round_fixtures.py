@@ -91,7 +91,7 @@ from selenium.common.exceptions import WebDriverException
 
 import stratum_e2e.android.session as android_session
 import stratum_e2e.round.plugin as plugin
-from stratum_e2e.appium_server import AppiumStartError
+from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.app_build import AppBuild
 from stratum_e2e.round.boot import BootRecord
@@ -148,6 +148,10 @@ class FakeRunner:
         raise OSError("the fake runner spawns nothing")
 
 
+# Per process: the round's last item tears every session fixture down, so its re-run gets a fresh booter.
+_shutdowns = {}
+
+
 class FakeBooter:
     """Reuses a host target always and a device target named in `running`; `boot_fail` counts boots that fail."""
 
@@ -171,8 +175,12 @@ class FakeBooter:
         pass
 
     def shutdown(self, record):
+        """End the device; the target's n-th shutdown fails to restore its n-th listed setting, if any."""
         event(f"shutdown {record.target}")
-        record.setting_failures.extend(SCENARIO.get("setting_failures", {}).get(record.target, []))
+        count = _shutdowns[record.target] = _shutdowns.get(record.target, 0) + 1
+        failures = SCENARIO.get("setting_failures", {}).get(record.target, [])
+        if count <= len(failures):
+            record.setting_failures.append(failures[count - 1])
 
 
 _build_failures = dict(SCENARIO.get("build_fail", {}))
@@ -230,27 +238,23 @@ def round_backends(request):
     )
 
 
-class _Server:
-    url = "http://127.0.0.1:4723"
-
-
 _appium_failures = [SCENARIO.get("appium_fail", 0)]
 
 
-@pytest.fixture(scope="session")
-def appium_server():
-    started = []
+def _start(self, timeout_s=60):
+    """Stands in for the real start under the real `appium_server` getter; fails `appium_fail` times."""
+    event("appium start")
+    if _appium_failures[0]:
+        _appium_failures[0] -= 1
+        raise AppiumStartError(f"appium on port {self.port} never answered /status")
 
-    def get():
-        if not started:
-            event("appium start")
-            if _appium_failures[0]:
-                _appium_failures[0] -= 1
-                raise AppiumStartError("Appium never answered /status")
-            started.append(_Server())
-        return started[0]
 
-    return get
+def _stop(self):
+    event("appium stop")
+
+
+AppiumServer.start = _start
+AppiumServer.stop = _stop
 
 
 class _Session:
@@ -369,7 +373,7 @@ def _make_tree(
     shutil.copytree(E2E_ROOT / "stratum_e2e", root / "stratum_e2e", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(E2E_ROOT / "tools", root / "tools", ignore=shutil.ignore_patterns("__pycache__", "*.sh"))
     conftest = (E2E_ROOT / "conftest.py").read_text()
-    (root / "conftest.py").write_text(conftest + "\nfrom round_fake import appium_server, round_backends  # noqa\n")
+    (root / "conftest.py").write_text(conftest + "\nfrom round_fake import round_backends  # noqa\n")
     (root / "round_fake.py").write_text(FAKE_SOURCE)
     (root / "targets.toml").write_text(TARGETS_TOML.format(mac_app_id=MAC_APP_ID, lane_wait=lane_wait))
     tests = root / "tests"
@@ -777,6 +781,21 @@ def test_setting_failures_reach_the_summary(pytester: pytest.Pytester, monkeypat
     assert not list(round_dir.rglob("setting_failures.txt"))
 
 
+def test_a_second_bring_up_keeps_the_first_boots_setting_failures(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    last_driver = """\
+@pytest.mark.macos
+def test_mac_driver_last(driver):
+    event("item mac driver_last")
+"""
+    failures = [f"global window_animation_scale 0 (status 255: boot {boot})" for boot in (1, 2)]
+    root = _make_tree(pytester, monkeypatch, last_driver, {"remote_fail": 1, "setting_failures": {"mac": failures}})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=3)
+    assert _events(root, "shutdown ") == ["shutdown mac", "shutdown mac"]
+    assert _summary(pytester)["targets"][0]["setting_failures"] == failures
+
+
 def test_appium_server_failure_is_env(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
     _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"appium_fail": 99})
     result = _round(pytester, "--target", "mac")
@@ -834,4 +853,16 @@ def test_legacy_run_without_options_skips_every_tests_item(
     result.assert_outcomes(skipped=2)
     assert "no --platform given" in result.stdout.str()
     assert not _events(root)
+    assert not _round_dirs(pytester)
+
+
+def test_legacy_appium_start_failure_is_kept_for_the_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"appium_fail": 99})
+    app = pytester.path / "app.app"
+    app.mkdir()
+    result = _round(pytester, "--platform", "macos", "--device", "mac", "--app", str(app), "--app-id", MAC_APP_ID)
+    result.assert_outcomes(passed=1, skipped=1, errors=2)  # the integration item has no platform marker
+    assert _events(root, "appium start") == ["appium start"]
     assert not _round_dirs(pytester)
