@@ -13,15 +13,18 @@ from appium import webdriver
 from appium.options.android import UiAutomator2Options
 from appium.options.common import AppiumOptions
 from appium.options.ios import XCUITestOptions
+from appium.options.mac import Mac2Options
+from playwright.sync_api import Browser, sync_playwright
 
 from stratum_e2e.android.session import android_capabilities, install_apk
 from stratum_e2e.android.talkback import AVD_NAME, TalkBackLog, TalkBackSession, avd_name
 from stratum_e2e.android.uhid_keyboard import UhidKeyboard
-from stratum_e2e.appium_server import AppiumServer
 from stratum_e2e.ios.session import WDA_DERIVED_DATA, install_app, ios_capabilities
 from stratum_e2e.ios.voiceover import VoiceOver
+from stratum_e2e.macos.session import mac_capabilities
 from stratum_e2e.ports import free_port
 from stratum_e2e.selection import skip_reason
+from stratum_e2e.web.server import StaticServer
 
 TESTS_DIR = Path(__file__).resolve().parent
 
@@ -52,6 +55,8 @@ def installed_app(request: pytest.FixtureRequest, platform: str) -> None:
     A streamed `install -r` of a debug APK plus Flutter's asset copy after it filled a 5.8 GB
     /data within 8 tests, and with `noReset` a reinstall per test buys no isolation.
     """
+    if platform == "macos":
+        return  # Mac2 launches the --app bundle itself through `appPath`
     device = _required_option(request.config, "device")
     app = Path(_required_option(request.config, "app"))
     if platform == "android":
@@ -62,8 +67,12 @@ def installed_app(request: pytest.FixtureRequest, platform: str) -> None:
         pytest.fail(f"no driver for platform {platform!r} yet", pytrace=False)
 
 
-def _session_options(platform: str, device: str, app_id: str) -> AppiumOptions:
-    """Return the Appium options of the --platform leg's session on [device]."""
+def _session_options(config: pytest.Config, platform: str, app_id: str) -> AppiumOptions:
+    """Return the Appium options of the --platform leg's session."""
+    if platform == "macos":
+        app = Path(_required_option(config, "app")).resolve()
+        return Mac2Options().load_capabilities(mac_capabilities(app_id, [], app))
+    device = _required_option(config, "device")
     if platform == "ios":
         return XCUITestOptions().load_capabilities(
             ios_capabilities(device, app_id, WDA_DERIVED_DATA, free_port())
@@ -71,17 +80,44 @@ def _session_options(platform: str, device: str, app_id: str) -> AppiumOptions:
     return UiAutomator2Options().load_capabilities(android_capabilities(device, app_id))
 
 
+@pytest.fixture(scope="session")
+def static_server(request: pytest.FixtureRequest) -> Iterator[StaticServer]:
+    """Serve the --app web build on a free port for the session; always stopped afterwards."""
+    with StaticServer(Path(_required_option(request.config, "app"))) as server:
+        yield server
+
+
+@pytest.fixture(scope="session")
+def browser() -> Iterator[Browser]:
+    """The Chrome the web leg drives, headless, for the session; always closed afterwards."""
+    with sync_playwright() as playwright:
+        chrome = playwright.chromium.launch(channel="chrome", headless=True)
+        try:
+            yield chrome
+        finally:
+            chrome.close()
+
+
 @pytest.fixture
-def driver(
-    request: pytest.FixtureRequest,
-    platform: str,
-    app_id: str,
-    appium_server: AppiumServer,
-    installed_app: None,
-) -> Iterator[Any]:
-    """An Appium session on --device with --app installed; always quit afterwards."""
-    device = _required_option(request.config, "device")
-    options = _session_options(platform, device, app_id)
+def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterator[Any]:
+    """The platform leg's handle on --device: an Appium session, or a Playwright `Page` on web.
+
+    An Appium session has --app installed and is quit afterwards. A web `Page` is blank
+    until `open_fixture`, resolves relative URLs against the build's server, and is
+    closed afterwards.
+    """
+    if platform == "web":
+        browser = request.getfixturevalue("browser")
+        server = request.getfixturevalue("static_server")
+        page = browser.new_page(base_url=server.url)
+        try:
+            yield page
+        finally:
+            page.close()
+        return
+    appium_server = request.getfixturevalue("appium_server")
+    request.getfixturevalue("installed_app")
+    options = _session_options(request.config, platform, app_id)
     session = webdriver.Remote(appium_server.url, options=options)
     try:
         yield session

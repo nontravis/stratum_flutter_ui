@@ -66,8 +66,8 @@ def test_by_label_on_ios_refuses_a_quote_or_backslash(text: str) -> None:
 
 @pytest.mark.parametrize("locate", [by_id, by_label])
 def test_locators_refuse_a_platform_without_a_driver_yet(locate: Any) -> None:
-    with pytest.raises(ValueError, match="does not support platform 'macos'"):
-        locate(RecordingDriver(), "macos", "x")
+    with pytest.raises(ValueError, match="does not support platform 'linux'"):
+        locate(RecordingDriver(), "linux", "x")
 
 
 @pytest.mark.parametrize("locate", [by_id, by_label])
@@ -99,5 +99,5 @@ def test_label_of_reads_the_platforms_label_attribute(platform: str, attribute: 
 
 
 def test_label_of_refuses_a_platform_without_a_driver_yet() -> None:
-    with pytest.raises(ValueError, match="does not support platform 'macos'"):
-        label_of(RecordingNode(), "macos")
+    with pytest.raises(ValueError, match="does not support platform 'linux'"):
+        label_of(RecordingNode(), "linux")

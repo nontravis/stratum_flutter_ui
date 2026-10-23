@@ -59,8 +59,8 @@ def test_open_fixture_takes_serial_from_udid(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_open_fixture_rejects_other_platforms() -> None:
-    with pytest.raises(ValueError, match="macos"):
-        fixtures.open_fixture(FakeDriver({"udid": SERIAL}), "macos", APP_ID, "x")
+    with pytest.raises(ValueError, match="linux"):
+        fixtures.open_fixture(FakeDriver({"udid": SERIAL}), "linux", APP_ID, "x")
 
 
 class RecordingFinder:
