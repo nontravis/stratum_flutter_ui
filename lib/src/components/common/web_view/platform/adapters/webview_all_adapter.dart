@@ -214,7 +214,8 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   }
 
   /// The sender [message] names, or `null` when it names none, which drops
-  /// the message (US-05 FR-01 E04, US-06 FR-01 E04).
+  /// the message unless it is a `bye` envelope (US-05 FR-01 E04, US-06 FR-01
+  /// E04).
   ///
   /// The origin is `sourceOrigin` when the plugin passes one, with the text
   /// `"null"` meaning an opaque origin, else the origin of `sourceUrl`;

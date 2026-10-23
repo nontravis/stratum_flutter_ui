@@ -178,6 +178,77 @@ void main() {
         StratumWebViewMessage(data: 'x', origin: appOrigin),
       );
     });
+
+    test(
+      'co01_02/us03/fr04/e14, co01_02/us05/fr01/e04, co01_02/us06/fr01/e04: a '
+      'tagged bye without a sender, with the current nonce and the proven '
+      'document id, revokes the proof and delivers nothing',
+      () {
+        final html = session.willLoadHtml('<p>Hi</p>');
+        final nonce = nonceIn(html);
+        session.receive(envelope(nonce, 'hello', documentA));
+        expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+        expect(
+          session.acceptMessage(envelope(nonce, 'bye', documentA)),
+          isNull,
+        );
+        expect(
+          session.scriptForMessage('ping'),
+          buildMessageDispatchScript(
+            'ping',
+            token: null,
+            allowedOrigins: allowed,
+          ),
+        );
+        expect(session.receive(messageEnvelope(nonce, 'x')), isNull);
+      },
+    );
+
+    test(
+      'co01_02/us03/fr04/e14, co01_02/us05/fr01/e04, co01_02/us06/fr01/e04: a '
+      'tagged bye without a sender changes nothing when its nonce or document '
+      'id is wrong',
+      () {
+        final html = session.willLoadHtml('<p>Hi</p>');
+        final nonce = nonceIn(html);
+        session.receive(envelope(nonce, 'hello', documentA));
+        final wrongNonce = nonce.replaceRange(
+          0,
+          1,
+          nonce[0] == '0' ? '1' : '0',
+        );
+        expect(
+          session.acceptMessage(envelope(wrongNonce, 'bye', documentA)),
+          isNull,
+        );
+        expect(
+          session.acceptMessage(envelope(nonce, 'bye', documentB)),
+          isNull,
+        );
+        expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+        expect(session.receive(messageEnvelope(nonce, 'x')), isNotNull);
+      },
+    );
+
+    test(
+      'co01_02/us03/fr04/e14, co01_02/us05/fr01/e04, co01_02/us06/fr01/e04: a '
+      'hello or message without a sender still drops and opens nothing',
+      () {
+        final html = session.willLoadHtml('<p>Hi</p>');
+        final nonce = nonceIn(html);
+        expect(
+          session.acceptMessage(envelope(nonce, 'hello', documentA)),
+          isNull,
+        );
+        expect(
+          () => session.scriptForMessage('ping'),
+          throwsA(isA<StateError>()),
+        );
+        session.receive(envelope(nonce, 'hello', documentA));
+        expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNull);
+        expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+      },
+    );
   });
 
   group('messages from loaded HTML', () {

@@ -279,15 +279,25 @@ final class NativeBridgeSession {
   /// A message that carries [nativeBridgeEnvelopeTag] is judged only by its
   /// nonce and the proof, so a host-less page never passes as the app's
   /// HTML. No page start, URL, or arrival order decides HTML trust.
+  ///
+  /// With no sender, only a tagged `bye` counts: it revokes the proof as a
+  /// sender-bearing one does, because Linux loses the sender once the page
+  /// calls `document.open()`, and a revoke opens nothing. Every other
+  /// sender-less message drops (US-03 FR-04 E14, US-05 FR-01 E04, US-06
+  /// FR-01 E04).
   AcceptedMessage? acceptMessage(String data, {BridgeMessageSender? sender}) {
     if (_bridgeUnsupported) return null;
-    if (sender == null || !sender.isMainFrame) return null;
-    if (data.startsWith(nativeBridgeEnvelopeTag)) {
-      return _receiveEnvelope(
-        data.substring(nativeBridgeEnvelopeTag.length),
-        sender.replyProxy,
-      );
+    final isTagged = data.startsWith(nativeBridgeEnvelopeTag);
+    final body = isTagged
+        ? data.substring(nativeBridgeEnvelopeTag.length)
+        : null;
+    if (sender == null) {
+      return body == null
+          ? null
+          : _receiveEnvelope(body, null, senderless: true);
     }
+    if (!sender.isMainFrame) return null;
+    if (body != null) return _receiveEnvelope(body, sender.replyProxy);
     final origin = originOf(sender.origin);
     if (!isAllowedOrigin(origin, _allowedOrigins())) return null;
     return (
@@ -312,18 +322,26 @@ final class NativeBridgeSession {
   ///   a platform that does not [_bindsSendsToDocument], since a proof
   ///   there always holds a proxy; and only while its own document id is 32
   ///   lowercase hex characters (FR-04 E05).
-  AcceptedMessage? _receiveEnvelope(String body, BridgeReplyProxy? replyProxy) {
+  ///
+  /// With [senderless], only `bye` applies: `hello` and `message` drop.
+  AcceptedMessage? _receiveEnvelope(
+    String body,
+    BridgeReplyProxy? replyProxy, {
+    bool senderless = false,
+  }) {
     final proof = _proof;
     if (proof is! _Load) return null;
     switch (_openEnvelope(body, proof.nonce)) {
       case ('hello', final id)
-          when _documentIdShape.hasMatch(id) &&
+          when !senderless &&
+              _documentIdShape.hasMatch(id) &&
               (!_bindsSendsToDocument || replyProxy != null):
         _proof = _Proven(proof.nonce, proof.token, proof.load, id, replyProxy);
       case ('bye', final id) when proof is _Proven && id == proof.documentId:
         _proof = _Revoked(proof.nonce, proof.token, proof.load);
       case ('message', final body)
-          when proof is _Proven &&
+          when !senderless &&
+              proof is _Proven &&
               (replyProxy == proof.replyProxy ||
                   (proof.replyProxy == null && !_bindsSendsToDocument)):
         final id = body.length > _secretLength && body[_secretLength] == ':'

@@ -320,6 +320,35 @@ void main() {
         ]);
       });
 
+      // WebKitGTK erases the plugin's sender listener on `document.open()`,
+      // so the page's `bye` reaches the public handler with no metadata.
+      if (platform == TargetPlatform.linux) {
+        test('co01_02/us03/fr04/e14, co01_02/us06/fr01/e04: a bye with no '
+            'main-frame flag revokes the proof, so the next send is refused '
+            'and delivers nothing', () async {
+          await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+          final html = harness.loadedHtml.single;
+          final nonce = nonceIn(html);
+          harness
+            ..sendRaw(
+              JavaScriptMessage(
+                message: envelope(nonce, 'hello', documentA),
+                isMainFrame: true,
+              ),
+            )
+            ..sendRaw(
+              JavaScriptMessage(message: envelope(nonce, 'bye', documentA)),
+            );
+          expect(listener.messages, isEmpty);
+          harness.scriptResult = false;
+          await expectLater(
+            adapter.postMessage('ping'),
+            throwsA(isA<StateError>()),
+          );
+          expect(harness.scripts.last, isNot(contains(tokenIn(html))));
+        });
+      }
+
       test('co01_02/$story/fr01: a tagged message that arrives after dispose '
           'is not delivered', () async {
         await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
