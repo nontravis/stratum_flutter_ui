@@ -92,13 +92,27 @@ class Cell:
     reason: str
     log: str
 
+    def __post_init__(self) -> None:
+        if self.runs < 1:
+            raise ValueError(f"a cell holds at least one run, got runs={self.runs}")
+        if self.cls == "pass" and self.passed != self.runs:
+            raise ValueError(f"a pass cell passes every run, got {self.passed}/{self.runs}")
+        if self.cls != "pass" and self.passed == self.runs:
+            raise ValueError(f"a {self.cls} cell cannot pass every run, got {self.passed}/{self.runs}")
+
 
 def cell_text(cell: Cell | None) -> str:
-    """Return the grid text of a cell: `n/N` for a repeat block or a pass, else `fail`, `env`, or `—` for none."""
+    """Return the grid text of a cell.
+
+    A pass reads `n/N`. A repeat block that did not pass reads `n/N` and its class (`0/10 env`, `7/10 fail`), so a
+    tool failure never looks like a widget result. A single run that did not pass reads `fail` or `env`; none is `—`.
+    """
     if cell is None:
         return NO_CELL
-    if cell.runs > 1 or cell.cls == "pass":
+    if cell.cls == "pass":
         return f"{cell.passed}/{cell.runs}"
+    if cell.runs > 1:
+        return f"{cell.passed}/{cell.runs} {cell.cls}"
     return cell.cls
 
 
@@ -156,10 +170,10 @@ class Recorder:
 
     def write(self, round_dir: RoundDir, mode: str, repeat: int, wall_seconds: float) -> None:
         """Write `summary.md` and `summary.json` into the round dir."""
-        (round_dir.path / SUMMARY_MD).write_text(self._markdown(), encoding="utf-8")
         data = self._data(round_dir.path.name, mode, repeat, wall_seconds)
         text = json.dumps(data, indent=2, ensure_ascii=False)
-        (round_dir.path / SUMMARY_JSON).write_text(text + "\n", encoding="utf-8")
+        _write_atomically(round_dir.path / SUMMARY_MD, self._markdown())
+        _write_atomically(round_dir.path / SUMMARY_JSON, text + "\n")
 
     def _require_target(self, name: str) -> None:
         if name not in self._targets:
@@ -169,6 +183,9 @@ class Recorder:
         names = list(self._targets)
         header = ["test", *names, "stories"]
         lines = [_md_row(header), _md_row(["---"] * len(header))]
+        reused = [t.name for t in self._targets.values() if t.reused]
+        if reused:
+            lines = [f"Reused: {', '.join(reused)}", "", *lines]
         reasons: list[str] = []
         for test, row in self._rows.items():
             texts = [cell_text(row.cells.get(name)) for name in names]
@@ -222,8 +239,17 @@ def _md_row(cells: Sequence[str]) -> str:
     return "| " + " | ".join(cell.replace("|", "\\|") for cell in cells) + " |"
 
 
+def _write_atomically(path: Path, text: str) -> None:
+    """Write `text` to a temp name beside `path`, then replace `path`, so a reader never sees half a file."""
+    temp = path.with_name(f".{path.name}.tmp")
+    temp.write_text(text, encoding="utf-8")
+    temp.replace(path)
+
+
 def _reason_line(test: str, target: str, cell: Cell) -> str:
-    line = f"- `{test}` on `{target}`: {cell.reason or cell.cls}"
+    line = f"- `{test}` on `{target}` [{cell.cls}]"
+    if cell.reason:
+        line += f": {cell.reason}"
     return f"{line} ({cell.log})" if cell.log else line
 
 
@@ -236,6 +262,8 @@ class RetryLedger:
 
     def record_env(self, target: str, key: str) -> Literal["retry", "block"]:
         """Record one `env` result; the second on one (target, key) blocks the target for the rest of the round."""
+        if target in self._blocked:
+            return "block"
         count = self._env_counts.get((target, key), 0) + 1
         self._env_counts[(target, key)] = count
         if count >= _BLOCK_AT:

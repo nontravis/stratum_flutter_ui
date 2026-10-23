@@ -123,8 +123,13 @@ def test_cell_text() -> None:
 
 
 def test_cell_text_of_a_repeat_block_reads_n_over_N_whatever_its_class() -> None:
-    assert cell_text(_cell("fail", 9, 10)) == "9/10"
-    assert cell_text(_cell("env", 0, 10)) == "0/10"
+    assert cell_text(_cell("fail", 9, 10)) == "9/10 fail"
+    assert cell_text(_cell("env", 0, 10)) == "0/10 env"
+    assert cell_text(_cell("pass", 10, 10)) == "10/10"
+
+
+def test_env_and_fail_repeat_cells_read_differently() -> None:
+    assert cell_text(_cell("env", 0, 10)) != cell_text(_cell("fail", 0, 10))
 
 
 def _recorder() -> Recorder:
@@ -158,8 +163,8 @@ def test_summary_md_lists_the_reason_of_each_failing_or_env_cell(tmp_path: Path)
     rec.add("chrome", "t.dart", "integration", [], _cell("env", 0, 1, "env: target blocked", "chrome/t/flutter.log"))
     rec.add("mac", "u.dart", "integration", [], _cell("fail", 0, 1, "expected 1 got 2", "mac/u/flutter.log"))
     text = (_write(tmp_path, rec).path / "summary.md").read_text(encoding="utf-8")
-    assert "- `t.dart` on `chrome`: env: target blocked (chrome/t/flutter.log)" in text
-    assert "- `u.dart` on `mac`: expected 1 got 2 (mac/u/flutter.log)" in text
+    assert "- `t.dart` on `chrome` [env]: env: target blocked (chrome/t/flutter.log)" in text
+    assert "- `u.dart` on `mac` [fail]: expected 1 got 2 (mac/u/flutter.log)" in text
     assert text.count("on `mac`") == 1
 
 
@@ -288,3 +293,86 @@ def test_same_key_on_two_targets_is_counted_apart() -> None:
     assert ledger.record_env("pixel_8", "a.dart") == "retry"
     assert ledger.record_env("mac", "a.dart") == "retry"
     assert ledger.blocked("mac") is False
+
+
+def test_reason_line_shows_the_class_when_the_reason_has_no_env_prefix(tmp_path: Path) -> None:
+    rec = _recorder()
+    rec.add("mac", "t.dart", "integration", [], _cell("env", 0, 1, "install failed", "mac/t/flutter.log"))
+    text = (_write(tmp_path, rec).path / "summary.md").read_text(encoding="utf-8")
+    assert "- `t.dart` on `mac` [env]: install failed (mac/t/flutter.log)" in text
+
+
+def test_reason_line_without_a_reason_or_log_is_just_the_class(tmp_path: Path) -> None:
+    rec = _recorder()
+    rec.add("mac", "t.dart", "integration", [], _cell("fail", 0, 1, "", ""))
+    text = (_write(tmp_path, rec).path / "summary.md").read_text(encoding="utf-8")
+    assert "- `t.dart` on `mac` [fail]\n" in text
+
+
+def test_summary_json_keeps_fail_and_env_classes_apart(tmp_path: Path) -> None:
+    rec = _recorder()
+    rec.add("mac", "t.dart", "integration", [], _cell("fail", 0, 1, "boom"))
+    rec.add("chrome", "t.dart", "integration", [], _cell("env", 0, 1, "install failed"))
+    data = json.loads((_write(tmp_path, rec).path / "summary.json").read_text(encoding="utf-8"))
+    cells = data["rows"][0]["cells"]
+    assert (cells["mac"]["class"], cells["chrome"]["class"]) == ("fail", "env")
+
+
+def test_record_env_for_a_blocked_target_blocks_a_new_key() -> None:
+    ledger = RetryLedger()
+    ledger.record_env("pixel_8", "a.dart")
+    ledger.record_env("pixel_8", "a.dart")
+    assert ledger.record_env("pixel_8", "b.dart") == "block"
+    assert ledger.record_env("mac", "b.dart") == "retry"
+
+
+@pytest.mark.parametrize(
+    ("cls", "passed", "runs"),
+    [
+        ("pass", 1, 0),
+        ("fail", 0, 0),
+        ("pass", 9, 10),
+        ("pass", 0, 1),
+        ("fail", 10, 10),
+        ("fail", 1, 1),
+        ("env", 1, 1),
+        ("env", 3, 3),
+    ],
+)
+def test_cell_rejects_incoherent_values(cls: Literal["pass", "fail", "env"], passed: int, runs: int) -> None:
+    with pytest.raises(ValueError, match="cell"):
+        Cell(cls=cls, passed=passed, runs=runs, reason="", log="")
+
+
+def test_write_leaves_no_temp_file(tmp_path: Path) -> None:
+    rec = _recorder()
+    rec.add("mac", "t.dart", "integration", [], _cell())
+    made = _write(tmp_path, rec)
+    assert sorted(p.name for p in made.path.iterdir()) == ["summary.json", "summary.md"]
+
+
+def test_write_replaces_an_earlier_summary(tmp_path: Path) -> None:
+    rec = _recorder()
+    made = RoundDir.create(tmp_path, _NOON)
+    rec.add("mac", "t.dart", "integration", [], _cell("env", 0, 1, "x"))
+    rec.write(made, "full", 1, 1.0)
+    rec.add("mac", "t.dart", "integration", [], _cell("pass"))
+    rec.write(made, "full", 1, 2.0)
+    data = json.loads((made.path / "summary.json").read_text(encoding="utf-8"))
+    assert data["wall_seconds"] == 2.0
+    assert data["rows"][0]["cells"]["mac"]["class"] == "pass"
+    assert sorted(p.name for p in made.path.iterdir()) == ["summary.json", "summary.md"]
+
+
+def test_summary_md_lists_reused_targets_above_the_grid(tmp_path: Path) -> None:
+    rec = Recorder()
+    rec.target("pixel_8", "android", "emulator-5556", reused=True)
+    rec.target("chrome", "web", "chrome", reused=False)
+    rec.target("mac", "macos", "macos", reused=True)
+    lines = (_write(tmp_path, rec).path / "summary.md").read_text(encoding="utf-8").splitlines()
+    assert lines[:3] == ["Reused: pixel_8, mac", "", "| test | pixel_8 | chrome | mac | stories |"]
+
+
+def test_summary_md_has_no_reused_line_when_nothing_is_reused(tmp_path: Path) -> None:
+    text = (_write(tmp_path, _recorder()).path / "summary.md").read_text(encoding="utf-8")
+    assert "Reused" not in text
