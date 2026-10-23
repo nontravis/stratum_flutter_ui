@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# e2e round: generated entry files and wrapped repeat siblings
+integration_test/.round/
+integration_test/**/.dt_*
