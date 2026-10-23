@@ -29,6 +29,7 @@ readonly PYTHON_FLOOR=3.11
 readonly APPIUM_PIN=3.8.0
 readonly UIA2_DRIVER_PIN=8.7.0
 readonly XCUITEST_DRIVER_PIN=12.19.1
+readonly MAC2_DRIVER_PIN=4.5.0
 
 log() { printf 'setup.sh: %s\n' "$*" >&2; }
 
@@ -129,6 +130,7 @@ install_one_driver() { # $1: driver name, $2: npm package, $3: pinned version
 setup_drivers() {
   install_driver uiautomator2 appium-uiautomator2-driver "${UIA2_DRIVER_PIN}"
   install_driver xcuitest appium-xcuitest-driver "${XCUITEST_DRIVER_PIN}"
+  install_driver mac2 appium-mac2-driver "${MAC2_DRIVER_PIN}"
 }
 
 run_setup() {
@@ -138,7 +140,8 @@ run_setup() {
   setup_npm
   setup_drivers
   log "toolchain ready (appium ${APPIUM_PIN}, uiautomator2 ${UIA2_DRIVER_PIN}," \
-    "xcuitest ${XCUITEST_DRIVER_PIN})"
+    "xcuitest ${XCUITEST_DRIVER_PIN}, mac2 ${MAC2_DRIVER_PIN}," \
+    "playwright $(requirements_pin playwright))"
 }
 
 CHECK_FAILED=0
@@ -153,14 +156,17 @@ check_tool() { # $1: label, $2: installed version, $3: wanted version
 }
 
 run_check() {
-  local pytest_pin client_pin
+  local pytest_pin client_pin playwright_pin
   pytest_pin="$(requirements_pin pytest)"
   client_pin="$(requirements_pin Appium-Python-Client)"
+  playwright_pin="$(requirements_pin playwright)"
   check_tool appium "$(appium_version)" "${APPIUM_PIN}"
   check_tool uiautomator2 "$(driver_version uiautomator2)" "${UIA2_DRIVER_PIN}"
   check_tool xcuitest "$(driver_version xcuitest)" "${XCUITEST_DRIVER_PIN}"
+  check_tool mac2 "$(driver_version mac2)" "${MAC2_DRIVER_PIN}"
   check_tool Appium-Python-Client "$(pip_pkg_version Appium-Python-Client)" "${client_pin}"
   check_tool pytest "$(pip_pkg_version pytest)" "${pytest_pin}"
+  check_tool playwright "$(pip_pkg_version playwright)" "${playwright_pin}"
   exit "${CHECK_FAILED}"
 }
 
