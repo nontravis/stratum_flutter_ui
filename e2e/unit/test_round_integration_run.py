@@ -192,6 +192,10 @@ def suite_report(tests: Mapping[str, Sequence[tuple[str, str]]]) -> str:
     return "\n".join(json.dumps(event) for event in events) + "\n"
 
 
+def chrome_answer(version: str = "130.0.6723.58") -> Entry:
+    return ((CHROME_APP, "--version"), done(0, f"Google Chrome {version}\n"))
+
+
 def repeat_log(passes: int, total: int) -> str:
     return "".join(f"I/flutter ( 4198): REPEAT {REPEAT_PREFIX} {run}/{total} ok\n" for run in range(1, passes + 1))
 
@@ -370,15 +374,22 @@ def test_drive_response_missing_fails_every_file() -> None:
 
 def test_no_tests_found_with_exit_79_is_env() -> None:
     log = (REPORTS / "pixel_8-env-fail.log").read_text(encoding="utf-8")
+    started = "00:00 +0: loading x\n00:04 +1: a passes\nNo tests were found.\n"
 
     assert classify_env(log, 79, False) is not None
+    assert classify_env(log, 1, False) is not None  # its count lines all read +0: no test started
+    assert classify_env(started, 79, False) == "No tests were found (exit 79)"
 
 
 def test_no_tests_found_after_a_test_started_is_fail() -> None:
     started = "00:00 +0: loading x\n00:04 +1: a passes\n00:09 +1 -1: b [E]\nNo tests were found.\n"
+    failed_first = "00:00 +0: loading x\n00:05 +0 -1: f_test.dart a [E]\nNo tests were found\n"
+    skipped_first = "00:00 +0: loading x\n00:02 +0 ~1: a\n00:04 +1 ~1: b\n00:07 +1 ~1 -1: c [E]\nNo tests were found\n"
+    only_skipped = "00:00 +0: loading x\n00:02 +0 ~1: a\nNo tests were found\n"
     never = "00:00 +0: loading x\nNo tests were found.\n"
 
-    assert classify_env(started, 1, False) is None
+    for log in (started, failed_first, skipped_first, only_skipped):
+        assert classify_env(log, 1, False) is None, log
     assert classify_env(never, 1, False) is not None
     assert classify_env((REPORTS / "pixel_8.log").read_text(encoding="utf-8"), 1, False) is None
 
@@ -475,6 +486,31 @@ def test_wasm_needs_chrome_119(tmp_path: Path) -> None:
         assert not [call for call in runner.calls if call[0] in ("flutter", "chromedriver")]
 
 
+def test_every_web_run_needs_a_readable_chrome_but_only_wasm_needs_119(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(integration_run, "port_accepts", lambda port: True)
+    app = app_with_tests(tmp_path)
+    for answers in (
+        [((CHROME_APP, "--version"), done(127)), (("google-chrome", "--version"), done(127))],
+        [((CHROME_APP, "--version"), done(0, "garbled\n"))],
+    ):
+        runner = RecordingRunner(answers)
+
+        outcome = run_plan(plan_of("web", [KEYBOARD]), CHROME, record_of(CHROME, "chrome"), FakeBooter(), app,
+                           tmp_path / "item", runner, 60.0, tmp_path / "ports")
+
+        assert outcome.files[KEYBOARD].cls == "env"
+        assert "no Chrome version" in outcome.files[KEYBOARD].reason
+        assert outcome.argv == ()
+        assert not [call for call in runner.calls if call[0] in ("flutter", "chromedriver")]
+
+    old = RecordingRunner([chrome_answer("118.0.5993.70"), (("flutter", "drive"), done(0))])
+    outcome = run_plan(plan_of("web", [KEYBOARD]), CHROME, record_of(CHROME, "chrome"), FakeBooter(), app,
+                       tmp_path / "item", old, 60.0, tmp_path / "ports")
+    assert outcome.argv[:2] == ("flutter", "drive")
+
+
 def test_run_plan_returns_the_outcome_with_argv_and_seconds(tmp_path: Path) -> None:
     app = app_with_tests(tmp_path)
     item = tmp_path / "item"
@@ -520,7 +556,8 @@ def test_chromedriver_port_comes_from_the_port_dir(tmp_path: Path, monkeypatch: 
     item = tmp_path / "item"
     ports = tmp_path / "ports"
     response = (REPORTS / "integration_response_data-pass.json").read_text(encoding="utf-8")
-    runner = RecordingRunner([(("flutter", "drive"), done(0))], {item / "integration_response_data.json": response})
+    runner = RecordingRunner([chrome_answer(), (("flutter", "drive"), done(0))],
+                             {item / "integration_response_data.json": response})
 
     outcome = run_plan(plan_of("web", [KEYBOARD, SMOKE]), CHROME, record_of(CHROME, "chrome"), FakeBooter(), app,
                        item, runner, 60.0, ports)
@@ -540,7 +577,7 @@ def test_chromedriver_that_never_answers_is_env(tmp_path: Path, monkeypatch: pyt
     monkeypatch.setattr(integration_run, "port_accepts", lambda port: False)
     monkeypatch.setattr(integration_run, "CHROMEDRIVER_WAIT_S", 0.0)
     app = app_with_tests(tmp_path)
-    runner = RecordingRunner([])
+    runner = RecordingRunner([chrome_answer()])
 
     outcome = run_plan(plan_of("web", [KEYBOARD]), CHROME, record_of(CHROME, "chrome"), FakeBooter(), app,
                        tmp_path / "item", runner, 60.0, tmp_path / "ports")
@@ -675,12 +712,16 @@ def test_linux_timeout_removes_the_container(tmp_path: Path) -> None:
         (("docker", "image", "inspect"), done(0)),
         (("docker", "rm", "-f"), done(0)),
         (("docker", "run"), done(-9, timed_out=True)),
-        (("docker", "rm", "-f"), done(0)),
+        (("docker", "rm", "-f"), done(1, stderr="Error response from daemon: is the docker daemon running?\n")),
     ])
 
     outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
                        tmp_path / "item", runner, 60.0, tmp_path / "ports")
 
     assert outcome.files[KEYBOARD] == FileResult("env", 0, 1, "run timeout", ())
-    assert runner.calls[-1] == tuple(linux_docker.remove_stale_container_argv("linux"))
+    remove = tuple(linux_docker.remove_stale_container_argv("linux"))
+    assert runner.calls[-1] == remove
+    removals = [run for run in runner.runs if run["argv"] == remove]
+    assert len(removals) == 2
+    assert all(isinstance(run["timeout_s"], float) and run["timeout_s"] > 0 for run in removals)
     assert not [call for call in runner.calls if call[:3] == ("docker", "volume", "rm")]

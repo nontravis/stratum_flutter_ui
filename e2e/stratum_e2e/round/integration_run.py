@@ -56,7 +56,7 @@ _NO_TESTS_STATUS = 79
 _PROBE_TIMEOUT_S = 30.0
 _CHROMEDRIVER_GONE_S = 5.0
 _POLL_S = 0.2
-_COUNT = re.compile(r"\+(\d+)(?: -\d+)?:")
+_COUNT = re.compile(r"\+(\d+)(?: ~(\d+))?(?: -(\d+))?:")
 _TAG = r"(?:[a-z][a-z0-9_]*/)?us\d+/(?:fr\d+(?:/e\d+)?|s\d+)"
 _TAG_LIST = re.compile(rf"(?<!\S)({_TAG}(?:, {_TAG})*)(?=:|\s\()")
 _REPEAT_TEST = re.compile(r"(?:^|\s)REPEAT run \d+ ")
@@ -182,8 +182,9 @@ def classify_env(log: str, exit_code: int, timed_out: bool) -> str | None:
     """Why the environment, not the code under test, ended a run whose output is `log`; `None` when it did not.
 
     `env` is the round's own timeout, an `ENV_SIGNS` line, or `No tests were found` with exit 79 or with no test
-    started; no test started means the last `+N` count reads 0, as `run.sh::is_env_log` reads it. `No tests were found`
-    after a test started is left to the per-file reader, which fails the files it lost.
+    started. A test started when any `+P ~S -F` count line reads above 0 in total, so a failed or skipped test counts
+    as started. `No tests were found` after a test started is left to the per-file reader, which fails the files it
+    lost.
     """
     if timed_out:
         return "run timeout"
@@ -193,8 +194,7 @@ def classify_env(log: str, exit_code: int, timed_out: bool) -> str | None:
     if _NO_TESTS_FOUND in log:
         if exit_code == _NO_TESTS_STATUS:
             return f"{_NO_TESTS_FOUND} (exit {_NO_TESTS_STATUS})"
-        counts = _COUNT.findall(log)
-        if not counts or int(counts[-1]) == 0:
+        if not any(sum(int(count or 0) for count in line) > 0 for line in _COUNT.findall(log)):
             return f"{_NO_TESTS_FOUND} before any test started"
     return None
 
@@ -300,8 +300,9 @@ def run_plan(
 ) -> RunOutcome:
     """Run `plan` once on the device of `record` and return its command, wall time, and one result per file.
 
-    Readies the device (`booter.before_file`), then the platform: a web run holds a chromedriver on a port reserved in
-    `port_dir` for the run, after a WasmGC Chrome check for `wasm`; a Linux run checks the plugin packages, then
+    Readies the device (`booter.before_file`), then the platform: a web run checks Chrome (a readable version, and
+    `CHROME_WASMGC_FLOOR` for `wasm`), then holds a chromedriver on a port reserved in `port_dir` for the run; a Linux
+    run checks the plugin packages, then
     builds or reuses the image (from `flutter_version`, read here when the caller has none), resets a sequence's home
     volume, and removes a stale container. It writes the plan's entry right before the launch and `cleanup` removes
     it after, whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
@@ -319,8 +320,7 @@ def run_plan(
             driver_port: int | None = None
             linux: LinuxRun | None = None
             if target.platform == "web":
-                if target.wasm:
-                    _require_wasmgc_chrome(runner)
+                _require_chrome(runner, target.wasm)
                 driver_port = stack.enter_context(_chromedriver(runner, port_dir, item_dir))
             elif target.platform == "linux":
                 linux = _prepare_linux(plan, target, app_dir, runner, flutter_version)
@@ -332,7 +332,7 @@ def run_plan(
             seconds = time.monotonic() - started
         if completed.timed_out and linux is not None:
             # Killing `docker run` leaves its container running; end it before the next run takes the name.
-            runner.run(linux_docker.remove_stale_container_argv(target.name))
+            runner.run(linux_docker.remove_stale_container_argv(target.name), timeout_s=_PROBE_TIMEOUT_S)
     except RoundEnvError as error:
         return RunOutcome((), 0.0, _env_files(plan, error.reason))
     finally:
@@ -444,9 +444,14 @@ def _int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _require_wasmgc_chrome(runner: Runner) -> None:
-    """Raises `RoundEnvError` unless Chrome is at least `CHROME_WASMGC_FLOOR`: `--wasm` on an older browser falls back
-    to CanvasKit without failing, so a skwasm result could not be told from a CanvasKit one (`web.sh:153-171`)."""
+def _require_chrome(runner: Runner, wasm: bool) -> None:
+    """Raises `RoundEnvError` unless Chrome reports a version, and for `wasm` unless it is at least
+    `CHROME_WASMGC_FLOOR`.
+
+    A missing Chrome would only fail chromedriver's session, which reads as every file failing. `--wasm` on an older
+    browser falls back to CanvasKit without failing, so a skwasm result could not be told from a CanvasKit one
+    (`web.sh:153-171`).
+    """
     major: int | None = None
     for binary in (CHROME_APP, "google-chrome"):
         probe = runner.run([binary, "--version"], timeout_s=_PROBE_TIMEOUT_S)
@@ -454,10 +459,10 @@ def _require_wasmgc_chrome(runner: Runner) -> None:
             number = _FIRST_NUMBER.search(probe.stdout)
             major = int(number.group()) if number else None
             break
-    need = f"wasm needs Chrome {CHROME_WASMGC_FLOOR}+ for WasmGC (skwasm)"
+    need = f"wasm needs Chrome {CHROME_WASMGC_FLOOR}+ for WasmGC (skwasm)" if wasm else "web needs Chrome"
     if major is None:
         raise RoundEnvError(f"{need}; no Chrome version could be read from {CHROME_APP} or google-chrome")
-    if major < CHROME_WASMGC_FLOOR:
+    if wasm and major < CHROME_WASMGC_FLOOR:
         raise RoundEnvError(f"{need}; found Chrome {major}")
 
 
@@ -517,5 +522,5 @@ def _prepare_linux(
     tag = linux_docker.ensure_image(runner, target, flutter_version or linux_docker.flutter_version(runner))
     if plan.kind == "sequence":
         linux_docker.reset_home_volume(runner, target.name)
-    runner.run(linux_docker.remove_stale_container_argv(target.name))
+    runner.run(linux_docker.remove_stale_container_argv(target.name), timeout_s=_PROBE_TIMEOUT_S)
     return LinuxRun(tag=tag, repo_root=app.parent, app_rel=app.name)
