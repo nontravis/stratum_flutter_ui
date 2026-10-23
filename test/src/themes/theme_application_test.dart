@@ -1078,5 +1078,49 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      'fo07/us04/fr03/e09: after every scope has left, a mounted application '
+      "reads no radius until the plugin's next event",
+      (tester) async {
+        mockProbe(tester);
+        final seen = <BorderRadius?>[];
+        final reader = Builder(
+          builder: (context) {
+            seen.add(context.deviceWindow.radius);
+            return const SizedBox();
+          },
+        );
+        await tester.pumpWidget(application(reader));
+        await tester.pump();
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+        expect(seen.last, all(20));
+
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+        seen.clear();
+
+        await tester.pumpWidget(application(reader));
+
+        expect(seen, isNotEmpty);
+        expect(
+          seen.first,
+          isNull,
+          reason:
+              'the last scope out cleared the last radius, so the next '
+              "mount's first build has none to seed from",
+        );
+        expect(listens, 2);
+
+        sink.success(corners(12));
+        await tester.pump();
+        await tester.pump();
+
+        expect(seen.last, all(12));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }
