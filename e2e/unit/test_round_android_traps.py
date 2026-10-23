@@ -56,6 +56,12 @@ def test_focused_anr_package() -> None:
     assert focused_anr_package(_fixture("focus_normal.txt")) is None
 
 
+def test_focused_anr_package_reports_unknown_for_an_anr_title_without_a_package() -> None:
+    package = focused_anr_package(_fixture("anr_no_package.txt"))
+    assert package == "unknown"
+    assert settle_reasons(0.5, package, True) != []
+
+
 def test_focused_anr_package_reads_only_the_first_focus_line() -> None:
     dump = _fixture("focus_normal.txt") + _fixture("anr_title_shape.txt")
     assert focused_anr_package(dump) is None

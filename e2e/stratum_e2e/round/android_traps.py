@@ -15,6 +15,8 @@ BOOT_SETTINGS: tuple[tuple[str, str], ...] = (
 _CURRENT_ID = "mCurId="
 _BOUND_TO_METHOD = "mBoundToMethod=true"
 _CURRENT_FOCUS = "mCurrentFocus="
+_UNKNOWN_PACKAGE = "unknown"
+_ANR_MARKERS = ("Application Not Responding", "isn't responding")
 _ANR_TITLE = re.compile(r"Application Not Responding: ([A-Za-z0-9_.]+)")
 _ANR_ISNT_RESPONDING = re.compile(r"([A-Za-z0-9_.]+) isn't responding")
 _LOAD_AVERAGE = re.compile(r"load average: ([0-9]+\.[0-9]+)")
@@ -40,16 +42,17 @@ def ime_bound(dumpsys_input_method: str) -> bool:
 
 
 def focused_anr_package(dumpsys_window: str) -> str | None:
-    """The package named by an ANR dialog that holds window focus, else None.
+    """The package named by an ANR dialog that holds window focus; None when no ANR dialog has focus.
 
     Reads the first `mCurrentFocus=` line only and matches both AOSP titles: `Application Not Responding: <pkg>` and
-    `<pkg> isn't responding`. An ANR title that names no package reads as None.
+    `<pkg> isn't responding`. An ANR title that names no package returns `"unknown"`, so the device still reads as
+    unsettled.
     """
     focus = _first_line_with(dumpsys_window, _CURRENT_FOCUS)
-    if focus is None:
+    if focus is None or not any(marker in focus for marker in _ANR_MARKERS):
         return None
     match = _ANR_TITLE.search(focus) or _ANR_ISNT_RESPONDING.search(focus)
-    return match.group(1) if match else None
+    return match.group(1) if match else _UNKNOWN_PACKAGE
 
 
 def guest_load(uptime_out: str) -> float:
