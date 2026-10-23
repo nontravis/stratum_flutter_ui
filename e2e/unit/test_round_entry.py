@@ -268,11 +268,32 @@ def test_entry_records_results_for_drive() -> None:
     assert "reportData" in source
     assert "stratum_round" in source
     assert "binding.results" in source
-    assert "setUpAll" in source
-    assert "tearDownAll" in source
+    assert "setUp(" in source
+    assert "tearDown(" in source
+    assert "setUpAll" not in source
+    assert "tearDownAll" not in source
     assert "'success'" in source
     assert "'pass'" in source
     assert "'fail'" in source
+
+
+def test_each_file_records_its_own_results_when_two_files_share_a_test_name() -> None:
+    """Both files may declare `testWidgets('same name')`; `binding.results` is keyed by that bare name alone."""
+    first, second = "common/keyboard_visibility_scope_test.dart", "common/screen_radius_scope_test.dart"
+    (plan,) = plan_runs("android", [Target(name="p", platform="android")], [first, second], [], 1)["p"]
+
+    source = entry_source(plan)
+
+    for index, path in enumerate((first, second)):
+        group = source[source.index(f"group('{path}'"):]
+        group = group[: group.index(f"f{index}.main();")]
+        assert f"round['{path}'] = file;" in group
+        assert "binding.results.clear();" in group
+        assert "file[result.key] = 'fail';" in group
+        assert "file[result.key] = 'pass';" in group
+    assert source.count("round['") == 2
+    assert source.count("final file = <String, String>{};") == 2
+    assert "seen" not in source
 
 
 def test_a_path_is_escaped_in_the_group_name() -> None:

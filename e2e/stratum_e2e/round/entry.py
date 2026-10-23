@@ -43,13 +43,30 @@ void main() {{
 
 _GROUP_TEMPLATE = """\
   group('{path}', () {{
-    var seen = <String>{{}};
-    setUpAll(() => seen = binding.results.keys.toSet());
-    tearDownAll(() {{
-      round['{path}'] = <String, String>{{
-        for (final result in binding.results.entries)
-          if (!seen.contains(result.key)) result.key: result.value == 'success' ? 'pass' : 'fail',
-      }};
+    final file = <String, String>{{}};
+    round['{path}'] = file;
+    var held = <String, Object>{{}};
+    setUp(() {{
+      held = Map<String, Object>.of(binding.results);
+      binding.results.clear();
+    }});
+    tearDown(() {{
+      final current = Map<String, Object>.of(binding.results);
+      for (final result in current.entries) {{
+        if (result.value != 'success') {{
+          file[result.key] = 'fail';
+        }} else if (file[result.key] != 'fail') {{
+          file[result.key] = 'pass';
+        }}
+      }}
+      binding.results
+        ..clear()
+        ..addAll(held)
+        ..addAll(current)
+        ..addAll({{
+          for (final result in held.entries)
+            if (result.value != 'success') result.key: result.value,
+        }});
     }});
     f{index}.main();
   }});"""
