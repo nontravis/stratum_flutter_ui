@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from stratum_e2e.round.boot import BootRecord
 from stratum_e2e.round.catalog import LaneConfig, Target
 from stratum_e2e.round.errors import CatalogError, RoundEnvError
 from stratum_e2e.round.ios_boot import HostBooter, IosBooter, IosPair, PairError, resolve_pair
@@ -32,14 +33,36 @@ LANE = LaneConfig(
 )
 
 Entry = tuple[tuple[str, ...], Completed]
+_ALREADY_BOOTED_TEXT = "Unable to boot device in current state: Booted"
 
 
-class TimeoutRecordingRunner(FakeRunner):
-    """A FakeRunner that also keeps the timeout each argv ran under."""
+class FakeClock:
+    """A monotonic clock that only moves when a scripted command takes time."""
 
-    def __init__(self, script: list[Entry]) -> None:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+class TimedRunner(FakeRunner):
+    """A FakeRunner that keeps the timeout each argv ran under, spends `cost` seconds of the fake clock when an argv
+    finishes, and raises `interrupt` from one argv."""
+
+    def __init__(
+        self,
+        script: list[Entry],
+        clock: FakeClock,
+        *,
+        cost: Mapping[tuple[str, ...], float] | None = None,
+        interrupt: tuple[tuple[str, ...], BaseException] | None = None,
+    ) -> None:
         super().__init__(script)
         self.timeouts: dict[tuple[str, ...], float | None] = {}
+        self._clock = clock
+        self._cost = dict(cost or {})
+        self._interrupt = interrupt
 
     def run(
         self,
@@ -50,8 +73,14 @@ class TimeoutRecordingRunner(FakeRunner):
         env: Mapping[str, str] | None = None,
         log: Path | None = None,
     ) -> Completed:
-        self.timeouts[tuple(argv)] = timeout_s
-        return super().run(argv, timeout_s=timeout_s, cwd=cwd, env=env, log=log)
+        call = tuple(argv)
+        self.timeouts[call] = timeout_s
+        if self._interrupt is not None and call == self._interrupt[0]:
+            self.calls.append(call)
+            raise self._interrupt[1]
+        done = super().run(argv, timeout_s=timeout_s, cwd=cwd, env=env, log=log)
+        self._clock.now += self._cost.get(call, 0.0)
+        return done
 
 
 def _fixture() -> dict[str, object]:
@@ -221,20 +250,70 @@ def test_boot_pins_keyboard_then_boots_then_waits() -> None:
     assert record.platform == "ios"
 
 
-def test_boot_and_bootstatus_run_within_the_lane_boot_timeout() -> None:
+def test_boot_and_bootstatus_share_one_boot_timeout() -> None:
     udid = _pair().udid
+    boot_argv = ("xcrun", "simctl", "boot", udid)
+    status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")
+    clock = FakeClock()
+    script = [_listing(_fixture()), *_pin_script(udid), (boot_argv, _done()), (status_argv, _done())]
+    runner = TimedRunner(script, clock, cost={boot_argv: 240.0})
+
+    IosBooter(runner, LANE, HOME, monotonic=clock.monotonic).boot(IPHONE, Path("boot.log"))
+
+    assert runner.timeouts[boot_argv] == 600.0
+    assert runner.timeouts[status_argv] == 360.0
+
+
+def test_boot_that_spends_the_whole_timeout_skips_bootstatus_and_shuts_down() -> None:
+    udid = _pair().udid
+    boot_argv = ("xcrun", "simctl", "boot", udid)
+    clock = FakeClock()
+    script = [
+        _listing(_fixture()),
+        *_pin_script(udid),
+        (boot_argv, _done()),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
+    ]
+    runner = TimedRunner(script, clock, cost={boot_argv: 600.0})
+
+    with pytest.raises(RoundEnvError, match="did not finish booting within 600 s"):
+        IosBooter(runner, LANE, HOME, monotonic=clock.monotonic).boot(IPHONE, Path("boot.log"))
+
+    assert not any(call[:4] == ("xcrun", "simctl", "bootstatus", udid) for call in runner.calls)
+    assert runner.calls[-1] == ("xcrun", "simctl", "shutdown", udid)
+
+
+def test_interrupt_during_bootstatus_shuts_down_once_and_reraises() -> None:
+    udid = _pair().udid
+    status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")
     script = [
         _listing(_fixture()),
         *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
-        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
-    runner = TimeoutRecordingRunner(script)
+    runner = TimedRunner(script, FakeClock(), interrupt=(status_argv, KeyboardInterrupt()))
 
-    IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
+    with pytest.raises(KeyboardInterrupt):
+        IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
 
-    assert runner.timeouts[("xcrun", "simctl", "boot", udid)] == 600.0
-    assert runner.timeouts[("xcrun", "simctl", "bootstatus", udid, "-b")] == 600.0
+    assert runner.calls.count(("xcrun", "simctl", "shutdown", udid)) == 1
+
+
+def test_interrupt_after_a_lost_boot_race_leaves_the_simulator_running() -> None:
+    udid = _pair().udid
+    status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")
+    script = [
+        _listing(_fixture()),
+        *_pin_script(udid),
+        (("xcrun", "simctl", "boot", udid), _done(status=164, stderr=_ALREADY_BOOTED_TEXT)),
+    ]
+    runner = TimedRunner(script, FakeClock(), interrupt=(status_argv, KeyboardInterrupt()))
+
+    with pytest.raises(KeyboardInterrupt):
+        IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
+
+    assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
 
 
 def test_pin_adds_the_key_when_set_fails_on_a_missing_key() -> None:
@@ -412,7 +491,7 @@ def test_simctl_list_garbage_raises_env() -> None:
         booter.is_running(IPHONE)
 
 
-def test_shutdown_ends_a_simulator_this_booter_booted() -> None:
+def test_shutdown_ends_a_simulator_this_booter_booted_once() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
@@ -422,10 +501,55 @@ def test_shutdown_ends_a_simulator_this_booter_booted() -> None:
         (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
     booter, runner = _booter(script)
+    record = booter.boot(IPHONE, Path("boot.log"))
+
+    booter.shutdown(record)
+    booter.shutdown(record)
+
+    assert runner.calls.count(("xcrun", "simctl", "shutdown", udid)) == 1
+
+
+def test_shutdown_ignores_a_record_this_booter_did_not_boot() -> None:
+    udid = _pair().udid
+    stranger = BootRecord(target="iphone", platform="ios", device_id=udid, reused=False)
+    booter, runner = _booter([])
+
+    booter.shutdown(stranger)
+
+    assert runner.calls == []
+
+
+def test_shutdown_failure_raises_env_naming_the_udid() -> None:
+    udid = _pair().udid
+    script = [
+        _listing(_fixture()),
+        *_pin_script(udid),
+        (("xcrun", "simctl", "boot", udid), _done()),
+        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        (("xcrun", "simctl", "shutdown", udid), _done(status=1, stderr="CoreSimulator busy")),
+    ]
+    booter, _ = _booter(script)
+    record = booter.boot(IPHONE, Path("boot.log"))
+
+    with pytest.raises(RoundEnvError, match=f"{udid}.*CoreSimulator busy"):
+        booter.shutdown(record)
+
+
+def test_shutdown_of_an_already_shut_down_simulator_is_not_an_error() -> None:
+    udid = _pair().udid
+    script = [
+        _listing(_fixture()),
+        *_pin_script(udid),
+        (("xcrun", "simctl", "boot", udid), _done()),
+        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        (
+            ("xcrun", "simctl", "shutdown", udid),
+            _done(status=164, stderr="Unable to shutdown device in current state: Shutdown"),
+        ),
+    ]
+    booter, _ = _booter(script)
 
     booter.shutdown(booter.boot(IPHONE, Path("boot.log")))
-
-    assert runner.calls[-1] == ("xcrun", "simctl", "shutdown", udid)
 
 
 def test_pinned_target_boots_its_pinned_pair() -> None:

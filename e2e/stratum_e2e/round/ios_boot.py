@@ -6,8 +6,10 @@ booter ends only a simulator it booted itself: one found `Booted` is reused as f
 
 from __future__ import annotations
 
+import contextlib
 import json
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +22,7 @@ _PLATFORM = "ios"
 _HOST_PLATFORMS = ("macos", "web", "linux")
 _BOOTED = "Booted"
 _ALREADY_BOOTED = "Unable to boot device in current state: Booted"
+_ALREADY_SHUTDOWN = "Unable to shutdown device in current state: Shutdown"
 _SIMULATOR_DOMAIN = "com.apple.iphonesimulator"
 _KEYBOARD_KEY = "ConnectHardwareKeyboard"
 _PLISTBUDDY = "/usr/libexec/PlistBuddy"
@@ -97,10 +100,20 @@ def _available_device(devices: object, name: str) -> Mapping[str, object] | None
 class IosBooter(Booter):
     """Boots each target's simulator with Connect Hardware Keyboard pinned off, and ends only the ones it booted."""
 
-    def __init__(self, runner: Runner, lane: LaneConfig, home: Path) -> None:
+    def __init__(
+        self,
+        runner: Runner,
+        lane: LaneConfig,
+        home: Path,
+        *,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._runner = runner
         self._lane = lane
         self._plist = home / "Library" / "Preferences" / f"{_SIMULATOR_DOMAIN}.plist"
+        self._monotonic = monotonic
+        # The UDIDs this booter booted: the one place `shutdown` learns that a simulator is ours to end.
+        self._booted: set[str] = set()
 
     def is_running(self, target: Target) -> bool:
         """Whether the simulator of `target`'s pair is `Booted`, so `boot` reuses it and the memory gate is skipped."""
@@ -109,39 +122,54 @@ class IosBooter(Booter):
     def boot(self, target: Target, log: Path) -> BootRecord:
         """Reuse a `Booted` simulator as found, else pin the keyboard key, boot it, and wait for `bootstatus`.
 
-        `log` is unused: `simctl` keeps its own logs. A failure after the simulator started shuts it down.
+        `log` is unused: `simctl` keeps its own logs. One deadline of `boot_timeout_minutes` covers `simctl boot`
+        and `bootstatus`. Once `simctl boot` has succeeded, any failure or interrupt shuts the simulator down.
         """
         pair = self._pair(target)
         if pair.state == _BOOTED:
             return BootRecord(target=target.name, platform=_PLATFORM, device_id=pair.udid, reused=True)
         self._pin_hardware_keyboard(pair.udid)
         limit = self._lane.boot_timeout_minutes * 60
+        deadline = self._monotonic() + limit
         started = self._simctl("boot", pair.udid, timeout_s=limit)
         # Another session booting the same simulator since the listing is a reuse, not a failure.
         reused = _ALREADY_BOOTED in started.stderr + started.stdout
         if started.status != 0 and not reused:
             if started.timed_out:
-                self._shutdown(pair.udid)
+                self._end_quietly(pair.udid)
             raise RoundEnvError(f"simctl boot {pair.udid} failed (status {started.status}): {started.stderr.strip()}")
-        waited = self._simctl("bootstatus", pair.udid, "-b", timeout_s=limit)
-        if waited.status != 0:
+        if not reused:
+            self._booted.add(pair.udid)
+        try:
+            self._wait_booted(target, pair, limit, deadline)
+        except BaseException:
             if not reused:
-                self._shutdown(pair.udid)
-            why = (
-                f"did not finish booting within {limit} s"
-                if waited.timed_out
-                else f"bootstatus failed (status {waited.status}): {waited.stderr.strip()}"
-            )
-            raise RoundEnvError(f"{target.device} ({pair.udid}) {why}")
+                self._end_quietly(pair.udid)
+            raise
         return BootRecord(target=target.name, platform=_PLATFORM, device_id=pair.udid, reused=reused)
 
     def before_file(self, record: BootRecord) -> None:
         """Nothing to ready: a booted simulator needs no per-file check."""
 
     def shutdown(self, record: BootRecord) -> None:
-        """Run `simctl shutdown` for a simulator `boot` booted; a reused one is left as found."""
-        if not record.reused:
-            self._shutdown(record.device_id)
+        """Run `simctl shutdown` for a simulator this booter booted and has not ended; any other record is left as found.
+
+        Raises `RoundEnvError` when `simctl shutdown` fails for any reason but the simulator already being shut down.
+        """
+        if record.reused or record.device_id not in self._booted:
+            return
+        self._end(record.device_id)
+
+    def _wait_booted(self, target: Target, pair: IosPair, limit: int, deadline: float) -> None:
+        name = f"{target.device} ({pair.udid})"
+        remaining = deadline - self._monotonic()
+        if remaining <= 0:
+            raise RoundEnvError(f"{name} did not finish booting within {limit} s")
+        waited = self._simctl("bootstatus", pair.udid, "-b", timeout_s=remaining)
+        if waited.timed_out:
+            raise RoundEnvError(f"{name} did not finish booting within {limit} s")
+        if waited.status != 0:
+            raise RoundEnvError(f"{name} bootstatus failed (status {waited.status}): {waited.stderr.strip()}")
 
     def _pair(self, target: Target) -> IosPair:
         if target.device is None:
@@ -177,8 +205,17 @@ class IosBooter(Booter):
     def _plistbuddy(self, command: str) -> Completed:
         return self._run([_PLISTBUDDY, "-c", command, str(self._plist)])
 
-    def _shutdown(self, udid: str) -> None:
-        self._simctl("shutdown", udid, timeout_s=_QUERY_TIMEOUT_S)
+    def _end(self, udid: str) -> None:
+        """Forget `udid` as ours, then `simctl shutdown` it; a simulator already shut down is not an error."""
+        self._booted.discard(udid)
+        done = self._simctl("shutdown", udid, timeout_s=_QUERY_TIMEOUT_S)
+        if done.status != 0 and _ALREADY_SHUTDOWN not in done.stderr + done.stdout:
+            raise RoundEnvError(f"simctl shutdown {udid} failed (status {done.status}): {done.stderr.strip()}")
+
+    def _end_quietly(self, udid: str) -> None:
+        """End `udid` on a failure path, where the error being raised matters more than a failed shutdown."""
+        with contextlib.suppress(RoundEnvError):
+            self._end(udid)
 
     def _simctl(self, *args: str, timeout_s: float) -> Completed:
         return self._run(["xcrun", "simctl", *args], timeout_s=timeout_s)
