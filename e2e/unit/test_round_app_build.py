@@ -1,7 +1,9 @@
-"""Unit tests for the e2e app build backend, with a scripted flutter that writes a fake artifact."""
+"""Unit tests for the e2e app build backend: a real git lists the files, a scripted flutter builds."""
 
 from __future__ import annotations
 
+import json
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -15,19 +17,30 @@ from stratum_e2e.round.app_build import (
     source_digest,
 )
 from stratum_e2e.round.errors import RoundEnvError
-from stratum_e2e.round.runner import Completed
+from stratum_e2e.round.runner import Completed, Runner, SubprocessRunner
 from unit.round_fakes import FakeRunner
 
 OK = Completed(("flutter",), 0, "", "", False)
+GITIGNORE = "build/\n.dart_tool/\nios/Flutter/Generated.xcconfig\nandroid/local.properties\n"
 
 
 class BuildingRunner(FakeRunner):
-    """A FakeRunner whose `flutter build` leaves the artifact a real build would leave in `cwd/build/`."""
+    """A Runner for the app build: `git` runs for real, the toolchain answers from fields, `flutter build` is scripted.
+
+    A successful scripted build leaves the artifact a real build leaves in `cwd/build/`, plus the `generated`
+    files (relative to `cwd`) a real build leaves in the platform folders.
+    """
 
     def __init__(self, script: Sequence[tuple[tuple[str, ...], Completed]], platform: str, wasm: bool) -> None:
         super().__init__(script)
         self._platform = platform
         self._wasm = wasm
+        self._git = SubprocessRunner()
+        self.engine = "engine-1"
+        self.version_output: str | None = None
+        self.xcode = "Xcode 26.0\nBuild version 17A1"
+        self.generated: dict[str, str] = {}
+        self.skip_artifact = False
 
     def run(
         self,
@@ -38,8 +51,18 @@ class BuildingRunner(FakeRunner):
         env: Mapping[str, str] | None = None,
         log: Path | None = None,
     ) -> Completed:
+        if argv[0] == "git":
+            self.calls.append(tuple(argv))
+            return self._git.run(argv, timeout_s=timeout_s, cwd=cwd)
+        if tuple(argv[:2]) == ("flutter", "--version"):
+            self.calls.append(tuple(argv))
+            info = json.dumps({"frameworkRevision": "framework-1", "engineRevision": self.engine})
+            return Completed(tuple(argv), 0, self.version_output or f"Warning: noise\n{info}\n", "", False)
+        if argv[0] == "xcodebuild":
+            self.calls.append(tuple(argv))
+            return Completed(tuple(argv), 0, self.xcode + "\n", "", False)
         done = super().run(argv, timeout_s=timeout_s, cwd=cwd, env=env, log=log)
-        if done.status == 0 and cwd is not None:
+        if done.status == 0 and cwd is not None and not self.skip_artifact:
             artifact = flutter_output(cwd, self._platform, self._wasm)
             if artifact.suffix == ".apk":
                 artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -47,23 +70,32 @@ class BuildingRunner(FakeRunner):
             else:
                 (artifact / "contents").mkdir(parents=True, exist_ok=True)
                 (artifact / "contents" / "index").write_text("built", encoding="utf-8")
+            for name, text in self.generated.items():
+                (cwd / name).parent.mkdir(parents=True, exist_ok=True)
+                (cwd / name).write_text(text, encoding="utf-8")
         return done
 
 
 def make_tree(root: Path, platform: str = "android") -> tuple[Path, Path]:
-    """Lay out an app folder and a package root, each with the sources the digest reads."""
+    """Lay out an app folder and a package root as a git repository, each with the sources the digest reads."""
     package = root / "package"
     app = package / "test_app"
-    for folder in (app / "lib", app / platform, package / "lib", package / "assets", package / "android"):
+    folders = (app / "lib", app / platform, app / "test", app / "integration_test")
+    for folder in (*folders, package / "lib", package / "assets", package / "android", package / "darwin"):
         folder.mkdir(parents=True)
+    (app / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
     (app / "lib" / "main.dart").write_text("void main() {}", encoding="utf-8")
     (app / "pubspec.yaml").write_text("name: app", encoding="utf-8")
     (app / "pubspec.lock").write_text("packages: {}", encoding="utf-8")
     (app / platform / "Manifest").write_text("manifest", encoding="utf-8")
+    (app / "test" / "a_test.dart").write_text("test", encoding="utf-8")
+    (app / "integration_test" / "b_test.dart").write_text("test", encoding="utf-8")
     (package / "lib" / "x.dart").write_text("class X {}", encoding="utf-8")
     (package / "assets" / "theme.yaml").write_text("a: 1", encoding="utf-8")
     (package / "android" / "plugin.kt").write_text("plugin", encoding="utf-8")
+    (package / "darwin" / "plugin.swift").write_text("plugin", encoding="utf-8")
     (package / "pubspec.yaml").write_text("name: pkg", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=package, check=True)  # noqa: S607 - test setup in a temp dir
     return app, package
 
 
@@ -73,6 +105,11 @@ def runner_for(platform: str, wasm: bool, builds: int = 1) -> BuildingRunner:
 
 def build_calls(runner: FakeRunner) -> list[tuple[str, ...]]:
     return [call for call in runner.calls if call[:2] == ("flutter", "build")]
+
+
+def digest_for(app: Path, package: Path, platform: str, runner: Runner | None = None) -> str:
+    """The digest of the tree as it stands, for the build a default call would run."""
+    return source_digest(app, package, platform, build_argv(platform, False), runner or runner_for(platform, False))
 
 
 @pytest.mark.parametrize(
@@ -160,27 +197,15 @@ def test_changed_app_platform_folder_rebuilds(tmp_path: Path) -> None:
     assert again.reused is False
 
 
-def test_another_platforms_folder_does_not_rebuild(tmp_path: Path) -> None:
-    app, package = make_tree(tmp_path)
-    (app / "ios").mkdir()
-    runner = runner_for("android", False)
-    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
-
-    (app / "ios" / "Info.plist").write_text("changed", encoding="utf-8")
-    again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
-
-    assert again.reused is True
-
-
 def test_build_folder_changes_do_not_rebuild(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
     runner = runner_for("android", False)
     ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
+    (app / "build").mkdir(exist_ok=True)
     (app / "build" / "noise").write_text("x", encoding="utf-8")
     (app / "android" / "build").mkdir()
     (app / "android" / "build" / "noise").write_text("x", encoding="utf-8")
-    (package / "lib" / ".hidden").write_text("x", encoding="utf-8")
     (app / ".dart_tool").mkdir()
     (app / ".dart_tool" / "package_config.json").write_text("x", encoding="utf-8")
     again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
@@ -214,33 +239,203 @@ def test_missing_copy_rebuilds(tmp_path: Path) -> None:
 
 def test_js_and_wasm_digests_differ(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path, platform="web")
+    runner = runner_for("web", False)
 
-    js = source_digest(app, package, "web", build_argv("web", False))
-    wasm = source_digest(app, package, "web", build_argv("web", True))
+    js = source_digest(app, package, "web", build_argv("web", False), runner)
+    wasm = source_digest(app, package, "web", build_argv("web", True), runner)
 
     assert js != wasm
-    assert js == source_digest(app, package, "web", build_argv("web", False))
+    assert js == source_digest(app, package, "web", build_argv("web", False), runner)
 
 
 def test_digest_is_content_not_mtime(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
-    argv = build_argv("android", False)
-    before = source_digest(app, package, "android", argv)
+    before = digest_for(app, package, "android")
 
     source = package / "lib" / "x.dart"
     source.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
-    assert source_digest(app, package, "android", argv) == before
+    assert digest_for(app, package, "android") == before
 
 
 def test_digest_tells_app_files_from_package_files(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
-    argv = build_argv("android", False)
-    before = source_digest(app, package, "android", argv)
+    before = digest_for(app, package, "android")
 
     (package / "lib" / "x.dart").rename(package / "lib" / "y.dart")
 
-    assert source_digest(app, package, "android", argv) != before
+    assert digest_for(app, package, "android") != before
+
+
+def test_generated_files_a_build_writes_do_not_change_the_digest(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False)
+    runner.generated = {
+        "ios/Flutter/Generated.xcconfig": "FLUTTER_ROOT=/sdk",
+        "android/local.properties": "flutter.buildMode=debug",
+    }
+    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert again.reused is True
+    assert len(build_calls(runner)) == 1
+
+
+def test_build_mode_flip_in_local_properties_does_not_rebuild(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False)
+    runner.generated = {"android/local.properties": "flutter.buildMode=debug"}
+    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    (app / "android" / "local.properties").write_text("flutter.buildMode=profile", encoding="utf-8")
+    again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert again.reused is True
+
+
+def test_untracked_authored_file_rebuilds(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False, builds=2)
+    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    (app / "lib" / "added.dart").write_text("class Added {}", encoding="utf-8")
+    again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert again.reused is False
+
+
+def test_tracked_file_edit_and_delete_rebuild(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    subprocess.run(["git", "add", "-A"], cwd=package, check=True)  # noqa: S607 - test setup in a temp dir
+    runner = runner_for("android", False, builds=3)
+    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    (app / "lib" / "main.dart").write_text("void main() { run(); }", encoding="utf-8")
+    edited = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+    (app / "lib" / "main.dart").unlink()
+    deleted = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert (edited.reused, deleted.reused) == (False, False)
+
+
+@pytest.mark.parametrize("folder", ["test", "integration_test"])
+def test_app_test_folders_do_not_rebuild(tmp_path: Path, folder: str) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False)
+    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    (app / folder / "c_test.dart").write_text("more tests", encoding="utf-8")
+    again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert again.reused is True
+
+
+def test_changed_engine_revision_changes_the_digest(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False, builds=2)
+    ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    runner.engine = "engine-2"
+    again = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert again.reused is False
+    assert len(build_calls(runner)) == 2
+
+
+@pytest.mark.parametrize("platform", ["ios", "macos"])
+def test_changed_xcode_version_changes_the_apple_digest(tmp_path: Path, platform: str) -> None:
+    app, package = make_tree(tmp_path, platform=platform)
+    runner = runner_for(platform, False)
+    before = digest_for(app, package, platform, runner)
+
+    runner.xcode = "Xcode 26.1\nBuild version 17B1"
+
+    assert digest_for(app, package, platform, runner) != before
+
+
+def test_xcode_is_only_asked_for_apple_platforms(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False)
+
+    digest_for(app, package, "android", runner)
+
+    assert not [call for call in runner.calls if call[0] == "xcodebuild"]
+
+
+def test_darwin_edit_leaves_the_android_digest_alone(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    before = digest_for(app, package, "android")
+
+    (package / "darwin" / "plugin.swift").write_text("changed", encoding="utf-8")
+
+    assert digest_for(app, package, "android") == before
+
+
+@pytest.mark.parametrize(("platform", "own", "other"), [("ios", "darwin", "android"), ("macos", "darwin", "android")])
+def test_apple_digests_read_darwin_not_android(tmp_path: Path, platform: str, own: str, other: str) -> None:
+    app, package = make_tree(tmp_path, platform=platform)
+    before = digest_for(app, package, platform)
+
+    (package / other / "plugin.kt").write_text("changed", encoding="utf-8")
+    assert digest_for(app, package, platform) == before
+
+    (package / own / "plugin.swift").write_text("changed", encoding="utf-8")
+    assert digest_for(app, package, platform) != before
+
+
+def test_android_digest_reads_the_package_android_folder(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    before = digest_for(app, package, "android")
+
+    (package / "android" / "plugin.kt").write_text("changed", encoding="utf-8")
+
+    assert digest_for(app, package, "android") != before
+
+
+def test_web_digest_reads_neither_package_platform_folder(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path, platform="web")
+    before = digest_for(app, package, "web")
+
+    (package / "android" / "plugin.kt").write_text("changed", encoding="utf-8")
+    (package / "darwin" / "plugin.swift").write_text("changed", encoding="utf-8")
+
+    assert digest_for(app, package, "web") == before
+
+
+@pytest.mark.parametrize("shared", ["lib/x.dart", "assets/theme.yaml", "pubspec.yaml"])
+def test_every_platform_reads_the_shared_package_sources(tmp_path: Path, shared: str) -> None:
+    app, package = make_tree(tmp_path, platform="web")
+    before = digest_for(app, package, "web")
+
+    (package / shared).write_text("changed", encoding="utf-8")
+
+    assert digest_for(app, package, "web") != before
+
+
+def test_digest_rejects_a_platform_it_does_not_build(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+
+    with pytest.raises(ValueError, match="linux"):
+        source_digest(app, package, "linux", ["flutter"], runner_for("android", False))
+
+
+def test_outside_a_git_repository_is_env(tmp_path: Path) -> None:
+    app = tmp_path / "plain" / "app"
+    (app / "lib").mkdir(parents=True)
+    runner = runner_for("android", False)
+
+    with pytest.raises(RoundEnvError, match="git ls-files"):
+        source_digest(app, app.parent, "android", build_argv("android", False), runner)
+
+
+def test_unreadable_flutter_version_is_env(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    runner = runner_for("android", False)
+    runner.version_output = "not json at all\n"
+
+    with pytest.raises(RoundEnvError, match="engine revision"):
+        source_digest(app, package, "android", build_argv("android", False), runner)
 
 
 def test_artifact_is_copied_out_of_the_flutter_build_folder(tmp_path: Path) -> None:
@@ -276,7 +471,7 @@ def test_later_flutter_build_does_not_touch_the_copy(tmp_path: Path) -> None:
 def test_failed_build_is_env(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
     failed = Completed(("flutter",), 1, "", "Gradle task assembleDebug failed\n", False)
-    runner = FakeRunner([(("flutter", "build"), failed)])
+    runner = BuildingRunner([(("flutter", "build"), failed)], "android", False)
 
     with pytest.raises(RoundEnvError, match=r"flutter build apk --debug") as raised:
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
@@ -300,7 +495,8 @@ def test_failed_rebuild_drops_the_stale_copy(tmp_path: Path) -> None:
 
 def test_build_without_an_artifact_is_env(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
-    runner = FakeRunner([(("flutter", "build"), OK)])
+    runner = BuildingRunner([(("flutter", "build"), OK)], "android", False)
+    runner.skip_artifact = True
 
     with pytest.raises(RoundEnvError, match="produced no"):
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
