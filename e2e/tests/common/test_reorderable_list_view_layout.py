@@ -11,16 +11,23 @@ the speech log.
 from __future__ import annotations
 
 import re
-import time
 import xml.etree.ElementTree as ET
 from typing import Any
 
 import pytest
 from appium.webdriver.common.appiumby import AppiumBy
 
-from stratum_e2e.android import emu_mouse
+from stratum_e2e.android.screen_reader import (
+    MENU_CANCEL,
+    MENU_STEPS,
+    entry_name,
+    focus_by_touch,
+    open_actions,
+    press_and_hear,
+    run_action,
+)
 from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
-from stratum_e2e.android.uhid_keyboard import KEY_UP, MOD_LALT, UhidKeyboard
+from stratum_e2e.android.uhid_keyboard import KEY_ENTER, KEY_RIGHT, KEY_UP, MOD_LALT, UhidKeyboard
 from stratum_e2e.fixtures import open_fixture
 from stratum_e2e.locate import by_id
 from stratum_e2e.waits import wait_until
@@ -30,31 +37,15 @@ LOG_ID = "reorder.log"
 ITEM_COUNT = 6
 INITIAL_ORDER = [f"Item {n}" for n in range(1, ITEM_COUNT + 1)]
 
-# USB HID usages of the keys TalkBack's menu shortcuts use.
-KEY_ENTER = 0x28
-KEY_SPACE = 0x2C
-KEY_RIGHT = 0x4F
-
 MOVE_UP = "Move up"
 MOVE_DOWN = "Move down"
 MOVE_TO_START = "Move to the start"
 MOVE_TO_END = "Move to the end"
 ALL_MOVES = {MOVE_UP, MOVE_DOWN, MOVE_TO_START, MOVE_TO_END}
-MENU_CANCEL = "Cancel"
-
-# One pass over the actions menu: four moves, Cancel, and the title spoken on wrap-around.
-MENU_STEPS = 8
-SPEECH_TIMEOUT_S = 3
-SPEECH_QUIET_S = 1.2
 WAIT_TIMEOUT_S = 10
-POLL_INTERVAL_S = 0.25
 
 _ITEM_LABEL = re.compile(r"Item \d+")
 _BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
-
-
-def _serial(driver: Any) -> str:
-    return str(driver.capabilities["udid"])
 
 
 def _item_nodes(driver: Any) -> list[tuple[str, int, ET.Element]]:
@@ -88,54 +79,9 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
     )
 
 
-def _focus_by_touch(driver: Any, label: str) -> None:
-    """Explore-by-touch: touch the centre of [label] so TalkBack focuses and speaks it."""
-    serial = _serial(driver)
-    x, y = emu_mouse.center(driver.find_element(AppiumBy.ACCESSIBILITY_ID, label).rect)
-    emu_mouse.tap(serial, x, y)
-    wait_until(
-        lambda: a11y_focused(driver.page_source) == [label],
-        f"TalkBack focus on {label}",
-        timeout_s=WAIT_TIMEOUT_S,
-    )
-
-
-def _entry_name(utterance: str) -> str:
-    """Return the menu entry an utterance names: no `selected, ` prefix, no role suffix."""
-    return utterance.removeprefix("selected, ").split(", ")[0]
-
-
-def _press_and_hear(
-    keyboard: UhidKeyboard, talkback: TalkBackLog, usage: int, mods: int
-) -> list[str]:
-    """Press a key and return TalkBack's whole reply once it has been quiet for SPEECH_QUIET_S.
-
-    TalkBack speaks a reply in parts (a name, then a hint seconds later), so the reply
-    ends on silence, never on the first part. Empty after SPEECH_TIMEOUT_S of silence.
-    """
-    talkback.mark()
-    keyboard.press(usage, mods)
-    deadline = time.monotonic() + SPEECH_TIMEOUT_S
-    spoken: list[str] = []
-    quiet_since = time.monotonic()
-    while time.monotonic() < deadline:
-        time.sleep(POLL_INTERVAL_S)
-        now = talkback.since_mark()
-        if now != spoken:
-            spoken, quiet_since = now, time.monotonic()
-        elif spoken and time.monotonic() - quiet_since >= SPEECH_QUIET_S:
-            break
-    return spoken
-
-
-def _open_actions(keyboard: UhidKeyboard, talkback: TalkBackLog) -> None:
-    """Open the focused item's actions: TalkBack menu, then its `Actions` entry."""
-    menu = _press_and_hear(keyboard, talkback, KEY_SPACE, MOD_LALT)
-    assert "TalkBack menu" in menu, f"TalkBack menu did not open, heard {menu}"
-    actions = _press_and_hear(keyboard, talkback, KEY_ENTER, MOD_LALT)
-    assert any(_entry_name(text) == "Actions" for text in actions), (
-        f"the Actions entry did not open, heard {actions}"
-    )
+def _focus_item(driver: Any, label: str) -> None:
+    """Explore-by-touch: touch [label]'s item so TalkBack focuses and speaks it."""
+    focus_by_touch(driver, driver.find_element(AppiumBy.ACCESSIBILITY_ID, label), label)
 
 
 def _offered_moves(keyboard: UhidKeyboard, talkback: TalkBackLog) -> set[str]:
@@ -143,11 +89,11 @@ def _offered_moves(keyboard: UhidKeyboard, talkback: TalkBackLog) -> set[str]:
 
     A pass is complete only once Cancel was heard, the last entry of the menu.
     """
-    _open_actions(keyboard, talkback)
+    open_actions(keyboard, talkback)
     heard: list[str] = []
     for _ in range(MENU_STEPS):
-        heard += _press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT)
-    names = {_entry_name(text) for text in heard}
+        heard += press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT)
+    names = {entry_name(text) for text in heard}
     assert MENU_CANCEL in names, f"the pass did not reach Cancel, heard {heard}"
     return names & ALL_MOVES
 
@@ -161,8 +107,8 @@ def _close_actions(
     menu's own window cannot hold.
     """
     for _ in range(MENU_STEPS):
-        heard = _press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT)
-        if any(_entry_name(text) == MENU_CANCEL for text in heard):
+        heard = press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT)
+        if any(entry_name(text) == MENU_CANCEL for text in heard):
             keyboard.press(KEY_ENTER, MOD_LALT)
             wait_until(
                 lambda: a11y_focused(driver.page_source) == [returns_to],
@@ -173,18 +119,6 @@ def _close_actions(
     raise AssertionError(f"{MENU_CANCEL!r} was not offered in {MENU_STEPS} steps")
 
 
-def _run_move(keyboard: UhidKeyboard, talkback: TalkBackLog, move: str) -> None:
-    """Open the actions, step to [move], and activate it."""
-    _open_actions(keyboard, talkback)
-    for _ in range(MENU_STEPS):
-        heard = _press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT)
-        if any(_entry_name(text) == move for text in heard):
-            talkback.mark()
-            keyboard.press(KEY_ENTER, MOD_LALT)
-            return
-    raise AssertionError(f"{move!r} was not offered in {MENU_STEPS} steps")
-
-
 @pytest.mark.android
 @pytest.mark.level2
 @pytest.mark.talkback_avd
@@ -193,7 +127,7 @@ def test_talkback_takes_alt_up_before_the_app(
     driver: Any, platform: str, app_id: str, talkback: TalkBackLog, keyboard: UhidKeyboard
 ) -> None:
     _open(driver, platform, app_id)
-    _focus_by_touch(driver, "Item 3")
+    _focus_item(driver, "Item 3")
 
     talkback.mark()
     keyboard.press(KEY_UP, MOD_LALT)
@@ -218,14 +152,14 @@ def test_talkback_offers_only_valid_moves(
 ) -> None:
     _open(driver, platform, app_id)
 
-    _focus_by_touch(driver, "Item 1")
+    _focus_item(driver, "Item 1")
     first = _offered_moves(keyboard, talkback)
     assert MOVE_UP not in first
     assert MOVE_TO_START not in first
     assert {MOVE_DOWN, MOVE_TO_END} <= first
 
     _close_actions(driver, keyboard, talkback, returns_to="Item 1")
-    _focus_by_touch(driver, "Item 3")
+    _focus_item(driver, "Item 3")
     middle = _offered_moves(keyboard, talkback)
     assert middle == ALL_MOVES
 
@@ -239,9 +173,9 @@ def test_talkback_move_up_moves_item_and_speaks_position(
     driver: Any, platform: str, app_id: str, talkback: TalkBackLog, keyboard: UhidKeyboard
 ) -> None:
     _open(driver, platform, app_id)
-    _focus_by_touch(driver, "Item 3")
+    _focus_item(driver, "Item 3")
 
-    _run_move(keyboard, talkback, MOVE_UP)
+    run_action(keyboard, talkback, MOVE_UP)
     wait_until(
         lambda: _order(driver)[1] == "Item 3",
         "Item 3 in the second slot",

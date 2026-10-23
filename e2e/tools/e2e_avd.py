@@ -43,6 +43,9 @@ CONFIG_VALUES = {
     "fastboot.forceFastBoot": "no",
 }
 
+KEY_REPEAT_SETTING = "key_repeat_timeout"
+KEY_REPEAT_TIMEOUT_MS = 10000
+
 TALKBACK_PACKAGE = "com.google.android.marvin.talkback"
 TALKBACK_SETTINGS_ACTIVITY = "com.android.talkback.TalkBackPreferencesActivity"
 
@@ -144,9 +147,15 @@ def talkback(serial: str) -> int:
     """Turn TalkBack on through the secure settings of device [serial].
 
     Grants POST_NOTIFICATIONS first: while ungranted, every TalkBack start opens a
-    permission dialog that takes the screen.
+    permission dialog that takes the screen. Sets the key repeat timeout before TalkBack
+    turns on, so no key is ever dispatched under the stock timeout.
     """
     _adb(serial, "shell", "pm", "grant", TALKBACK_PACKAGE, _NOTIFICATIONS_PERMISSION)
+    # WORKAROUND: with TalkBack on, every key passes through its key filter, and one it
+    # re-injects past InputDispatcher's KeyRepeatTimeout (400 ms) auto-repeats, so a Tab walk
+    # sees extra Tabs (Android + TalkBack, not stratum_ui); remove when a TalkBack-on Tab walk
+    # shows no extra Tab with this setting unset, or level-1 walks run with TalkBack off.
+    _put_secure(serial, KEY_REPEAT_SETTING, str(KEY_REPEAT_TIMEOUT_MS))
     _put_secure(serial, _SERVICES_SETTING, TALKBACK_SERVICE)
     _put_secure(serial, _ENABLED_SETTING, "1")
     print("talkback=on")
@@ -183,14 +192,27 @@ def diagnosis(serial: str) -> int:
 
 
 def check(serial: str) -> int:
-    """Print the AVD's keyboard, TalkBack version, and Diagnosis mode; 0 when all hold."""
+    """Print the AVD's keyboard, TalkBack version, key repeat timeout, and Diagnosis mode.
+
+    0 when all hold: the keyboard is on, TalkBack is installed, the key repeat timeout is
+    KEY_REPEAT_TIMEOUT_MS, and Diagnosis mode speaks.
+    """
     keyboard = ini_value(config_path().read_text(), KEYBOARD_KEY)
     version = talkback_version(serial)
+    repeat = key_repeat_timeout(serial)
     speaks = diagnosis_speaks(serial)
     print(f"{KEYBOARD_KEY}={keyboard or 'unset'}")
     print(f"talkback={version or 'missing'}")
+    print(f"{KEY_REPEAT_SETTING}={'unset' if repeat is None else repeat}")
     print(f"diagnosis={'on' if speaks else 'off'}")
-    return EXIT_OK if keyboard == "yes" and version and speaks else EXIT_FAILED
+    ok = keyboard == "yes" and version and repeat == KEY_REPEAT_TIMEOUT_MS and speaks
+    return EXIT_OK if ok else EXIT_FAILED
+
+
+def key_repeat_timeout(serial: str) -> int | None:
+    """Return the secure key_repeat_timeout of [serial] in ms, or None when it is not set."""
+    printed = _adb(serial, "shell", "settings", "get", "secure", KEY_REPEAT_SETTING).strip()
+    return int(printed) if printed.isdigit() else None
 
 
 def talkback_version(serial: str) -> str | None:
@@ -219,7 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name, summary in (
         ("talkback", "turn TalkBack on"),
         ("diagnosis", "switch TalkBack's Diagnosis mode on"),
-        ("check", "print hw.keyboard, talkback, and diagnosis"),
+        ("check", "print hw.keyboard, talkback, key_repeat_timeout, and diagnosis"),
     ):
         command = commands.add_parser(name, help=summary)
         command.add_argument("--serial", required=True, help="adb serial of the booted AVD")

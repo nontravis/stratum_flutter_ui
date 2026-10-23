@@ -1,0 +1,209 @@
+"""Unit tests for the TalkBack driving helpers, on a fake clock (no adb, no device)."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+
+from stratum_e2e.android import screen_reader
+from stratum_e2e.android.screen_reader import (
+    MENU_STEPS,
+    SPEECH_TIMEOUT_S,
+    entry_name,
+    focus_by_touch,
+    open_actions,
+    press_and_hear,
+    run_action,
+    swipe_vertically,
+    vertical_swipe_points,
+)
+from stratum_e2e.android.uhid_keyboard import KEY_ENTER, KEY_RIGHT, KEY_SPACE, MOD_LALT
+
+MODULE = "stratum_e2e.android.screen_reader"
+SERIAL = "emulator-5554"
+
+MENU_OPENS = ["TalkBack menu", "selected, Read from focused item, In list"]
+ACTIONS_OPEN = ["Actions", "Show menu, In list"]
+
+
+class FakeClock:
+    """A monotonic clock that only `sleep` advances."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class ScriptedDevice:
+    """A keyboard and a speech log in one: each key press makes the next scripted reply audible."""
+
+    def __init__(self, replies: list[list[str]]) -> None:
+        self.replies = list(replies)
+        self.presses: list[tuple[int, int]] = []
+        self.marks = 0
+        self._spoken: list[str] = []
+
+    def press(self, usage: int, mods: int = 0) -> None:
+        self.presses.append((usage, mods))
+        self._spoken = self.replies.pop(0) if self.replies else []
+
+    def mark(self) -> None:
+        self.marks += 1
+        self._spoken = []
+
+    def since_mark(self) -> list[str]:
+        return list(self._spoken)
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
+    fake = FakeClock()
+    monkeypatch.setattr(f"{MODULE}.time.monotonic", fake.monotonic)
+    monkeypatch.setattr(f"{MODULE}.time.sleep", fake.sleep)
+    return fake
+
+
+def test_entry_name_drops_selected_prefix_and_role_suffix() -> None:
+    assert entry_name("selected, Move up, In list") == "Move up"
+    assert entry_name("Cancel, Button, Out of list") == "Cancel"
+    assert entry_name("Actions") == "Actions"
+
+
+def test_press_and_hear_returns_the_reply_after_it_goes_quiet(clock: FakeClock) -> None:
+    device = ScriptedDevice([["Item 2", "Double-tap to activate"]])
+
+    heard = press_and_hear(device, device, KEY_RIGHT, MOD_LALT)  # type: ignore[arg-type]
+
+    assert heard == ["Item 2", "Double-tap to activate"]
+    assert device.presses == [(KEY_RIGHT, MOD_LALT)]
+    assert clock.now < SPEECH_TIMEOUT_S
+
+
+def test_press_and_hear_is_empty_after_the_timeout_of_silence(clock: FakeClock) -> None:
+    device = ScriptedDevice([[]])
+
+    assert press_and_hear(device, device, KEY_RIGHT) == []  # type: ignore[arg-type]
+    assert clock.now >= SPEECH_TIMEOUT_S
+
+
+def test_open_actions_presses_alt_space_then_alt_enter(clock: FakeClock) -> None:
+    device = ScriptedDevice([MENU_OPENS, ACTIONS_OPEN])
+
+    assert open_actions(device, device) == ACTIONS_OPEN  # type: ignore[arg-type]
+    assert device.presses == [(KEY_SPACE, MOD_LALT), (KEY_ENTER, MOD_LALT)]
+
+
+def test_open_actions_fails_when_the_menu_does_not_open(clock: FakeClock) -> None:
+    device = ScriptedDevice([["Item 2"]])
+
+    with pytest.raises(AssertionError, match="TalkBack menu did not open"):
+        open_actions(device, device)  # type: ignore[arg-type]
+
+
+def test_open_actions_fails_when_the_actions_entry_does_not_open(clock: FakeClock) -> None:
+    device = ScriptedDevice([MENU_OPENS, ["Cancel, Button"]])
+
+    with pytest.raises(AssertionError, match="Actions entry did not open"):
+        open_actions(device, device)  # type: ignore[arg-type]
+
+
+def test_run_action_activates_an_action_heard_on_open(clock: FakeClock) -> None:
+    device = ScriptedDevice([MENU_OPENS, ACTIONS_OPEN, []])
+
+    run_action(device, device, "Show menu")  # type: ignore[arg-type]
+
+    assert device.presses[-1] == (KEY_ENTER, MOD_LALT)
+    assert len(device.presses) == 3
+
+
+def test_run_action_steps_right_until_the_action_is_heard(clock: FakeClock) -> None:
+    device = ScriptedDevice(
+        [MENU_OPENS, ["Actions", "Move up, In list"], ["Move down, In list"], ["Delete, In list"], []]
+    )
+
+    run_action(device, device, "Delete")  # type: ignore[arg-type]
+
+    assert device.presses[2:] == [(KEY_RIGHT, MOD_LALT), (KEY_RIGHT, MOD_LALT), (KEY_ENTER, MOD_LALT)]
+
+
+def test_run_action_marks_just_before_the_activation(clock: FakeClock) -> None:
+    device = ScriptedDevice([MENU_OPENS, ACTIONS_OPEN, ["Menu shown"]])
+
+    run_action(device, device, "Show menu")  # type: ignore[arg-type]
+
+    assert device.since_mark() == ["Menu shown"]
+
+
+def test_run_action_fails_when_the_action_is_not_offered(clock: FakeClock) -> None:
+    device = ScriptedDevice([MENU_OPENS, ACTIONS_OPEN] + [["Cancel, Button"]] * MENU_STEPS)
+
+    with pytest.raises(AssertionError, match="'Delete' was not offered"):
+        run_action(device, device, "Delete")  # type: ignore[arg-type]
+
+    assert (KEY_ENTER, MOD_LALT) not in device.presses[2:]
+
+
+def test_vertical_swipe_points_run_from_below_to_above_for_up() -> None:
+    points = vertical_swipe_points(1280, 800, up=True)
+
+    assert points[0] == (1280, 1000)
+    assert points[-1] == (1280, 600)
+    assert len(points) == screen_reader.SWIPE_STEPS + 1
+    assert [y for _, y in points] == sorted((y for _, y in points), reverse=True)
+
+
+def test_vertical_swipe_points_run_from_above_to_below_for_down() -> None:
+    points = vertical_swipe_points(1280, 800, up=False)
+
+    assert (points[0], points[-1]) == ((1280, 600), (1280, 1000))
+
+
+def test_swipe_vertically_drags_the_points_on_the_device(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[Any] = []
+    monkeypatch.setattr(f"{MODULE}.emu_mouse.swipe", lambda serial, points: seen.append((serial, points)))
+
+    swipe_vertically(SERIAL, 10, 20, up=True)
+
+    assert seen == [(SERIAL, vertical_swipe_points(10, 20, up=True))]
+
+
+class FakeElement:
+    rect = {"x": 100, "y": 200, "width": 40, "height": 20}
+
+
+class FakeDriver:
+    capabilities = {"udid": SERIAL}
+
+    def __init__(self, focused: list[str]) -> None:
+        self.focused = focused
+
+    @property
+    def page_source(self) -> str:
+        nodes = "".join(f'<node content-desc="{label}" a11y-focused="true"/>' for label in self.focused)
+        return f"<hierarchy>{nodes}</hierarchy>"
+
+
+def test_focus_by_touch_taps_the_centre_and_waits_for_the_label(
+    clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    taps: list[tuple[str, int, int]] = []
+    monkeypatch.setattr(f"{MODULE}.emu_mouse.tap", lambda s, x, y: taps.append((s, x, y)))
+
+    focus_by_touch(FakeDriver(["Menu target"]), FakeElement(), "Menu target")
+
+    assert taps == [(SERIAL, 120, 210)]
+
+
+def test_focus_by_touch_times_out_when_another_node_holds_focus(
+    clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(f"{MODULE}.emu_mouse.tap", lambda s, x, y: None)
+
+    with pytest.raises(AssertionError, match="TalkBack focus on Menu target"):
+        focus_by_touch(FakeDriver(["Elsewhere"]), FakeElement(), "Menu target")

@@ -9,9 +9,13 @@ from types import TracebackType
 from typing import IO
 
 MOD_LALT = 0x04
+KEY_ENTER = 0x28
 KEY_TAB = 0x2B
+KEY_SPACE = 0x2C
+KEY_RIGHT = 0x4F
 KEY_UP = 0x52
 KEY_DOWN = 0x51
+KEY_MENU = 0x65
 MAX_HOLD_MS = 20
 
 REGISTER_SETTLE_S = 2.5

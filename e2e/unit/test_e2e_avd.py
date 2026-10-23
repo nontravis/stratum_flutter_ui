@@ -11,10 +11,12 @@ from stratum_e2e.android.talkback import AVD_NAME, TALKBACK_SERVICE, TalkBackSil
 from tools.e2e_avd import (
     EXIT_AVD_EXISTS,
     SYSTEM_IMAGE,
+    KEY_REPEAT_TIMEOUT_MS,
     TALKBACK_PACKAGE,
     config_path,
     diagnosis_speaks,
     ini_value,
+    key_repeat_timeout,
     main,
     set_ini_value,
     version_name,
@@ -155,6 +157,43 @@ def test_device_commands_refuse_a_shared_avd(
     assert SHARED_AVD in capsys.readouterr().err
 
 
+def test_talkback_sets_the_key_repeat_timeout_before_turning_talkback_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def adb(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv[3:])
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(f"{MODULE}.avd_name", lambda serial: AVD_NAME)
+    monkeypatch.setattr(f"{MODULE}.subprocess.run", adb)
+
+    assert main(["talkback", "--serial", SERIAL]) == 0
+    put = ["shell", "settings", "put", "secure", "key_repeat_timeout", str(KEY_REPEAT_TIMEOUT_MS)]
+    enable = [call for call in calls if "accessibility_enabled" in call]
+    assert calls.index(put) < calls.index(enable[0])
+    assert KEY_REPEAT_TIMEOUT_MS == 10000
+
+
+@pytest.mark.parametrize(
+    ("printed", "expected"), [("10000\n", 10000), ("400\n", 400), ("null\n", None), ("", None)]
+)
+def test_key_repeat_timeout_reads_the_secure_setting(
+    printed: str, expected: int | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def adb(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv[3:])
+        return subprocess.CompletedProcess(argv, 0, printed, "")
+
+    monkeypatch.setattr(f"{MODULE}.subprocess.run", adb)
+
+    assert key_repeat_timeout(SERIAL) == expected
+    assert calls == [["shell", "settings", "get", "secure", "key_repeat_timeout"]]
+
+
 def test_talkback_grants_notifications_before_turning_talkback_on(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -171,6 +210,7 @@ def test_talkback_grants_notifications_before_turning_talkback_on(
     assert main(["talkback", "--serial", SERIAL]) == 0
     assert calls == [
         ["shell", "pm", "grant", TALKBACK_PACKAGE, "android.permission.POST_NOTIFICATIONS"],
+        ["shell", "settings", "put", "secure", "key_repeat_timeout", "10000"],
         ["shell", "settings", "put", "secure", "enabled_accessibility_services", TALKBACK_SERVICE],
         ["shell", "settings", "put", "secure", "accessibility_enabled", "1"],
     ]
@@ -222,12 +262,14 @@ def test_check_prints_keyboard_talkback_and_diagnosis(
     config_path().write_text(set_ini_value(FRESH_CONFIG, "hw.keyboard", "yes"))
     monkeypatch.setattr(f"{MODULE}.avd_name", lambda serial: AVD_NAME)
     monkeypatch.setattr(f"{MODULE}.talkback_version", lambda serial: "15.0.0.639625893")
+    monkeypatch.setattr(f"{MODULE}.key_repeat_timeout", lambda serial: 10000)
     monkeypatch.setattr(f"{MODULE}.diagnosis_speaks", lambda serial: speaks)
 
     assert main(["check", "--serial", SERIAL]) == exit_code
     assert capsys.readouterr().out.splitlines() == [
         "hw.keyboard=yes",
         "talkback=15.0.0.639625893",
+        "key_repeat_timeout=10000",
         line,
     ]
 
@@ -241,7 +283,27 @@ def test_check_fails_on_a_keyboard_off_or_a_missing_talkback(
     config_path().write_text(FRESH_CONFIG)
     monkeypatch.setattr(f"{MODULE}.avd_name", lambda serial: AVD_NAME)
     monkeypatch.setattr(f"{MODULE}.talkback_version", lambda serial: None)
+    monkeypatch.setattr(f"{MODULE}.key_repeat_timeout", lambda serial: 10000)
     monkeypatch.setattr(f"{MODULE}.diagnosis_speaks", lambda serial: True)
 
     assert main(["check", "--serial", SERIAL]) == 1
     assert capsys.readouterr().out.splitlines()[:2] == ["hw.keyboard=no", "talkback=missing"]
+
+
+@pytest.mark.parametrize(("timeout", "printed"), [(None, "unset"), (400, "400")])
+def test_check_fails_on_a_missing_or_wrong_key_repeat_timeout(
+    timeout: int | None,
+    printed: str,
+    avd_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (avd_home / f"{AVD_NAME}.avd").mkdir()
+    config_path().write_text(set_ini_value(FRESH_CONFIG, "hw.keyboard", "yes"))
+    monkeypatch.setattr(f"{MODULE}.avd_name", lambda serial: AVD_NAME)
+    monkeypatch.setattr(f"{MODULE}.talkback_version", lambda serial: "15.0.0.639625893")
+    monkeypatch.setattr(f"{MODULE}.key_repeat_timeout", lambda serial: timeout)
+    monkeypatch.setattr(f"{MODULE}.diagnosis_speaks", lambda serial: True)
+
+    assert main(["check", "--serial", SERIAL]) == 1
+    assert f"key_repeat_timeout={printed}" in capsys.readouterr().out.splitlines()

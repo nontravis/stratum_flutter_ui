@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from stratum_e2e.android.dumps import activities_dump, sdk_level, window_dump
+from stratum_e2e.android.dumps import activities_dump, sdk_level, touch_mode, window_dump
 
 SERIAL = "emulator-5554"
 
@@ -77,3 +77,68 @@ def test_sdk_level_rejects_a_non_numeric_prop(
     )
     with pytest.raises(ValueError, match="not a level"):
         sdk_level(SERIAL)
+
+
+INPUT_DUMP = "  Configuration:\n    KeyRepeatDelay: 50ms\n  TouchModePerDisplay:\n{displays}\n  Other: 1\n"
+
+
+def _input_dump(*displays: str) -> str:
+    return INPUT_DUMP.format(displays="\n".join(f"    {line}" for line in displays))
+
+
+@pytest.mark.parametrize(
+    ("dump", "expected"),
+    [
+        (_input_dump("Display: 0 TouchMode: 1"), True),
+        (_input_dump("Display: 0 TouchMode: 0"), False),
+        (_input_dump("Display: 2 TouchMode: 1", "Display: 0 TouchMode: 0"), False),
+    ],
+)
+def test_touch_mode_reads_display_zero_of_dumpsys_input(
+    dump: str, expected: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adb = FakeAdb({("shell", "-n", "dumpsys", "input"): dump})
+    monkeypatch.setattr("stratum_e2e.android.dumps.subprocess.run", adb)
+
+    assert touch_mode(SERIAL) is expected
+    assert adb.calls == [["adb", "-s", SERIAL, "shell", "-n", "dumpsys", "input"]]
+
+
+TOP_DUMP = (
+    "  ACTIVITY launcher\n    mHasWindowFocus=false\n    mInTouchMode=true\n"
+    "  ACTIVITY app\n    mHasWindowFocus=true\n    mTraversalScheduled=false\n"
+    "    mInTouchMode={state}\n"
+)
+NO_ENTRY = "  Configuration:\n    KeyRepeatDelay: 50ms\n"
+
+
+@pytest.mark.parametrize(("state", "expected"), [("true", True), ("false", False)])
+def test_touch_mode_falls_back_to_the_top_activity_without_the_input_entry(
+    state: str, expected: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adb = FakeAdb(
+        {
+            ("shell", "-n", "dumpsys", "input"): NO_ENTRY,
+            ("shell", "-n", "dumpsys", "activity", "top"): TOP_DUMP.format(state=state),
+        }
+    )
+    monkeypatch.setattr("stratum_e2e.android.dumps.subprocess.run", adb)
+
+    assert touch_mode(SERIAL) is expected
+    assert [call[-1] for call in adb.calls] == ["input", "top"]
+
+
+@pytest.mark.parametrize("dump", ["", NO_ENTRY, _input_dump("Display: 2 TouchMode: 1")])
+def test_touch_mode_rejects_dumps_without_a_display_zero_entry(
+    dump: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adb = FakeAdb(
+        {
+            ("shell", "-n", "dumpsys", "input"): dump,
+            ("shell", "-n", "dumpsys", "activity", "top"): "  no view root here\n",
+        }
+    )
+    monkeypatch.setattr("stratum_e2e.android.dumps.subprocess.run", adb)
+
+    with pytest.raises(ValueError, match="no touch mode"):
+        touch_mode(SERIAL)

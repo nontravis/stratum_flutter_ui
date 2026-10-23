@@ -10,6 +10,10 @@ import pytest
 
 from stratum_e2e.android.uhid_keyboard import (
     KEY_DOWN,
+    KEY_ENTER,
+    KEY_MENU,
+    KEY_RIGHT,
+    KEY_SPACE,
     KEY_TAB,
     KEY_UP,
     MAX_HOLD_MS,
@@ -106,6 +110,16 @@ def test_alt_up_report() -> None:
 
 def test_key_constants() -> None:
     assert (KEY_TAB, KEY_UP, KEY_DOWN, MOD_LALT, MAX_HOLD_MS) == (0x2B, 0x52, 0x51, 0x04, 20)
+
+
+def test_shortcut_key_constants() -> None:
+    assert (KEY_ENTER, KEY_SPACE, KEY_RIGHT) == (0x28, 0x2C, 0x4F)
+
+
+def test_menu_key_is_the_application_usage() -> None:
+    # HID usage 0x65 (Keyboard Application) is Linux KEY_COMPOSE (127), which the stock
+    # /system/usr/keylayout/Generic.kl maps to KEYCODE_MENU (`key 127   MENU`, read on API 35).
+    assert KEY_MENU == 0x65
 
 
 def test_report_line_is_one_json_line() -> None:

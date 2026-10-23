@@ -25,3 +25,20 @@ def by_id(driver: Any, platform: str, identifier: str) -> Any:
     return driver.find_element(
         AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().resourceId("{identifier}")'
     )
+
+
+def by_label(driver: Any, platform: str, label: str) -> Any:
+    """Find the node whose accessibility label contains [label].
+
+    For a node with no semantics identifier. Android matches `content-desc` through a
+    UiSelector `descriptionContains`, since Flutter merges a node's value into its label
+    (`30%, Resize panes`). Raises ValueError for any other platform, or for a label
+    holding a quote or backslash.
+    """
+    if platform != "android":
+        raise ValueError(f"by_label does not support platform {platform!r} yet")
+    if any(char in label for char in _FORBIDDEN_IN_SELECTOR):
+        raise ValueError(f"label {label!r} holds a quote or backslash")
+    return driver.find_element(
+        AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().descriptionContains("{label}")'
+    )

@@ -5,8 +5,9 @@ from __future__ import annotations
 import re
 import subprocess
 import time
-import xml.etree.ElementTree as ET
 from types import TracebackType
+
+from stratum_e2e.android.tree import labels_with
 
 AVD_NAME = "E2E_TalkBack_API_35"
 TALKBACK_SERVICE = (
@@ -43,17 +44,8 @@ def utterances(logcat: str) -> list[str]:
 
 
 def a11y_focused(page_source: str) -> list[str]:
-    """Return the labels of nodes TalkBack holds accessibility focus on in [page_source].
-
-    A label is the node's `text`, else its `content-desc`; unlabeled nodes are skipped.
-    """
-    root = ET.fromstring(page_source.encode("utf-8"))
-    labels = (
-        node.get("text") or node.get("content-desc") or ""
-        for node in root.iter()
-        if node.get("a11y-focused") == "true"
-    )
-    return [label for label in labels if label]
+    """Return the labels of nodes TalkBack holds accessibility focus on in [page_source]."""
+    return labels_with(page_source, "a11y-focused")
 
 
 class TalkBackLog:
