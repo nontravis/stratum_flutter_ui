@@ -1044,7 +1044,7 @@ void main() {
     );
 
     testWidgets(
-      "fo07/us04/fr03/e06: a remounted application reads the probe's last "
+      "fo07/us04/fr03/e09: a remounted application reads the probe's last "
       'radius before its own first event',
       (tester) async {
         mockProbe(tester);

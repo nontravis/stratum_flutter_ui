@@ -1486,7 +1486,7 @@ void main() {
   });
 
   testWidgets(
-    'fo03/us13/fr01, co05_07/us01/fr05/e13: the default notice shortcut '
+    'fo03/us13/fr01, co05_07/us01/fr05: the default notice shortcut '
     'reaches a notice through StratumApplication and types nothing into a '
     'focused text field',
     (tester) async {

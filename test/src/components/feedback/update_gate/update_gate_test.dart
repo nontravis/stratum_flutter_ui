@@ -1482,52 +1482,49 @@ void main() {
     );
   });
 
-  testWidgets(
-    'NFR-U02, co05_09/us02/fr01/e03: a committed predictive back gesture '
-    'closes the dialog alone and a cancelled one leaves it open, three pages '
-    'deep',
-    (tester) async {
-      Future<void> openThreePagesDeep() async {
-        final checker = _Checker();
-        await tester.pumpWidget(_app(checker));
-        final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-        for (final label in const ['Second', 'Third']) {
-          navigator
-              .push(
-                MaterialPageRoute<void>(
-                  builder: (_) => Scaffold(body: Center(child: Text(label))),
-                ),
-              )
-              .ignore();
-          await tester.pumpAndSettle();
-        }
-        checker.answer(UpdateStatus.available);
-        await dialogFrames(tester);
-        expect(find.text('Available'), findsOneWidget);
+  testWidgets('co05_09/us02/fr01/e03: a committed predictive back gesture '
+      'closes the dialog alone and a cancelled one leaves it open, three pages '
+      'deep', (tester) async {
+    Future<void> openThreePagesDeep() async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      for (final label in const ['Second', 'Third']) {
+        navigator
+            .push(
+              MaterialPageRoute<void>(
+                builder: (_) => Scaffold(body: Center(child: Text(label))),
+              ),
+            )
+            .ignore();
+        await tester.pumpAndSettle();
       }
-
-      await openThreePagesDeep();
-      await backGesture(tester, 'startBackGesture');
-      await backGesture(tester, 'updateBackGestureProgress', progress: 0.6);
-      await tester.pump();
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
       expect(find.text('Available'), findsOneWidget);
-      await backGesture(tester, 'commitBackGesture');
-      await tester.pump();
-      await tester.pumpAndSettle();
-      expect(find.text('Available'), findsNothing);
-      expect(find.text('Third'), findsOneWidget);
+    }
 
-      await tester.pumpWidget(const SizedBox());
-      await openThreePagesDeep();
-      await backGesture(tester, 'startBackGesture');
-      await backGesture(tester, 'updateBackGestureProgress', progress: 0.6);
-      await backGesture(tester, 'cancelBackGesture');
-      await tester.pump();
-      await tester.pumpAndSettle();
-      expect(find.text('Available'), findsOneWidget);
-      expect(find.text('Third'), findsOneWidget);
-    },
-  );
+    await openThreePagesDeep();
+    await backGesture(tester, 'startBackGesture');
+    await backGesture(tester, 'updateBackGestureProgress', progress: 0.6);
+    await tester.pump();
+    expect(find.text('Available'), findsOneWidget);
+    await backGesture(tester, 'commitBackGesture');
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Available'), findsNothing);
+    expect(find.text('Third'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await openThreePagesDeep();
+    await backGesture(tester, 'startBackGesture');
+    await backGesture(tester, 'updateBackGestureProgress', progress: 0.6);
+    await backGesture(tester, 'cancelBackGesture');
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Available'), findsOneWidget);
+    expect(find.text('Third'), findsOneWidget);
+  });
 }
 
 /// A router delegate with two fixed pages, "Home" under "Second", whose

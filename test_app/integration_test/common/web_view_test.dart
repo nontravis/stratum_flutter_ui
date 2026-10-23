@@ -452,8 +452,8 @@ void main() {
     });
 
     testWidgets(
-      'co01_02/us03/s3: the app HTML document and the app trade messages both '
-      'ways, the document in standards mode',
+      'co01_02/us03/s3, nf01/NFR-Sec01: the app HTML document and the app '
+      'trade messages both ways, the document in standards mode',
       (tester) async {
         // CO-01-02 US-03 FR-04 of the package docs: the document proves the
         // per-load nonce, so its messages arrive with no origin and the
@@ -562,7 +562,7 @@ void main() {
       }
     });
 
-    testWidgets('co01_02/us03/s7: the app HTML document follows a link off the '
+    testWidgets('co01_02/us03/s7, nf01/NFR-Sec02: the app HTML document follows a link off the '
         'allowlist, and the next send is refused', (tester) async {
       // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
       // bye on pagehide, so the app withholds the token (FR-02 E10).
@@ -576,7 +576,7 @@ void main() {
       );
     });
 
-    testWidgets('co01_02/us03/s7: the app HTML document reopens itself, puts '
+    testWidgets('co01_02/us03/s7, nf01/NFR-Sec02: the app HTML document reopens itself, puts '
         'its root back, follows a link off the allowlist, and the next send is '
         'refused', (tester) async {
       // CO-01-02 US-03 FR-04 E14 of the package docs: document.open() erases
@@ -592,7 +592,7 @@ void main() {
       );
     });
 
-    testWidgets('co01_02/us03/s8, co01_02/us03/fr05/e03: a reply after the web view moves from page '
+    testWidgets('co01_02/us03/s8, co01_02/us03/fr05/e03, nf01/NFR-Sec02: a reply after the web view moves from page '
         'A to page B of another allowed origin throws, and page B receives '
         'nothing', (tester) async {
       // CO-01-02 US-03 FR-05 E03 of the package docs: a reply reaches only
