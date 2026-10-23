@@ -1,0 +1,19 @@
+00:00 +0: loading /Users/nonthawit/Data/NTD OS/projects/stratum_ui_workspace/stratum_ui/.worktrees/hv2-device/example/integration_test/web_view_device_test.dart
+00:00 +0: group A, the demo tabs us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and Bridge tabs show their content
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: true
+  Actual: <false>
+the URL tab never started loading https://flutter.dev
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:55 +0 -1: group A, the demo tabs us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and Bridge tabs show their content [E]
+  Test failed. See exception logs above.
+04:58 +10 -1: us08/s7, us08/fr01/e01, us08/fr01/e02, us08/fr01/e03, us08/fr01/e05: group B, native only us08/s13: the app HTML document and the app trade messages both ways, the document in standards mode
+ORDER android html round trip: started about:blank | message ready:CSS1Compat | finished about:blank | message echo:ping
+05:19 +11 -1: us08/s7, us08/fr01/e01, us08/fr01/e02, us08/fr01/e03, us08/fr01/e05: group B, native only us08/s14: a reload keeps the app HTML document connected on Android; on iOS and macOS the reloaded page is empty and the bridge stays closed
+ORDER android html reload: started about:blank | message ready:CSS1Compat | finished about:blank | started about:blank | message ready:CSS1Compat | finished about:blank | message echo:pong
+05:34 +14 -1: Some tests failed.
+
+Failing tests:
+  /Users/nonthawit/Data/NTD OS/projects/stratum_ui_workspace/stratum_ui/.worktrees/hv2-device/example/integration_test/web_view_device_test.dart: group A, the demo tabs us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and Bridge tabs show their content
+EXIT=1

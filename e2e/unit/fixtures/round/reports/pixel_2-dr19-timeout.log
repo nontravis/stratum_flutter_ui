@@ -1,0 +1,7 @@
+00:00 +0: loading /Users/nonthawit/Data/NTD OS/projects/stratum_ui_workspace/stratum_ui/.worktrees/dt-android/stratum_ui/example/integration_test/keyboard_visibility_device_test.dart
+Running Gradle task 'assembleDebug'...                             29.4s
+✓ Built build/app/outputs/flutter-apk/app-debug.apk
+Installing build/app/outputs/flutter-apk/app-debug.apk...         103.0s
+DT_WATCHER: run_timeout_minutes exceeded
+EXIT=124
+No tests ran.

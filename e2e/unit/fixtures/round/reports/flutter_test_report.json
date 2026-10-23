@@ -1,0 +1,27 @@
+{"protocolVersion":"0.1.1","runnerVersion":null,"pid":41250,"type":"start","time":0}
+{"suite":{"id":0,"platform":"android","path":"/work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"suite","time":0}
+{"test":{"id":1,"name":"loading /work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":1}
+{"count":1,"time":2,"type":"allSuites"}
+{"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":61250}
+{"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":4,"line":null,"column":null,"url":null},"type":"group","time":61251}
+{"group":{"id":3,"suiteID":0,"parentID":2,"name":"common/keyboard_visibility_scope_test.dart","metadata":{"skip":false,"skipReason":null},"testCount":2,"line":12,"column":3,"url":"file:///work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"group","time":61252}
+{"test":{"id":4,"name":"common/keyboard_visibility_scope_test.dart (setUpAll)","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":14,"column":5,"url":"file:///work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"testStart","time":61253}
+{"testID":4,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":61260}
+{"test":{"id":5,"name":"common/keyboard_visibility_scope_test.dart fo07/us04/s1, fo07/us04/fr01: the OS keyboard opens over the field","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":26,"column":3,"url":"file:///work/test_app/integration_test/common/keyboard_visibility_scope_test.dart"},"type":"testStart","time":61261}
+{"testID":5,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":64410}
+{"test":{"id":6,"name":"common/keyboard_visibility_scope_test.dart fo07/us04/fr02/e01: the scope reads hidden once the keyboard closes","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":58,"column":3,"url":"file:///work/test_app/integration_test/common/keyboard_visibility_scope_test.dart"},"type":"testStart","time":64411}
+{"testID":6,"messageType":"print","message":"keyboard inset 0.0 after close","type":"print","time":66020}
+{"testID":6,"error":"Expected: true\n  Actual: <false>\nthe scope still reads visible","stackTrace":"package:flutter_test/src/expect.dart 25:3  expect\n","isFailure":true,"type":"error","time":66031}
+{"testID":6,"result":"failure","skipped":false,"hidden":false,"type":"testDone","time":66040}
+{"test":{"id":7,"name":"common/keyboard_visibility_scope_test.dart (tearDownAll)","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":15,"column":5,"url":"file:///work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"testStart","time":66041}
+{"testID":7,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":66045}
+{"group":{"id":8,"suiteID":0,"parentID":2,"name":"smoke/semantics_id_test.dart","metadata":{"skip":false,"skipReason":null},"testCount":2,"line":24,"column":3,"url":"file:///work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"group","time":66046}
+{"test":{"id":9,"name":"smoke/semantics_id_test.dart (setUpAll)","suiteID":0,"groupIDs":[2,8],"metadata":{"skip":false,"skipReason":null},"line":26,"column":5,"url":"file:///work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"testStart","time":66047}
+{"testID":9,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":66050}
+{"test":{"id":10,"name":"smoke/semantics_id_test.dart co01_02/us03/s1: smoke fixture keeps its semantics identifiers on device","suiteID":0,"groupIDs":[2,8],"metadata":{"skip":false,"skipReason":null},"line":9,"column":3,"url":"file:///work/test_app/integration_test/smoke/semantics_id_test.dart"},"type":"testStart","time":66051}
+{"testID":10,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":67800}
+{"test":{"id":11,"name":"smoke/semantics_id_test.dart co01_02/us03/s2 (ios): the identifiers reach the accessibility tree","suiteID":0,"groupIDs":[2,8],"metadata":{"skip":true,"skipReason":"iOS only"},"line":31,"column":3,"url":"file:///work/test_app/integration_test/smoke/semantics_id_test.dart"},"type":"testStart","time":67801}
+{"testID":11,"result":"success","skipped":true,"hidden":false,"type":"testDone","time":67802}
+{"test":{"id":12,"name":"smoke/semantics_id_test.dart (tearDownAll)","suiteID":0,"groupIDs":[2,8],"metadata":{"skip":false,"skipReason":null},"line":27,"column":5,"url":"file:///work/test_app/integration_test/.round/android_debug-1a2b3c4d_test.dart"},"type":"testStart","time":67803}
+{"testID":12,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":67806}
+{"success":false,"type":"done","time":67810}

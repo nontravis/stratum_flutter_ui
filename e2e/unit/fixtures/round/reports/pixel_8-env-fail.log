@@ -1,0 +1,12 @@
+00:00 +0: loading /Users/nonthawit/Data/NTD OS/projects/stratum_ui_workspace/stratum_ui/.worktrees/hv2-device/example/integration_test/web_view_device_test.dart
+00:00 +0: group A, the demo tabs us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and Bridge tabs show their content
+00:01 +0: group A, the demo tabs us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and Bridge tabs show their content - did not complete [E]
+00:01 +0: us08/s7, us08/fr01/e01, us08/fr01/e02, us08/fr01/e03, us08/fr01/e05: group B, native only (setUpAll) - did not complete [E]
+00:01 +0: (tearDownAll) - did not complete [E]
+00:01 +0: Some tests failed.
+
+Failing tests:
+  /Users/nonthawit/Data/NTD OS/projects/stratum_ui_workspace/stratum_ui/.worktrees/hv2-device/example/integration_test/web_view_device_test.dart: (tearDownAll) (did not complete)
+  ... and 14 more
+No tests were found.
+EXIT=79
