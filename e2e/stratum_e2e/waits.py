@@ -22,14 +22,16 @@ def wait_until(
 ) -> None:
     """Poll [condition] until it holds or [timeout_s] passes; raise AssertionError naming [what].
 
-    An exception of a type in [catch] counts as "not yet" and is named in the timeout text; any
-    other exception propagates.
+    An exception of a type in [catch] counts as "not yet"; the timeout text names it only when the
+    last read raised. Any other exception propagates.
     """
     deadline = time.monotonic() + timeout_s
     last_error: Exception | None = None
     while True:
         try:
-            if condition():
+            holds = condition()
+            last_error = None
+            if holds:
                 return
         except catch as error:
             last_error = error
@@ -51,8 +53,8 @@ def wait_until_held(
 
     The hold starts at the first true read and restarts at every false read or caught error.
     Raise AssertionError naming [what] when [timeout_s] passes first, so a state that lands and
-    then reverts never settles. An exception of a type in [catch] counts as a false read and is
-    named in the timeout text; any other exception propagates.
+    then reverts never settles. An exception of a type in [catch] counts as a false read; the
+    timeout text names it only when the last read raised. Any other exception propagates.
     """
     deadline = time.monotonic() + timeout_s
     held_since: float | None = None
@@ -61,6 +63,7 @@ def wait_until_held(
         now = time.monotonic()
         try:
             holds = condition()
+            last_error = None
         except catch as error:
             holds = False
             last_error = error

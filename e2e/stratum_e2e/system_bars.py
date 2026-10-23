@@ -28,6 +28,10 @@ class ForeignFocusError(SystemBarsError):
     """A window other than the app owns focus, so the dump describes that window."""
 
 
+class StartingWindowError(SystemBarsError):
+    """A starting window is up, so SystemUI may draw the bars from the splash."""
+
+
 # ---------------------------------------------------------------------------
 # PNG decode
 # ---------------------------------------------------------------------------
@@ -255,6 +259,9 @@ _APPEARANCE_API: Final = 30
 # without taking the app's bar control away.
 _IMMERSIVE_MODE_CONFIRMATION: Final = "ImmersiveModeConfirmation"
 
+# The window type of the system splash or task snapshot Android draws while an app launches.
+_STARTING_WINDOW_TYPE: Final = "APPLICATION_STARTING"
+
 
 def _live_windows_section(window_dump: str) -> str:
     """Slices the dump to its ``WINDOW MANAGER WINDOWS`` section.
@@ -272,12 +279,41 @@ def _live_windows_section(window_dump: str) -> str:
     return window_dump[start:end]
 
 
+def _live_window_blocks(window_dump: str) -> list[str]:
+    return re.split(r"(?=^ *Window #\d+)", _live_windows_section(window_dump), flags=re.MULTILINE)
+
+
+def _window_title(block: str) -> str | None:
+    """Returns the title in a block's ``Window{<hash> u<user> <title>}`` header."""
+    m = re.match(r" *Window #\d+ Window\{\S+ u\d+ (.*)\}:", block)
+    return m.group(1) if m else None
+
+
 def _app_window_block(window_dump: str, package: str) -> str | None:
-    """Returns the ``Window #N`` block that names ``package``, or ``None``."""
-    blocks = re.split(r"(?=^ *Window #\d+)", _live_windows_section(window_dump), flags=re.MULTILINE)
-    for block in blocks:
-        if re.search(rf"package\s*=\s*{re.escape(package)}\b", block):
-            return block
+    """Returns the app's activity ``Window #N`` block, or ``None``.
+
+    The match is on the header title ``<package>/<activity>``: the app's starting
+    window also carries ``package=<package>`` but is titled ``Splash Screen <package>``.
+    A block that is not ``EXITING`` wins over one that is; else the first match.
+    """
+    matches = [
+        block
+        for block in _live_window_blocks(window_dump)
+        if (title := _window_title(block)) is not None and title.startswith(package + "/")
+    ]
+    live = [block for block in matches if not (_window_title(block) or "").endswith(" EXITING")]
+    return (live or matches or [None])[0]
+
+
+def _starting_window_title(window_dump: str) -> str | None:
+    """Returns the title of any live starting window, whatever its package, or ``None``.
+
+    Any application window over the status bar, starting windows included, can drive
+    the status-bar appearance region, and a task snapshot window owns ``package=android``.
+    """
+    for block in _live_window_blocks(window_dump):
+        if re.search(rf"\bty={_STARTING_WINDOW_TYPE}\b", block):
+            return _window_title(block) or _STARTING_WINDOW_TYPE
     return None
 
 
@@ -302,10 +338,19 @@ def _focus_violation(window_dump: str, package: str) -> str | None:
     return name
 
 
-def _require_app_focus(window_dump: str, package: str) -> None:
+def _require_judgeable_window(window_dump: str, package: str) -> None:
+    """Raises unless the dump describes the app's own window and no starting window.
+
+    Raises:
+        ForeignFocusError: Another window owns focus.
+        StartingWindowError: A starting window is up.
+    """
     violation = _focus_violation(window_dump, package)
     if violation is not None:
         raise ForeignFocusError(f"focus not app: {violation}")
+    starting = _starting_window_title(window_dump)
+    if starting is not None:
+        raise StartingWindowError(f"starting window up: {starting}")
 
 
 def parse_bar_visible(window_dump: str, bar: Bar, *, package: str = DEFAULT_PACKAGE) -> bool | None:
@@ -331,11 +376,11 @@ def parse_bar_visible(window_dump: str, bar: Bar, *, package: str = DEFAULT_PACK
 def parse_appearance(
     window_dump: str, bar: Bar, sdk: int, *, package: str = DEFAULT_PACKAGE
 ) -> bool:
-    """Returns whether the app's own window asks for DARK content on ``bar``.
+    """Returns whether the app's activity window asks for DARK content on ``bar``.
 
-    Reads the app window's ``apr=`` on API 30+ and ``vsysui=`` below; never the
-    display-wide ``mLastAppearance``, which a foreign window can own. ``False`` when
-    the app window or its flags line is absent.
+    Reads that window's ``apr=`` on API 30+ and ``vsysui=`` below; never the
+    display-wide ``mLastAppearance``, which a foreign window can own, nor the
+    app's starting window. ``False`` when the window or its flags line is absent.
     """
     block = _app_window_block(window_dump, package)
     if block is None:
@@ -349,6 +394,38 @@ def parse_appearance(
     if flags is None:
         return False
     return bool(re.search(rf"\b{name}\b", flags.group(1)))
+
+
+_APPEARANCE_REGIONS: Final = re.compile(
+    r"mLastStatusBarAppearanceRegions=[ \t]*\n((?:[ \t]*AppearanceRegion\{[^\n]*\n)*)"
+)
+_APPEARANCE_REGION: Final = re.compile(
+    r"AppearanceRegion\{([^}]*?)\s*bounds=\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]\}"
+)
+
+
+def _status_region_wants_dark_icons(window_dump: str) -> bool | None:
+    """Returns whether SystemUI draws dark status icons, or ``None`` without a verdict.
+
+    SystemUI colors the status bar from ``mLastStatusBarAppearanceRegions``. The region
+    under the top-centre point of the regions' span decides; ``None`` when the dump
+    lists no region, or none covers that point.
+    """
+    listing = _APPEARANCE_REGIONS.search(window_dump)
+    if listing is None:
+        return None
+    regions = [
+        (flags, int(left), int(top), int(right), int(bottom))
+        for flags, left, top, right, bottom in _APPEARANCE_REGION.findall(listing.group(1))
+    ]
+    if not regions:
+        return None
+    centre_x = (min(r[1] for r in regions) + max(r[3] for r in regions)) // 2
+    top_y = min(r[2] for r in regions)
+    for flags, left, top, right, bottom in regions:
+        if left <= centre_x < right and top <= top_y < bottom:
+            return bool(re.search(rf"\b{_LIGHT_STATUS_BARS}\b", flags))
+    return None
 
 
 def _app_activity_block(activities_dump: str, package: str) -> str | None:
@@ -400,8 +477,9 @@ def icon_appearance(
 ) -> Brightness:
     """Returns the status-bar icon brightness: ``"light"`` or ``"dark"``.
 
-    Android reads the app window's appearance bit from ``window_dump`` (authoritative,
-    never ambiguous); iOS samples the icon from ``png``.
+    Android reads what SystemUI draws from ``window_dump``: on API 30+ the status-bar
+    appearance region under the top centre, else the app activity window's appearance
+    bit. iOS samples the icon from ``png``.
 
     Args:
         platform: ``"android"`` or ``"ios"``.
@@ -412,6 +490,7 @@ def icon_appearance(
 
     Raises:
         ForeignFocusError: Another window owns focus on Android.
+        StartingWindowError: A starting window is up on Android.
         SystemBarsError: No icon pixel differs from the fill on iOS.
         ValueError: A required argument is missing or the platform is unknown.
     """
@@ -420,9 +499,13 @@ def icon_appearance(
             raise ValueError("android needs window_dump")
         if sdk is None:
             raise ValueError("android needs sdk")
-        _require_app_focus(window_dump, package)
-        light_bit = parse_appearance(window_dump, "statusBars", sdk, package=package)
-        return "dark" if light_bit else "light"
+        _require_judgeable_window(window_dump, package)
+        dark = _status_region_wants_dark_icons(window_dump) if sdk >= _APPEARANCE_API else None
+        if dark is None:
+            dark = parse_appearance(window_dump, "statusBars", sdk, package=package)
+        elif _app_window_block(window_dump, package) is None:
+            raise SystemBarsError(f"no window of {package} in the dump")
+        return "dark" if dark else "light"
     if platform == "ios":
         if png is None:
             raise ValueError("ios needs png")
@@ -440,7 +523,7 @@ def bar_fill_brightness(png: bytes, platform: str) -> Brightness:
 
 
 def _bars_visible(window_dump: str, package: str) -> tuple[bool, bool]:
-    _require_app_focus(window_dump, package)
+    _require_judgeable_window(window_dump, package)
     status = parse_bar_visible(window_dump, "statusBars", package=package)
     navigation = parse_bar_visible(window_dump, "navigationBars", package=package)
     if status is None or navigation is None:
@@ -456,6 +539,7 @@ def bars_hidden(window_dump: str, *, package: str = DEFAULT_PACKAGE) -> bool:
 
     Raises:
         ForeignFocusError: Another window owns focus.
+        StartingWindowError: A starting window is up.
         SystemBarsError: The dump carries no visibility for a bar.
     """
     status, navigation = _bars_visible(window_dump, package)
@@ -467,6 +551,7 @@ def bars_shown(window_dump: str, *, package: str = DEFAULT_PACKAGE) -> bool:
 
     Raises:
         ForeignFocusError: Another window owns focus.
+        StartingWindowError: A starting window is up.
         SystemBarsError: The dump carries no visibility for a bar.
     """
     status, navigation = _bars_visible(window_dump, package)

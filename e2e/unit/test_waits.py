@@ -82,3 +82,30 @@ def test_held_counts_a_caught_error_as_a_false_read(clock: FakeClock) -> None:
 
     with pytest.raises(AssertionError, match="Boom: flaky"):
         wait_until_held(failing, "x", timeout_s=2, catch=(Boom,))
+
+
+def test_held_names_no_error_that_an_older_poll_saw_once_reads_return(clock: FakeClock) -> None:
+    """A caught error on poll 1 must not be blamed when every later read returned false."""
+    polls = iter([True])
+
+    def read() -> bool:
+        if next(polls, False):
+            raise Boom("splash")
+        return False
+
+    with pytest.raises(AssertionError) as caught:
+        wait_until_held(read, "x", timeout_s=1, poll_interval_s=0.25, catch=(Boom,))
+    assert "last error" not in str(caught.value)
+
+
+def test_wait_until_names_no_error_that_an_older_poll_saw(clock: FakeClock) -> None:
+    polls = iter([True])
+
+    def read() -> bool:
+        if next(polls, False):
+            raise Boom("splash")
+        return False
+
+    with pytest.raises(AssertionError) as caught:
+        wait_until(read, "x", timeout_s=1, poll_interval_s=0.25, catch=(Boom,))
+    assert "last error" not in str(caught.value)

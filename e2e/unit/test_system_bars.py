@@ -25,6 +25,7 @@ from stratum_e2e.system_bars import (
     bars_shown,
     brightness_of,
     icon_appearance,
+    parse_appearance,
     read_png,
     recents_label,
 )
@@ -34,6 +35,9 @@ VERDICTS = FIXTURES / "verdicts.txt"
 
 # The fixtures were captured from the example app, not from test_app.
 FIXTURE_PACKAGE = "dev.stratum.stratum_ui_example"
+
+# Captured after the probe port, so no probe printed verdicts for it; its own tests judge it.
+SPLASH_FIXTURE = "pixel_8_api37_splash"
 
 
 @dataclass(frozen=True)
@@ -135,6 +139,7 @@ def _capture_folders() -> set[str]:
         path.relative_to(FIXTURES).as_posix()
         for path in FIXTURES.rglob("*")
         if path.is_dir()
+        and path.name != SPLASH_FIXTURE
         and any(f.suffix in {".png", ".txt"} for f in path.iterdir() if f.is_file())
     }
 
@@ -518,3 +523,177 @@ def test_recents_label_is_empty_when_the_block_sets_none() -> None:
 
 def test_recents_label_is_none_when_the_block_is_missing() -> None:
     assert recents_label("    * Hist #0: ActivityRecord{1a u0 other.app/.A t7}\n") is None
+
+
+# ---------------------------------------------------------------------------
+# A starting window of the app is never judged
+#
+# Android draws the status bar from the app's exiting system splash window
+# (``ty=APPLICATION_STARTING``) for a moment after launch; the splash is white, so
+# it asks for dark icons while the app already asks for light ones.
+# ---------------------------------------------------------------------------
+
+_SPLASH_DUMPS = ("splash_exiting", "splash_starting")
+
+
+def _splash_dump(name: str) -> str:
+    return _read(FIXTURES / SPLASH_FIXTURE, name, "window.txt")
+
+
+def _raises_starting_window(call: Callable[[], object]) -> None:
+    with pytest.raises(SystemBarsError, match="starting window") as caught:
+        call()
+    assert not isinstance(caught.value, ForeignFocusError)
+
+
+@pytest.mark.parametrize("name", _SPLASH_DUMPS)
+def test_icon_appearance_refuses_a_dump_with_a_starting_window(name: str) -> None:
+    dump = _splash_dump(name)
+    _raises_starting_window(
+        lambda: icon_appearance("android", window_dump=dump, sdk=37, package=FIXTURE_PACKAGE)
+    )
+
+
+@pytest.mark.parametrize("name", _SPLASH_DUMPS)
+def test_bars_refuse_a_dump_with_a_starting_window(name: str) -> None:
+    dump = _splash_dump(name)
+    _raises_starting_window(lambda: bars_shown(dump, package=FIXTURE_PACKAGE))
+    _raises_starting_window(lambda: bars_hidden(dump, package=FIXTURE_PACKAGE))
+
+
+@pytest.mark.parametrize("name", _SPLASH_DUMPS)
+def test_parse_appearance_reads_the_activity_window_not_the_splash(name: str) -> None:
+    dump = _splash_dump(name)
+    assert parse_appearance(dump, "statusBars", 37, package=FIXTURE_PACKAGE) is False
+
+
+def test_icon_appearance_reads_light_once_the_splash_is_gone() -> None:
+    dump = _splash_dump("settled")
+    assert icon_appearance("android", window_dump=dump, sdk=37, package=FIXTURE_PACKAGE) == "light"
+
+
+_ANR_HEADER = "WINDOW MANAGER LAST ANR (dumpsys window lastanr)\n"
+
+
+def _with_window(dump: str, block: str) -> str:
+    return dump.replace(_ANR_HEADER, block + _ANR_HEADER)
+
+
+def test_a_starting_window_of_another_package_blocks_the_judge() -> None:
+    other_splash = (
+        "  Window #1 Window{def u0 Splash Screen other.app}:\n"
+        "    package=other.app appop=NONE\n"
+        "    mAttrs={(0,0)(fillxfill) ty=APPLICATION_STARTING apr=LIGHT_STATUS_BARS}\n"
+    )
+    dump = _with_window(_window_dump(focus=f"{DEFAULT_PACKAGE}/.MainActivity"), other_splash)
+    _raises_starting_window(lambda: icon_appearance("android", window_dump=dump, sdk=36))
+    _raises_starting_window(lambda: bars_shown(dump))
+
+
+def test_a_snapshot_starting_window_owned_by_android_blocks_the_judge() -> None:
+    snapshot = (
+        "  Window #1 Window{def u0 SnapshotStartingWindow for taskId=21}:\n"
+        "    package=android appop=NONE\n"
+        "    mAttrs={(0,0)(fillxfill) ty=APPLICATION_STARTING apr=LIGHT_STATUS_BARS}\n"
+    )
+    dump = _with_window(_window_dump(focus=f"{DEFAULT_PACKAGE}/.MainActivity"), snapshot)
+    with pytest.raises(SystemBarsError, match="SnapshotStartingWindow"):
+        icon_appearance("android", window_dump=dump, sdk=36)
+
+
+# ---------------------------------------------------------------------------
+# The status-bar appearance region decides what SystemUI draws
+# ---------------------------------------------------------------------------
+
+
+def _with_regions(dump: str, *regions: str) -> str:
+    body = "".join(f"      AppearanceRegion{{{region}}}\n" for region in regions)
+    return dump.replace(
+        "WINDOW MANAGER WINDOWS (dumpsys window windows)\n",
+        "WINDOW MANAGER DISPLAY CONTENTS (dumpsys window displays)\n"
+        f"    mLastStatusBarAppearanceRegions=\n{body}"
+        "    mLastLetterboxDetails=\n"
+        "WINDOW MANAGER WINDOWS (dumpsys window windows)\n",
+        1,
+    )
+
+
+def test_a_light_status_bars_region_decides_dark_even_when_the_app_window_lacks_it() -> None:
+    settled = _splash_dump("settled")
+    region_line = "      AppearanceRegion{ bounds=[0,0][1080,2400]}"
+    assert region_line in settled
+    dump = settled.replace(region_line, "      AppearanceRegion{LIGHT_STATUS_BARS bounds=[0,0][1080,2400]}")
+    assert icon_appearance("android", window_dump=dump, sdk=37, package=FIXTURE_PACKAGE) == "dark"
+
+
+def test_a_region_without_the_flag_decides_light_even_when_the_app_window_has_it() -> None:
+    focus = f"{DEFAULT_PACKAGE}/.MainActivity"
+    dump = _with_regions(
+        _window_dump(focus=focus, apr="LIGHT_STATUS_BARS"), " bounds=[0,0][1080,2400]"
+    )
+    assert icon_appearance("android", window_dump=dump, sdk=36) == "light"
+
+
+def test_the_region_under_the_top_centre_of_the_widest_span_decides() -> None:
+    focus = f"{DEFAULT_PACKAGE}/.MainActivity"
+    dump = _with_regions(
+        _window_dump(focus=focus),
+        "LIGHT_STATUS_BARS bounds=[0,0][400,100]",
+        " bounds=[400,0][1000,100]",
+    )
+    assert icon_appearance("android", window_dump=dump, sdk=36) == "light"
+    dump = _with_regions(
+        _window_dump(focus=focus),
+        " bounds=[0,0][400,100]",
+        "LIGHT_STATUS_BARS bounds=[400,0][1000,100]",
+    )
+    assert icon_appearance("android", window_dump=dump, sdk=36) == "dark"
+
+
+def test_the_app_window_bit_decides_when_no_region_contains_the_top_centre() -> None:
+    focus = f"{DEFAULT_PACKAGE}/.MainActivity"
+    dump = _with_regions(
+        _window_dump(focus=focus, apr="LIGHT_STATUS_BARS"),
+        " bounds=[0,50][400,100]",
+        " bounds=[600,50][1000,100]",
+    )
+    assert icon_appearance("android", window_dump=dump, sdk=36) == "dark"
+
+
+def test_regions_are_ignored_below_api_30() -> None:
+    focus = f"{DEFAULT_PACKAGE}/.MainActivity"
+    dump = _with_regions(
+        _window_dump(focus=focus, vsysui="LIGHT_STATUS_BAR"), " bounds=[0,0][1080,2400]"
+    )
+    assert icon_appearance("android", window_dump=dump, sdk=28) == "dark"
+
+
+def test_a_region_with_a_negative_bound_still_decides() -> None:
+    focus = f"{DEFAULT_PACKAGE}/.MainActivity"
+    dump = _with_regions(
+        _window_dump(focus=focus), "LIGHT_STATUS_BARS bounds=[-100,0][980,2400]"
+    )
+    assert icon_appearance("android", window_dump=dump, sdk=36) == "dark"
+
+
+def test_the_region_path_raises_when_the_dump_has_no_app_window() -> None:
+    dump = _window_dump(focus="", package="com.launcher").replace(
+        "  mCurrentFocus=Window{abc u0 }\n", ""
+    )
+    dump = _with_regions(dump, "LIGHT_STATUS_BARS bounds=[0,0][1080,2400]")
+    with pytest.raises(SystemBarsError, match="no window of"):
+        icon_appearance("android", window_dump=dump, sdk=36)
+
+
+def test_a_live_activity_window_beats_an_exiting_one_above_it() -> None:
+    live = (
+        f"  Window #1 Window{{def u0 {DEFAULT_PACKAGE}/.MainActivity}}:\n"
+        f"    package={DEFAULT_PACKAGE} appop=NONE\n"
+        "    mAttrs={(0,0)(fillxfill) apr=LIGHT_STATUS_BARS vsysui=}\n"
+    )
+    dump = _window_dump(focus=f"{DEFAULT_PACKAGE}/.MainActivity").replace(
+        f"Window{{abc u0 {DEFAULT_PACKAGE}/.MainActivity}}",
+        f"Window{{abc u0 {DEFAULT_PACKAGE}/.MainActivity EXITING}}",
+    )
+    dump = _with_window(dump, live)
+    assert parse_appearance(dump, "statusBars", 36) is True

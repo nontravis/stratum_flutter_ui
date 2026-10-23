@@ -159,8 +159,8 @@ def test_status_bar_icons_turn_light_under_a_dark_header(
     """dark_header (probes.py:675-685; dart:105): light icons over the dark fill.
 
     The menu rests on dark icons, so a pass needs the dark-header page to turn them light
-    and keep them light. The known pixel_8 (API 37) failure, dark icons, is the open
-    finding of phase stratum-system-style-api37; expected there, never xfailed.
+    and keep them light. Right after a launch Android draws the status bar from the
+    system splash window; the judge raises StartingWindowError until it leaves.
     """
     _open(driver, platform, app_id)
     _open_page(driver, platform, OPEN_DARK_HEADER)

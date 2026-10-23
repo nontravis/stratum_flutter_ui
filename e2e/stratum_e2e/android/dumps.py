@@ -40,8 +40,9 @@ def activities_dump(serial: str) -> str:
 def sdk_level(serial: str) -> int:
     """Return the Android API level of [serial] (``device.txt``'s ``sdk=``).
 
-    The appearance parser reads ``apr=`` on API 30+ and the legacy
-    ``vsysui=`` below, so the level picks the read.
+    The appearance parser reads the status-bar AppearanceRegion on API 30+,
+    falling back to ``apr=``, and the legacy ``vsysui=`` below, so the level
+    picks the read.
     """
     level = _adb(serial, "shell", "-n", "getprop", "ro.build.version.sdk")
     stripped = level.strip()
