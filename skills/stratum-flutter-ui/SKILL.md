@@ -226,7 +226,8 @@ beside `style`, which draws the box.
   such as a delete button beside the label, keeps its own node and never takes the row's tap. A row splits whenever a
   configuration between the item and the root surface, or on the surface itself, cannot merge into the item's node, such
   as overlapping actions or conflicting flags, for example an app's own `Focus` with semantics around the row; the
-  surface's own `onSecondaryTap` action joins the row's stop. A row in a `Dismissible` that snaps back after a partial swipe stays split until it
+  surface's own `onSecondaryTap` action, and an `identifier` or custom actions in its `semantics:`, join the row's stop;
+  a `Semantics(identifier: ...)` wrapped around the row splits it, since an identifier makes a node of its own. A row in a `Dismissible` that snaps back after a partial swipe stays split until it
   rebuilds, a Flutter limit. A child added or removed between the item and the root reads otherwise for one frame. A
   disabled component on the Stratum base that holds the whole item joins the same way, with or without a tap surface
   below.
@@ -396,7 +397,11 @@ beside `style`, which draws the box.
   `onHover(true)` once. `customStyle: StratumInkWellStyle(focus: StratumFocusBorderStyle(...))` restyles this
   surface's focus ring, over `componentPartDefaults: (theme) => {StratumInkWell: StratumInkWellStyle(focus: ...)}`
   for every tap surface, which sits over the every-ring `StratumFocusBorder` style; `Interaction.customStyle`
-  carries it to every `BoxLayout` with a tap surface.
+  carries it to every `BoxLayout` with a tap surface. Pass an automation id or extra screen-reader actions in
+  `semantics: SemanticsProperties(identifier: ..., customSemanticsActions: ...)`: they land on the surface's one node
+  beside its role, label, tap, and `onSecondaryTap` action, and a caller action with the secondary action's label
+  replaces it. Never wrap the surface in `Semantics(identifier: ...)`: an identifier gives its node a boundary of its
+  own, so the id and the tap split into two screen-reader stops.
 ## Disabled components
 
 - **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
