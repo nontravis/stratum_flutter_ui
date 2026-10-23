@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -17,6 +17,8 @@ class BootRecord:
     `reused` marks a device found running at round start: the round never changes or ends it. A booted device gets
     `pid` and `port` at spawn, before any wait, so a boot that fails later still finds what it started.
     `settings_applied` turns true before the first boot setting is written, so a partial write is still restored.
+    `setting_failures` names each boot setting write or restore that failed; neither fails the boot or the shutdown,
+    so the round reports them instead.
     """
 
     target: str
@@ -26,6 +28,7 @@ class BootRecord:
     pid: int | None = None
     port: PortReservation | None = None
     settings_applied: bool = False
+    setting_failures: list[str] = field(default_factory=list)
 
 
 class Booter(Protocol):

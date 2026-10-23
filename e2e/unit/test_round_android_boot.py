@@ -11,7 +11,12 @@ import pytest
 
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.android_host import CONSOLE_PORTS, adb_path, emulator_path, missing_avd_message, reserve_port
-from stratum_e2e.round.android_traps import settings_apply_argv, settings_restore_argv, settle_reasons
+from stratum_e2e.round.android_traps import (
+    BOOT_SETTINGS,
+    settings_apply_argv,
+    settings_restore_argv,
+    settle_reasons,
+)
 from stratum_e2e.round.boot import BootRecord
 from stratum_e2e.round.catalog import LaneConfig, Target
 from stratum_e2e.round.errors import RoundEnvError
@@ -68,13 +73,38 @@ class FakeClock:
         self.now += seconds
 
 
-class EmulatorRunner(FakeRunner):
-    """A FakeRunner whose spawned emulator exits on `emu kill`; with `hangs`, it ignores `emu kill` and runs on."""
+class EmulatorProcess(FakeProcess):
+    """A FakeProcess that also records each bounded `wait`."""
 
-    def __init__(self, script: Sequence[Entry], *, hangs: bool = False) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self.waits: list[float | None] = []
+
+    def wait(self, timeout: float | None = None) -> int | None:
+        self.waits.append(timeout)
+        return self.returncode
+
+
+class EmulatorRunner(FakeRunner):
+    """A FakeRunner whose spawned emulator exits on `emu kill`; with `hangs`, it ignores `emu kill` and runs on.
+
+    `exits_after` makes the emulator exit with status 1 right after that argv is answered; `interrupt_on` makes
+    that argv raise `KeyboardInterrupt`, as a Ctrl-C mid-call would.
+    """
+
+    def __init__(
+        self,
+        script: Sequence[Entry],
+        *,
+        hangs: bool = False,
+        exits_after: tuple[str, ...] | None = None,
+        interrupt_on: tuple[str, ...] | None = None,
+    ) -> None:
         super().__init__(script)
-        self.processes: list[FakeProcess] = []
+        self.processes: list[EmulatorProcess] = []
         self._hangs = hangs
+        self._exits_after = exits_after
+        self._interrupt_on = interrupt_on
 
     def spawn(
         self,
@@ -84,9 +114,10 @@ class EmulatorRunner(FakeRunner):
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
     ) -> subprocess.Popen[bytes]:
-        process = super().spawn(argv, log=log, cwd=cwd, env=env)
-        self.processes.append(cast("FakeProcess", process))
-        return process
+        self.calls.append(tuple(argv))
+        process = EmulatorProcess()
+        self.processes.append(process)
+        return cast("subprocess.Popen[bytes]", process)
 
     def run(
         self,
@@ -97,10 +128,16 @@ class EmulatorRunner(FakeRunner):
         env: Mapping[str, str] | None = None,
         log: Path | None = None,
     ) -> Completed:
+        if tuple(argv) == self._interrupt_on:
+            self.calls.append(tuple(argv))
+            raise KeyboardInterrupt
         done = super().run(argv, timeout_s=timeout_s, cwd=cwd, env=env, log=log)
         if tuple(argv[-2:]) == ("emu", "kill") and not self._hangs:
             for process in self.processes:
                 process.returncode = 0
+        if tuple(argv) == self._exits_after:
+            for process in self.processes:
+                process.returncode = 1
         return done
 
 
@@ -148,6 +185,10 @@ def _ready() -> list[Entry]:
     ]
 
 
+def _confirm(avd: str = AVD) -> list[Entry]:
+    return [(_on(SERIAL, "emu", "avd", "name"), _done(f"{avd}\r\nOK\r\n"))]
+
+
 def _rtt(ms: str) -> list[Entry]:
     return [(_on(SERIAL, *RTT), _done(f"64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time={ms} ms\n"))]
 
@@ -169,12 +210,15 @@ def _force_stop(package: str) -> tuple[str, ...]:
     return _on(SERIAL, "shell", "-n", "am", "force-stop", package)
 
 
-def _puts() -> list[Entry]:
-    return [(tuple(argv), _done()) for argv in settings_apply_argv(ADB, SERIAL)]
+def _puts(*, failing: int | None = None) -> list[Entry]:
+    """One `settings put` answer per boot setting; the row at index `failing` answers status 1."""
+    argvs = settings_apply_argv(ADB, SERIAL)
+    return [(tuple(argv), _done(status=1 if index == failing else 0)) for index, argv in enumerate(argvs)]
 
 
-def _teardown(*, restore: bool) -> list[Entry]:
-    deletes = [(tuple(argv), _done()) for argv in settings_restore_argv(ADB, SERIAL)] if restore else []
+def _teardown(*, restore: bool, failing_delete: int | None = None) -> list[Entry]:
+    argvs = settings_restore_argv(ADB, SERIAL) if restore else []
+    deletes = [(tuple(argv), _done(status=1 if index == failing_delete else 0)) for index, argv in enumerate(argvs)]
     return [
         *deletes,
         (_on(SERIAL, "emu", "kill"), _done("OK: killing emulator, bye bye\r\n")),
@@ -186,6 +230,7 @@ def _cold_boot() -> list[Entry]:
     return [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
+        *_confirm(),
         *_rtt("12.3"),
         *_settle(),
         *_focus(FOCUS_NORMAL),
@@ -228,6 +273,15 @@ def _boot_fails(booter: AndroidBooter, tmp_path: Path) -> RoundEnvError:
 
 def _has(calls: list[tuple[str, ...]], word: str) -> bool:
     return any(word in call for call in calls)
+
+
+_READS = (("get-state",), ("emu", "avd", "name"), ("shell", "pm"), RTT, ("shell", "uptime"), ("shell", "dumpsys"))
+
+
+def _changes_on(calls: list[tuple[str, ...]], serial: str) -> list[tuple[str, ...]]:
+    """Every adb call that changes the device on `serial`: anything but a read."""
+    on_serial = [call[3:] for call in calls if call[:3] == (ADB, "-s", serial)]
+    return [call for call in on_serial if not any(call[: len(read)] == read for read in _READS)]
 
 
 def test_cold_boot_argv_and_record(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
@@ -307,7 +361,9 @@ def test_shutdown_ends_nothing_this_booter_did_not_boot(tmp_path: Path, avd_home
 
 
 def test_clock_jump_kills_and_raises_env(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
-    runner = EmulatorRunner([*_listing((OTHER, "Other_AVD")), *_ready(), *_rtt("0.000"), *_teardown(restore=False)])
+    runner = EmulatorRunner(
+        [*_listing((OTHER, "Other_AVD")), *_ready(), *_confirm(), *_rtt("0.000"), *_teardown(restore=False)]
+    )
 
     error = _boot_fails(_booter(runner, avd_home, clock), tmp_path)
 
@@ -370,15 +426,14 @@ def test_offline_then_device_passes_the_ready_wait(tmp_path: Path, avd_home: Pat
 
 def test_ready_wait_bound_raises_env_naming_state(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
     lane = LaneConfig(20, 420, True, (), 30, boot_timeout_minutes=1)
-    runner = EmulatorRunner(
-        [*_listing((OTHER, "Other_AVD")), *_state("offline") * 61, *_teardown(restore=False)], hangs=True
-    )
+    runner = EmulatorRunner([*_listing((OTHER, "Other_AVD")), *_state("offline") * 61], hangs=True)
 
     error = _boot_fails(_booter(runner, avd_home, clock, lane), tmp_path)
 
     assert f"{SERIAL} is not ready for adb (state 'offline') after 60 s" in error.reason
     assert runner.calls.count(_on(SERIAL, "get-state")) == 61
-    assert _on(SERIAL, "emu", "kill") in runner.calls
+    # The serial never answered with this AVD's name, so only the pid this booter spawned is ended.
+    assert _changes_on(runner.calls, SERIAL) == []
     assert runner.processes[0].returncode == -9
     assert _port_is_free(avd_home, 5556)
 
@@ -386,9 +441,18 @@ def test_ready_wait_bound_raises_env_naming_state(tmp_path: Path, avd_home: Path
 def test_settle_names_every_unmet_gate_at_the_bound(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
     lane = LaneConfig(20, 3, True, (), 30)
     unsettled = _settle(load="3.50", focus=FOCUS_ANR, ime=IME_UNBOUND)
-    runner = EmulatorRunner(
-        [*_listing((OTHER, "Other_AVD")), *_ready(), *_rtt("12.3"), *unsettled * 4, *_teardown(restore=False)]
-    )
+    script = [
+        *_listing((OTHER, "Other_AVD")),
+        *_ready(),
+        *_confirm(),
+        *_rtt("12.3"),
+        *unsettled[:2],
+        (_force_stop(SYSTEMUI), _done()),
+        *unsettled[2:],
+        *unsettled * 3,
+        *_teardown(restore=False),
+    ]
+    runner = EmulatorRunner(script)
 
     error = _boot_fails(_booter(runner, avd_home, clock, lane), tmp_path)
 
@@ -396,15 +460,41 @@ def test_settle_names_every_unmet_gate_at_the_bound(tmp_path: Path, avd_home: Pa
     for reason in settle_reasons(3.5, SYSTEMUI, ime=False):
         assert reason in error.reason
     assert runner.calls.count(_on(SERIAL, "shell", "uptime")) == 4
-    assert not _has(runner.calls, "force-stop")
+    assert runner.calls.count(_force_stop(SYSTEMUI)) == 1
     assert not _has(runner.calls, "settings")
     assert _on(SERIAL, "emu", "kill") in runner.calls
+
+
+def test_settle_force_stops_an_anr_once_and_keeps_polling(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    script = [
+        *_listing((OTHER, "Other_AVD")),
+        *_ready(),
+        *_confirm(),
+        *_rtt("12.3"),
+        *_settle(focus=FOCUS_ANR),
+        (_force_stop(SYSTEMUI), _done()),
+        *_settle(focus=FOCUS_ANR),
+        *_settle(),
+        *_focus(FOCUS_NORMAL),
+        *_puts(),
+    ]
+    runner = EmulatorRunner(script)
+
+    record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
+
+    assert runner.calls.count(_force_stop(SYSTEMUI)) == 1
+    assert runner.calls.count(_on(SERIAL, "shell", "uptime")) == 3
+    assert clock.sleeps == [1.0, 1.0]
+    assert record.settings_applied is True
+    assert record.port is not None
+    record.port.release()
 
 
 def test_anr_at_boot_force_stops_its_package_then_rechecks(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
+        *_confirm(),
         *_rtt("12.3"),
         *_settle(),
         *_focus(FOCUS_ANR),
@@ -429,6 +519,7 @@ def test_anr_still_focused_after_force_stop_is_env(tmp_path: Path, avd_home: Pat
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
+        *_confirm(),
         *_rtt("12.3"),
         *_settle(),
         *_focus(FOCUS_ANR),
@@ -545,3 +636,128 @@ def test_before_file_clears_an_anr_on_a_ready_device(avd_home: Path, clock: Fake
 
     assert not _has(runner.calls, "reconnect")
     assert _force_stop(SYSTEMUI) in runner.calls
+
+
+def test_emulator_exiting_during_the_ready_wait_is_env_with_no_change_on_its_serial(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    runner = EmulatorRunner(
+        [*_listing((OTHER, "Other_AVD")), *_state("offline") * 3], exits_after=_on(SERIAL, "get-state")
+    )
+    log = tmp_path / "emulator.log"
+
+    with pytest.raises(RoundEnvError) as caught:
+        _booter(runner, avd_home, clock).boot(TARGET, log)
+
+    assert "exited with status 1" in caught.value.reason
+    assert str(log) in caught.value.reason
+    assert runner.calls.count(_on(SERIAL, "get-state")) == 1
+    assert _changes_on(runner.calls, SERIAL) == []
+    assert runner.processes[0].returncode == 1
+    assert _port_is_free(avd_home, 5556)
+
+
+def test_emulator_exiting_during_the_settle_wait_is_env_with_no_change_on_its_serial(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    unsettled = _settle(load="3.50")
+    script = [*_listing((OTHER, "Other_AVD")), *_ready(), *_confirm(), *_rtt("12.3"), *unsettled * 2]
+    runner = EmulatorRunner(script, exits_after=_on(SERIAL, "shell", "dumpsys", "input_method"))
+
+    error = _boot_fails(_booter(runner, avd_home, clock), tmp_path)
+
+    assert "exited with status 1" in error.reason
+    assert runner.calls.count(_on(SERIAL, "shell", "uptime")) == 1
+    assert _changes_on(runner.calls, SERIAL) == []
+    assert _port_is_free(avd_home, 5556)
+
+
+def test_serial_answering_another_avd_is_env_and_left_alone(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    runner = EmulatorRunner([*_listing((OTHER, "Other_AVD")), *_ready(), *_confirm("Foreign_AVD")])
+
+    error = _boot_fails(_booter(runner, avd_home, clock), tmp_path)
+
+    assert "Foreign_AVD" in error.reason
+    assert _changes_on(runner.calls, SERIAL) == []
+    assert not _has(runner.calls, "ping")
+    assert runner.processes[0].returncode == -9
+    assert _port_is_free(avd_home, 5556)
+
+
+def test_shutdown_after_the_emulator_exited_touches_no_serial(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    runner = EmulatorRunner(_cold_boot())
+    booter = _booter(runner, avd_home, clock)
+    record = booter.boot(TARGET, tmp_path / "emulator.log")
+    booted_calls = len(runner.calls)
+    runner.processes[0].returncode = 139
+
+    booter.shutdown(record)
+
+    assert runner.calls[booted_calls:] == []
+    assert runner.processes[0].returncode == 139
+    assert runner.processes[0].waits == []
+    assert _port_is_free(avd_home, 5556)
+
+
+def test_before_file_on_an_exited_emulator_is_env_with_no_change(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    runner = EmulatorRunner(_cold_boot())
+    booter = _booter(runner, avd_home, clock)
+    record = booter.boot(TARGET, tmp_path / "emulator.log")
+    booted_calls = len(runner.calls)
+    runner.processes[0].returncode = 139
+
+    with pytest.raises(RoundEnvError) as caught:
+        booter.before_file(record)
+
+    assert "exited with status 139" in caught.value.reason
+    assert runner.calls[booted_calls:] == []
+    booter.shutdown(record)
+
+
+def test_failed_setting_put_is_recorded_and_the_boot_succeeds(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    script = _cold_boot()
+    script[-len(BOOT_SETTINGS) :] = _puts(failing=0)
+    runner = EmulatorRunner(script)
+
+    record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
+
+    assert len(record.setting_failures) == 1
+    assert BOOT_SETTINGS[0][0] in record.setting_failures[0]
+    assert "status 1" in record.setting_failures[0]
+    assert runner.calls[-len(BOOT_SETTINGS) :] == [tuple(argv) for argv in settings_apply_argv(ADB, SERIAL)]
+    assert record.settings_applied is True
+    assert record.port is not None
+    record.port.release()
+
+
+def test_failed_setting_delete_is_recorded_and_the_kill_still_runs(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    runner = EmulatorRunner([*_cold_boot(), *_teardown(restore=True, failing_delete=1)])
+    booter = _booter(runner, avd_home, clock)
+    record = booter.boot(TARGET, tmp_path / "emulator.log")
+
+    booter.shutdown(record)
+
+    assert len(record.setting_failures) == 1
+    assert BOOT_SETTINGS[1][0] in record.setting_failures[0]
+    assert _on(SERIAL, "emu", "kill") in runner.calls
+    assert _port_is_free(avd_home, 5556)
+
+
+def test_interrupt_during_the_ready_wait_kills_waits_and_releases(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    runner = EmulatorRunner([*_listing((OTHER, "Other_AVD"))], interrupt_on=_on(SERIAL, "get-state"))
+
+    with pytest.raises(KeyboardInterrupt):
+        _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
+
+    process = runner.processes[0]
+    assert process.returncode == -9
+    assert len(process.waits) == 1
+    assert process.waits[0] is not None
+    assert _changes_on(runner.calls, SERIAL) == []
+    assert _port_is_free(avd_home, 5556)
