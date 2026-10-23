@@ -37,9 +37,8 @@ abstract interface class NativeAdapterHarness {
   void finishPage(String url);
   void changeUrl(String? url);
 
-  /// Sends [message] as the document at [senderUrl] would; a platform that
-  /// names no sender (Windows, Linux) ignores [senderUrl] and
-  /// [isMainFrame].
+  /// Sends [message] as the document at [senderUrl] would, from the main
+  /// frame or, with [isMainFrame] false, from an iframe.
   void sendBridgeMessage(
     String message, {
     required String senderUrl,

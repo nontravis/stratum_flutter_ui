@@ -1089,8 +1089,7 @@ beside `style`, which draws the box.
   `StratumBridge.postMessage(data)`; `onMessage` gets the text and the origin of the page that sent it, `null` for
   your HTML; answer the sender with `controller.reply(message, data)`: it reaches only the page or HTML document
   that sent the message, and throws `StateError` once the view shows another origin or that document is gone
-  (`ArgumentError` for a message the controller did not deliver). Three limits on that guarantee: on Windows and
-  Linux the reply is credited to the page of the last `onPageStarted`, not necessarily the sender; on the web, after
+  (`ArgumentError` for a message the controller did not deliver). Two limits on that guarantee: on the web, after
   an in-frame link to another origin the check still passes on stale history and the browser drops the reply
   silently with no throw; and on the web, a reply to your own HTML after a link away inside it resolves the same
   way, without delivering the data. `controller.postMessage(data, targetOrigin: origin)` names a recipient origin
@@ -1103,8 +1102,11 @@ beside `style`, which draws the box.
   app needs no setup of its own. On Android a system WebView without `WEB_MESSAGE_LISTENER` or
   `JS_INJECTION_IN_FRAME_AND_WORLD` keeps the bridge off, and every `postMessage` throws `StateError`. On Android a
   send to your HTML reaches only the document that connected the bridge; once that document leaves, the next one
-  gets nothing and the send throws `StateError`. On Windows and Linux every frame of an allowed page can send,
-  credited to the page of the last `onPageStarted`.
+  gets nothing and the send throws `StateError`. On Windows and Linux the plugin names the sending document, so
+  only the top-level page's messages pass, each with its sender's origin; Linux drops a message from a document
+  with an opaque origin, a page its server sandboxes included, but Windows names only the document's address: an
+  allowed origin there vouches for every top-level document served at its addresses, a sandboxed one included, so
+  allow no origin that serves sandboxed untrusted HTML.
   Web: `onMessage`'s origin names the page that sent the message, even a URL page the view has moved away from, and
   `currentUrl()` reports the requested URL until the frame finishes loading it. On the web, load only content the app
   trusts on the app's own origin: such a page runs with the app's privileges.

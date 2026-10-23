@@ -69,12 +69,16 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_contr
 ///   bridge; once that document leaves, the next one gets nothing and the
 ///   send throws a [StateError]. [onError] may also report an HTTP error
 ///   from an embedded iframe on iOS and macOS, not only the top-level page.
-/// * Windows and Linux: the bridge channel is visible to every frame of an
-///   allowed page, so allow only pages that embed no untrusted iframes. A
-///   message is credited to the page of the last [onPageStarted], so around
-///   a navigation it can carry the origin of the page before or after the
-///   one that sent it. A `reply` is credited the same way, so it can reach
-///   a page other than the sender.
+/// * Windows and Linux: the plugin names the sending document, so only the
+///   top-level page's messages pass, each with its sender's origin, even
+///   one that arrives before [onPageStarted]; an iframe's message never
+///   reaches [onMessage]. A `reply` reaches the page shown only while that
+///   page has the sender's origin, and throws a [StateError] otherwise.
+///   Linux drops a message from a document with an opaque origin, a page
+///   its server sandboxes included. Windows names only the document's
+///   address, so an allowed origin vouches for every top-level document
+///   served at its addresses, a sandboxed one included: allow no origin
+///   that serves sandboxed untrusted HTML.
 /// * Every native platform: treat bridge messages as untrusted input, and
 ///   use [onNavigationRequest] to prevent top-level navigation outside
 ///   [allowedOrigins] when a hard boundary is needed.

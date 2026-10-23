@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigat
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:webview_platform_interface/webview_platform_interface.dart'
     as wa;
 
@@ -50,7 +51,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     await _controller.addJavaScriptChannel(
       wa.JavaScriptChannelParams(
         name: bridgeChannelName,
-        onMessageReceived: (message) => _handleBridgeMessage(message.message),
+        onMessageReceived: _handleBridgeMessage,
       ),
     );
   }
@@ -202,11 +203,36 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     _listener.onPageFinished(Uri.tryParse(url));
   }
 
-  void _handleBridgeMessage(String data) {
-    final accepted = _session.acceptMessage(data); // all: no sender
+  void _handleBridgeMessage(wa.JavaScriptMessage message) {
+    final accepted = _session.acceptMessage(
+      message.message,
+      sender: _senderOf(message),
+    );
     if (accepted != null) {
       _listener.onMessage(accepted.message, accepted.sender);
     }
+  }
+
+  /// The sender [message] names, or `null` when it names none, which drops
+  /// the message (US-05 FR-01 E04, US-06 FR-01 E04).
+  ///
+  /// The origin is `sourceOrigin` when the plugin passes one, with the text
+  /// `"null"` meaning an opaque origin, else the origin of `sourceUrl`;
+  /// with neither, the origin is opaque.
+  BridgeMessageSender? _senderOf(wa.JavaScriptMessage message) {
+    final isMainFrame = message.isMainFrame;
+    if (isMainFrame == null) return null;
+    final sourceOrigin = message.sourceOrigin;
+    final sourceUrl = message.sourceUrl;
+    final Uri? origin;
+    if (sourceOrigin != null) {
+      origin = sourceOrigin == 'null'
+          ? null
+          : originOf(Uri.tryParse(sourceOrigin));
+    } else {
+      origin = sourceUrl == null ? null : originOf(Uri.tryParse(sourceUrl));
+    }
+    return BridgeMessageSender(origin: origin, isMainFrame: isMainFrame);
   }
 
   void _handleResourceError(wa.WebResourceError error) {

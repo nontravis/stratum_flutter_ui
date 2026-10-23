@@ -15,6 +15,19 @@ import '../../fakes/native_bridge_envelope.dart';
 
 const String tag = nativeBridgeEnvelopeTag;
 
+/// The sender of a main-frame message whose document has an opaque origin,
+/// as the app's own HTML has.
+const BridgeMessageSender _opaqueMainFrame = BridgeMessageSender(
+  origin: null,
+  isMainFrame: true,
+);
+
+extension on NativeBridgeSession {
+  /// Accepts [data] as a main-frame message of an opaque-origin document.
+  AcceptedMessage? receive(String data) =>
+      acceptMessage(data, sender: _opaqueMainFrame);
+}
+
 void main() {
   final appOrigin = Uri.parse('https://app.example.com');
   late Set<Uri> allowed;
@@ -28,67 +41,16 @@ void main() {
     );
   });
 
-  group('messages from URL pages', () {
-    test('accepts an allowed page and reports its origin', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://app.example.com/home');
-      expect(
-        session.acceptMessage('hi')?.message,
-        StratumWebViewMessage(data: 'hi', origin: appOrigin),
-      );
-    });
-
-    test('drops a page outside the allowlist', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://evil.example.net/');
-      expect(session.acceptMessage('hi'), isNull);
-    });
-
-    test('follows URL changes without a page load', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://app.example.com/home')
-        ..didChangeUrl('https://evil.example.net/');
-      expect(session.acceptMessage('hi'), isNull);
-    });
-
-    test('reads the allowlist at message time', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://app.example.com/home');
-      allowed = {Uri.parse('https://other.example.net')};
-      expect(session.acceptMessage('hi'), isNull);
-    });
-
-    test('a null URL change clears the tracked page', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://app.example.com/home')
-        ..didChangeUrl(null);
-      expect(session.acceptMessage('hi'), isNull);
-    });
-
-    test('co01_02/us03/fr05/e10: on Windows and Linux a URL page message names the '
-        "credited page's origin as its sender", () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://app.example.com/home');
-      expect(
-        session.acceptMessage('hi')!.sender,
-        isA<PlatformUrlPageSender>().having(
-          (sender) => sender.origin,
-          'origin',
-          appOrigin,
-        ),
-      );
-    });
-  });
-
   group('messages with a sender the platform names', () {
     BridgeMessageSender from(String url, {bool isMainFrame = true}) =>
         BridgeMessageSender(origin: Uri.parse(url), isMainFrame: isMainFrame);
+
+    test('reads the allowlist at message time', () {
+      final sender = from('https://app.example.com/home');
+      expect(session.acceptMessage('hi', sender: sender), isNotNull);
+      allowed = {Uri.parse('https://other.example.net')};
+      expect(session.acceptMessage('hi', sender: sender), isNull);
+    });
 
     test(
       'co01_02/us03/fr01/e10: the sender origin decides, before any page start '
@@ -111,24 +73,21 @@ void main() {
       },
     );
 
-    test(
-      'co01_02/us03/fr05: a URL page message names its origin as the sender',
-      () {
-        expect(
-          session
-              .acceptMessage(
-                'x',
-                sender: from('https://APP.example.com:443/home'),
-              )!
-              .sender,
-          isA<PlatformUrlPageSender>().having(
-            (sender) => sender.origin,
-            'origin',
-            appOrigin,
-          ),
-        );
-      },
-    );
+    test('co01_02/us03/fr05, co01_02/us03/fr05/e10: a URL page message names its origin as the sender', () {
+      expect(
+        session
+            .acceptMessage(
+              'x',
+              sender: from('https://APP.example.com:443/home'),
+            )!
+            .sender,
+        isA<PlatformUrlPageSender>().having(
+          (sender) => sender.origin,
+          'origin',
+          appOrigin,
+        ),
+      );
+    });
 
     test('co01_02/us03/fr01/e06, co01_02/us03/fr04/e09: a sub-frame message is dropped, a '
         'tagged one with the current nonce included', () {
@@ -184,7 +143,7 @@ void main() {
         session.acceptMessage('x', sender: from('https://app.example.com/')),
         isNull,
       );
-      expect(session.acceptMessage(envelope(nonce, 'hello')), isNull);
+      expect(session.receive(envelope(nonce, 'hello')), isNull);
       expect(
         () => session.scriptForMessage('ping'),
         throwsA(
@@ -199,20 +158,21 @@ void main() {
       );
     });
 
-    test('co01_02/us03/fr01/e06, co01_02/us03/fr01/e10: where the platform names senders, a '
-        'message without one drops, never judged by the tracked page', () {
-      final named = NativeBridgeSession(
-        allowedOrigins: () => allowed,
-        platform: TargetPlatform.android,
-        namesSenders: true,
-      );
-      final nonce = nonceIn(named.willLoadHtml('<p>Hi</p>'));
-      named.didStartPage('https://app.example.com/home');
-      expect(named.acceptMessage('x'), isNull);
-      named.acceptMessage(envelope(nonce, 'hello', documentA));
-      expect(() => named.scriptForMessage('ping'), throwsA(isA<StateError>()));
+    test('co01_02/us03/fr01/e06, co01_02/us03/fr01/e10: a message without a '
+        'sender drops, never judged by the tracked page', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      session.didStartPage('https://app.example.com/home');
+      expect(session.acceptMessage('x'), isNull);
       expect(
-        named
+        session.acceptMessage(envelope(nonce, 'hello', documentA)),
+        isNull,
+      );
+      expect(
+        () => session.scriptForMessage('ping'),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        session
             .acceptMessage('x', sender: from('https://app.example.com/home'))
             ?.message,
         StratumWebViewMessage(data: 'x', origin: appOrigin),
@@ -225,10 +185,10 @@ void main() {
         'it, reaches the app with no origin and without its envelope', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
       session
-        ..acceptMessage(envelope(nonce, 'hello', documentA))
+        ..receive(envelope(nonce, 'hello', documentA))
         ..didStartPage('about:blank');
       expect(
-        session.acceptMessage(messageEnvelope(nonce, 'hi:there'))?.message,
+        session.receive(messageEnvelope(nonce, 'hi:there'))?.message,
         const StratumWebViewMessage(data: 'hi:there'),
       );
     });
@@ -237,8 +197,8 @@ void main() {
         'document, recorded as the sender, whatever order it arrives in '
         'against the hello envelopes', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      session.acceptMessage(envelope(nonce, 'hello', documentA));
-      final fromB = session.acceptMessage(
+      session.receive(envelope(nonce, 'hello', documentA));
+      final fromB = session.receive(
         messageEnvelope(nonce, 'b1', document: documentB),
       )!;
       expect(
@@ -248,8 +208,8 @@ void main() {
             .having((sender) => sender.load, 'load', 1),
       );
       expect(fromB.message, const StratumWebViewMessage(data: 'b1'));
-      session.acceptMessage(envelope(nonce, 'hello', documentB));
-      final fromA = session.acceptMessage(messageEnvelope(nonce, 'a2'))!;
+      session.receive(envelope(nonce, 'hello', documentB));
+      final fromA = session.receive(messageEnvelope(nonce, 'a2'))!;
       expect(
         fromA.sender,
         isA<NativeHtmlDocumentSender>()
@@ -262,7 +222,7 @@ void main() {
     test('co01_02/us03/fr04/e05: a message envelope whose document id is missing or '
         'malformed drops', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      session.acceptMessage(envelope(nonce, 'hello', documentA));
+      session.receive(envelope(nonce, 'hello', documentA));
       for (final malformed in [
         envelope(nonce, 'message', 'x'),
         envelope(nonce, 'message', '${documentA.toUpperCase()}:x'),
@@ -270,20 +230,17 @@ void main() {
         envelope(nonce, 'message', documentA),
         envelope(nonce, 'message', '${documentA}x'),
       ]) {
-        expect(session.acceptMessage(malformed), isNull, reason: malformed);
+        expect(session.receive(malformed), isNull, reason: malformed);
       }
     });
 
     test('co01_02/us03/fr04: the text after the document id reaches the app whole, '
         'empty text and colons included', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      session.acceptMessage(envelope(nonce, 'hello', documentA));
+      session.receive(envelope(nonce, 'hello', documentA));
+      expect(session.receive(messageEnvelope(nonce, ''))?.message.data, '');
       expect(
-        session.acceptMessage(messageEnvelope(nonce, ''))?.message.data,
-        '',
-      );
-      expect(
-        session.acceptMessage(messageEnvelope(nonce, 'a:b::c:'))?.message.data,
+        session.receive(messageEnvelope(nonce, 'a:b::c:'))?.message.data,
         'a:b::c:',
       );
     });
@@ -292,18 +249,18 @@ void main() {
         'order neither grant nor end trust', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
       session.didStartPage('about:blank');
-      expect(session.acceptMessage(messageEnvelope(nonce, 'a')), isNull);
+      expect(session.receive(messageEnvelope(nonce, 'a')), isNull);
       // A hello and a message that beat the HTML's own page start.
-      session.acceptMessage(envelope(nonce, 'hello', documentA));
-      expect(session.acceptMessage(messageEnvelope(nonce, 'a')), isNotNull);
+      session.receive(envelope(nonce, 'hello', documentA));
+      expect(session.receive(messageEnvelope(nonce, 'a')), isNotNull);
       session
         ..didStartPage('https://evil.example.net/')
         ..didStartPage('about:blank')
         ..didChangeUrl(null);
       expect(session.didFinishPage(), isTrue);
-      expect(session.acceptMessage(messageEnvelope(nonce, 'b')), isNotNull);
+      expect(session.receive(messageEnvelope(nonce, 'b')), isNotNull);
       // The page the HTML replaced cannot know the nonce.
-      expect(session.acceptMessage('untagged'), isNull);
+      expect(session.receive('untagged'), isNull);
     });
 
     test('co01_02/us03/fr04/e02: a null, empty, unparsable, or blob: page URL never '
@@ -316,10 +273,10 @@ void main() {
         'blob:https://evil.example.net/0b5c',
       ]) {
         session.didStartPage(url);
-        expect(session.acceptMessage('hi'), isNull, reason: url);
+        expect(session.receive('hi'), isNull, reason: url);
       }
       session.didChangeUrl(null);
-      expect(session.acceptMessage('hi'), isNull);
+      expect(session.receive('hi'), isNull);
     });
 
     test('co01_02/us03/fr04/e03: back or forward to the current HTML entry passes; '
@@ -328,21 +285,18 @@ void main() {
       final current = nonceIn(session.willLoadHtml('<p>Two</p>'));
       session
         ..didStartPage('about:blank')
-        ..acceptMessage(envelope(current, 'hello', documentA))
+        ..receive(envelope(current, 'hello', documentA))
         // A link away, then the controller's goBack to a parsed-again
         // document.
-        ..acceptMessage(envelope(current, 'bye', documentA))
+        ..receive(envelope(current, 'bye', documentA))
         ..didStartPage('https://app.example.com/linked')
         ..willNavigate()
         ..didStartPage('about:blank');
+      expect(session.receive(envelope(older, 'hello', documentB)), isNull);
+      expect(session.receive(messageEnvelope(older, 'x')), isNull);
+      session.receive(envelope(current, 'hello', documentB));
       expect(
-        session.acceptMessage(envelope(older, 'hello', documentB)),
-        isNull,
-      );
-      expect(session.acceptMessage(messageEnvelope(older, 'x')), isNull);
-      session.acceptMessage(envelope(current, 'hello', documentB));
-      expect(
-        session.acceptMessage(messageEnvelope(current, 'x'))?.message,
+        session.receive(messageEnvelope(current, 'x'))?.message,
         const StratumWebViewMessage(data: 'x'),
       );
     });
@@ -354,12 +308,12 @@ void main() {
         final html = session.willLoadHtml('<p>Hi</p>');
         final nonce = nonceIn(html);
         session
-          ..acceptMessage(envelope(nonce, 'hello', documentA))
-          ..acceptMessage(envelope(nonce, 'bye', documentA))
-          ..acceptMessage(envelope(nonce, 'hello', documentA));
+          ..receive(envelope(nonce, 'hello', documentA))
+          ..receive(envelope(nonce, 'bye', documentA))
+          ..receive(envelope(nonce, 'hello', documentA));
         expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
-        expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNotNull);
-        session.acceptMessage(envelope(nonce, 'bye', documentA));
+        expect(session.receive(messageEnvelope(nonce, 'x')), isNotNull);
+        session.receive(envelope(nonce, 'bye', documentA));
         expect(
           session.scriptForMessage('ping'),
           isNot(contains(tokenIn(html))),
@@ -374,9 +328,9 @@ void main() {
         final html = session.willLoadHtml('<p>Hi</p>');
         final nonce = nonceIn(html);
         session
-          ..acceptMessage(envelope(nonce, 'hello', documentA))
+          ..receive(envelope(nonce, 'hello', documentA))
           ..willReload()
-          ..acceptMessage(envelope(nonce, 'bye', documentA))
+          ..receive(envelope(nonce, 'bye', documentA))
           ..didStartPage('about:blank');
         // A send between that bye and that hello carries no token.
         expect(
@@ -387,9 +341,9 @@ void main() {
             allowedOrigins: allowed,
           ),
         );
-        expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNull);
-        session.acceptMessage(envelope(nonce, 'hello', documentB));
-        expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNotNull);
+        expect(session.receive(messageEnvelope(nonce, 'x')), isNull);
+        session.receive(envelope(nonce, 'hello', documentB));
+        expect(session.receive(messageEnvelope(nonce, 'x')), isNotNull);
         expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
       },
     );
@@ -412,7 +366,7 @@ void main() {
           '$tag${'0' * 32}:hello:$documentA',
           '$tag${nonce.substring(1)}:hello:$documentA',
         ]) {
-          expect(session.acceptMessage(bad), isNull, reason: bad);
+          expect(session.receive(bad), isNull, reason: bad);
         }
         expect(
           () => session.scriptForMessage('ping'),
@@ -439,16 +393,16 @@ void main() {
           '$documentA:x',
         ];
         for (final id in badIds) {
-          expect(session.acceptMessage(envelope(nonce, 'hello', id)), isNull);
+          expect(session.receive(envelope(nonce, 'hello', id)), isNull);
           expect(
             () => session.scriptForMessage('ping'),
             throwsA(isA<StateError>()),
             reason: 'hello ${jsonEncode(id)}',
           );
         }
-        session.acceptMessage(envelope(nonce, 'hello', documentA));
+        session.receive(envelope(nonce, 'hello', documentA));
         for (final id in badIds) {
-          expect(session.acceptMessage(envelope(nonce, 'bye', id)), isNull);
+          expect(session.receive(envelope(nonce, 'bye', id)), isNull);
           expect(
             session.scriptForMessage('ping'),
             contains(tokenIn(html)),
@@ -461,14 +415,14 @@ void main() {
     test('co01_02/us03/fr04: while minted, a message or a bye is dropped and only a '
         'hello proves the nonce', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNull);
-      expect(session.acceptMessage(envelope(nonce, 'bye', documentA)), isNull);
+      expect(session.receive(messageEnvelope(nonce, 'x')), isNull);
+      expect(session.receive(envelope(nonce, 'bye', documentA)), isNull);
       expect(
         () => session.scriptForMessage('ping'),
         throwsA(isA<StateError>()),
       );
-      session.acceptMessage(envelope(nonce, 'hello', documentA));
-      expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNotNull);
+      session.receive(envelope(nonce, 'hello', documentA));
+      expect(session.receive(messageEnvelope(nonce, 'x')), isNotNull);
     });
 
     test("co01_02/us03/fr04/e10, co01_02/us03/fr02/e04, co01_02/us03/fr02/e10: the proving document's "
@@ -476,8 +430,8 @@ void main() {
         'allowlist-only script, and messages drop', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
       session
-        ..acceptMessage(envelope(nonce, 'hello', documentA))
-        ..acceptMessage(envelope(nonce, 'bye', documentA));
+        ..receive(envelope(nonce, 'hello', documentA))
+        ..receive(envelope(nonce, 'bye', documentA));
       expect(
         session.scriptForMessage('ping'),
         buildMessageDispatchScript(
@@ -486,7 +440,7 @@ void main() {
           allowedOrigins: allowed,
         ),
       );
-      expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNull);
+      expect(session.receive(messageEnvelope(nonce, 'x')), isNull);
     });
 
     test('co01_02/us03/fr04/e10: a hello with another document id replaces the id, '
@@ -494,12 +448,12 @@ void main() {
       final html = session.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
       session
-        ..acceptMessage(envelope(nonce, 'hello', documentA))
-        ..acceptMessage(envelope(nonce, 'hello', documentB))
-        ..acceptMessage(envelope(nonce, 'bye', documentA));
+        ..receive(envelope(nonce, 'hello', documentA))
+        ..receive(envelope(nonce, 'hello', documentB))
+        ..receive(envelope(nonce, 'bye', documentA));
       expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
-      expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNotNull);
-      session.acceptMessage(envelope(nonce, 'bye', documentB));
+      expect(session.receive(messageEnvelope(nonce, 'x')), isNotNull);
+      session.receive(envelope(nonce, 'bye', documentB));
       expect(session.scriptForMessage('ping'), isNot(contains(tokenIn(html))));
     });
 
@@ -508,28 +462,28 @@ void main() {
       final html = session.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
       session
-        ..acceptMessage(envelope(nonce, 'hello', documentA))
-        ..acceptMessage(envelope(nonce, 'bye', documentA))
-        ..acceptMessage(envelope(nonce, 'bye', documentA))
-        ..acceptMessage(envelope(nonce, 'bye', documentB));
+        ..receive(envelope(nonce, 'hello', documentA))
+        ..receive(envelope(nonce, 'bye', documentA))
+        ..receive(envelope(nonce, 'bye', documentA))
+        ..receive(envelope(nonce, 'bye', documentB));
       expect(session.scriptForMessage('ping'), isNot(contains(tokenIn(html))));
-      session.acceptMessage(envelope(nonce, 'hello', documentB));
+      session.receive(envelope(nonce, 'hello', documentB));
       expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
-      expect(session.acceptMessage(messageEnvelope(nonce, 'x')), isNotNull);
+      expect(session.receive(messageEnvelope(nonce, 'x')), isNotNull);
     });
 
     test('co01_02/us03/fr04/e10: a hello or a bye with the nonce of an older '
         'loadHtml moves nothing', () {
       final older = nonceIn(session.willLoadHtml('<p>One</p>'));
       final current = session.willLoadHtml('<p>Two</p>');
-      session.acceptMessage(envelope(older, 'hello', documentA));
+      session.receive(envelope(older, 'hello', documentA));
       expect(
         () => session.scriptForMessage('ping'),
         throwsA(isA<StateError>()),
       );
       session
-        ..acceptMessage(envelope(nonceIn(current), 'hello', documentA))
-        ..acceptMessage(envelope(older, 'bye', documentA));
+        ..receive(envelope(nonceIn(current), 'hello', documentA))
+        ..receive(envelope(older, 'bye', documentA));
       expect(session.scriptForMessage('ping'), contains(tokenIn(current)));
     });
 
@@ -542,7 +496,7 @@ void main() {
       ]) {
         final older = nonceIn(session.willLoadHtml('<p>One</p>'));
         for (final kind in kinds) {
-          session.acceptMessage(envelope(older, kind, documentA));
+          session.receive(envelope(older, kind, documentA));
         }
         session.willLoadHtml('<p>Two</p>');
         expect(
@@ -555,11 +509,21 @@ void main() {
 
     test('co01_02/us03/fr04/e06, co01_02/us03/fr01/e12: a tagged message is judged only by '
         'its nonce, so an allowed page that sends one is dropped', () {
+      final allowedPage = BridgeMessageSender(
+        origin: appOrigin,
+        isMainFrame: true,
+      );
       session
         ..willLoadUrl()
         ..didStartPage('https://app.example.com/home');
-      expect(session.acceptMessage(messageEnvelope('a' * 32, 'x')), isNull);
-      expect(session.acceptMessage('untagged'), isNotNull);
+      expect(
+        session.acceptMessage(
+          messageEnvelope('a' * 32, 'x'),
+          sender: allowedPage,
+        ),
+        isNull,
+      );
+      expect(session.acceptMessage('untagged', sender: allowedPage), isNotNull);
     });
 
     test(
@@ -568,7 +532,7 @@ void main() {
       () {
         final html = session.willLoadHtml('<p>Hi</p>');
         session
-          ..acceptMessage(envelope(nonceIn(html), 'hello', documentA))
+          ..receive(envelope(nonceIn(html), 'hello', documentA))
           ..didStartPage('about:blank')
           ..didStartPage('https://app.example.com/next')
           ..didChangeUrl(null);
@@ -590,12 +554,12 @@ void main() {
           final html = session.willLoadHtml('<p>Hi</p>');
           final nonce = nonceIn(html);
           for (final kind in kinds) {
-            session.acceptMessage(envelope(nonce, kind, documentA));
+            session.receive(envelope(nonce, kind, documentA));
           }
           revoke();
-          session.acceptMessage(envelope(nonce, 'hello', documentA));
+          session.receive(envelope(nonce, 'hello', documentA));
           expect(
-            session.acceptMessage(messageEnvelope(nonce, 'x')),
+            session.receive(messageEnvelope(nonce, 'x')),
             isNull,
             reason: '$kinds',
           );
@@ -643,9 +607,9 @@ void main() {
           ),
         );
       }
-      session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
+      session.receive(envelope(nonceIn(html), 'hello', documentA));
       final message = session
-          .acceptMessage(messageEnvelope(nonceIn(html), 'x'))!
+          .receive(messageEnvelope(nonceIn(html), 'x'))!
           .message;
       for (final secret in secrets) {
         expect(message.data, isNot(contains(secret)));
@@ -655,24 +619,21 @@ void main() {
 
     test('Q9-OQ-A3: a message has no size limit', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      session.acceptMessage(envelope(nonce, 'hello', documentA));
+      session.receive(envelope(nonce, 'hello', documentA));
       final big = 'x' * (1 << 20);
-      expect(
-        session.acceptMessage(messageEnvelope(nonce, big))?.message.data,
-        big,
-      );
+      expect(session.receive(messageEnvelope(nonce, big))?.message.data, big);
     });
 
     test('us03/fr05/e09, nf01/NFR-Sec03: a sender names its load by a '
         'counter, one per loadHtml', () {
       expect(session.currentLoad, isNull);
       final first = nonceIn(session.willLoadHtml('<p>1</p>'));
-      session.acceptMessage(envelope(first, 'hello', documentA));
-      final one = session.acceptMessage(messageEnvelope(first, 'm'))!.sender;
+      session.receive(envelope(first, 'hello', documentA));
+      final one = session.receive(messageEnvelope(first, 'm'))!.sender;
       final second = nonceIn(session.willLoadHtml('<p>2</p>'));
-      session.acceptMessage(envelope(second, 'hello', documentB));
+      session.receive(envelope(second, 'hello', documentB));
       final two = session
-          .acceptMessage(messageEnvelope(second, 'm', document: documentB))!
+          .receive(messageEnvelope(second, 'm', document: documentB))!
           .sender;
       expect((one as NativeHtmlDocumentSender).load, 1);
       expect((two as NativeHtmlDocumentSender).load, 2);
@@ -706,7 +667,7 @@ void main() {
       'token and never the inbound nonce',
       () {
         final html = session.willLoadHtml('<p>Hi</p>');
-        session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
+        session.receive(envelope(nonceIn(html), 'hello', documentA));
         final script = session.scriptForMessage('ping');
         expect(script, contains("t==='${tokenIn(html)}'"));
         expect(script, isNot(contains(nonceIn(html))));
@@ -761,7 +722,7 @@ void main() {
         'a page whose origin is the target, and carries no token even '
         'while own HTML is proven', () {
       final html = session.willLoadHtml('<p>Hi</p>');
-      session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
+      session.receive(envelope(nonceIn(html), 'hello', documentA));
       final partner = Uri.parse('https://partner.example.net');
       allowed = {appOrigin, partner};
       final script = session.scriptForMessage('x', targetOrigin: partner);
@@ -820,8 +781,8 @@ void main() {
   group('replies to own HTML', () {
     PlatformHtmlDocumentSender proveA(NativeBridgeSession s, String html) {
       final nonce = nonceIn(html);
-      s.acceptMessage(envelope(nonce, 'hello', documentA));
-      return s.acceptMessage(messageEnvelope(nonce, 'm'))!.sender
+      s.receive(envelope(nonce, 'hello', documentA));
+      return s.receive(messageEnvelope(nonce, 'm'))!.sender
           as PlatformHtmlDocumentSender;
     }
 
@@ -861,13 +822,12 @@ void main() {
               (
                 'bye',
                 (s, html) =>
-                    s.acceptMessage(envelope(nonceIn(html), 'bye', documentA)),
+                    s.receive(envelope(nonceIn(html), 'bye', documentA)),
               ),
               (
                 'hello documentB',
-                (s, html) => s.acceptMessage(
-                  envelope(nonceIn(html), 'hello', documentB),
-                ),
+                (s, html) =>
+                    s.receive(envelope(nonceIn(html), 'hello', documentB)),
               ),
               ('willLoadHtml', (s, html) => s.willLoadHtml('<p>Two</p>')),
               ('willLoadUrl', (s, html) => s.willLoadUrl()),
@@ -895,21 +855,19 @@ void main() {
       () {
         final html = session.willLoadHtml('<p>Hi</p>');
         final nonce = nonceIn(html);
-        session.acceptMessage(envelope(nonce, 'hello', documentA));
+        session.receive(envelope(nonce, 'hello', documentA));
         final a1 =
-            session.acceptMessage(messageEnvelope(nonce, 'a1'))!.sender
+            session.receive(messageEnvelope(nonce, 'a1'))!.sender
                 as PlatformHtmlDocumentSender;
         // A reload: B's hello replaces the proof; on Android A's bye can be
         // lost.
-        session.acceptMessage(envelope(nonce, 'hello', documentB));
+        session.receive(envelope(nonce, 'hello', documentB));
         final a2 =
-            session.acceptMessage(messageEnvelope(nonce, 'a2'))!.sender
+            session.receive(messageEnvelope(nonce, 'a2'))!.sender
                 as PlatformHtmlDocumentSender;
         final b1 =
             session
-                    .acceptMessage(
-                      messageEnvelope(nonce, 'b1', document: documentB),
-                    )!
+                    .receive(messageEnvelope(nonce, 'b1', document: documentB))!
                     .sender
                 as PlatformHtmlDocumentSender;
         expect(() => session.scriptForReply('pong', a1), gone);
@@ -924,12 +882,12 @@ void main() {
     test('co01_02/us03/fr05/e08: a sender of an earlier load with the same document '
         'id is gone', () {
       final first = nonceIn(session.willLoadHtml('<p>1</p>'));
-      session.acceptMessage(envelope(first, 'hello', documentA));
+      session.receive(envelope(first, 'hello', documentA));
       final early =
-          session.acceptMessage(messageEnvelope(first, 'm'))!.sender
+          session.receive(messageEnvelope(first, 'm'))!.sender
               as PlatformHtmlDocumentSender;
       final second = nonceIn(session.willLoadHtml('<p>2</p>'));
-      session.acceptMessage(envelope(second, 'hello', documentA));
+      session.receive(envelope(second, 'hello', documentA));
       expect(
         () => session.scriptForReply('pong', early),
         throwsA(
@@ -941,7 +899,7 @@ void main() {
         ),
       );
       final current =
-          session.acceptMessage(messageEnvelope(second, 'm'))!.sender
+          session.receive(messageEnvelope(second, 'm'))!.sender
               as PlatformHtmlDocumentSender;
       expect(
         session.scriptForReply('pong', current).script,
@@ -978,7 +936,6 @@ void main() {
       android = NativeBridgeSession(
         allowedOrigins: () => allowed,
         platform: TargetPlatform.android,
-        namesSenders: true,
         bindsSendsToDocument: true,
       );
     });
@@ -1292,7 +1249,6 @@ void main() {
       webKit = NativeBridgeSession(
         allowedOrigins: () => allowed,
         platform: TargetPlatform.iOS,
-        namesSenders: true,
       );
     });
 

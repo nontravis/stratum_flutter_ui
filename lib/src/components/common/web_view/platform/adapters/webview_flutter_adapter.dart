@@ -23,7 +23,6 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     _session = NativeBridgeSession(
       allowedOrigins: () => _listener.allowedOrigins,
       platform: defaultTargetPlatform,
-      namesSenders: true,
       bindsSendsToDocument: _controller.platform is AndroidWebViewController,
     );
     _ready = _configure();

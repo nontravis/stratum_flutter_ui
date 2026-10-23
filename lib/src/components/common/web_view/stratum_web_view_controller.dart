@@ -155,11 +155,8 @@ final class StratumWebViewController {
   /// Throws an [ArgumentError] for a message this controller did not
   /// deliver, such as one app code built. Throws a [StateError] as
   /// [postMessage] does, and when the sender is not the page shown or is
-  /// gone. On Windows and Linux a message carries the origin of the page of
-  /// the last `StratumWebView.onPageStarted`, so around a navigation a reply
-  /// can reach the page shown instead of the sender. On web, a reply to HTML
-  /// after the user followed a link away inside it is dropped without an
-  /// error.
+  /// gone. On web, a reply to HTML after the user followed a link away
+  /// inside it is dropped without an error.
   Future<void> reply(StratumWebViewMessage message, String data) async {
     _ensureActive();
     final sender = _senders[message];

@@ -12,8 +12,10 @@ import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin
 /// against the literal, so a getter or a Proxy learns nothing), or
 /// `window.location.origin` equals one of [allowedOrigins] (compared as
 /// literals, so no page method runs). A `null` [token] leaves the token
-/// branch out. An opaque-origin document reads `"null"`, which no entry
-/// equals. The script never carries the inbound nonce.
+/// branch out. A document at `about:blank`, `data:`, or another address with
+/// an opaque origin reads `"null"`, which no entry equals; a sandboxed
+/// document at an allowed address still reads that address's origin. The
+/// script never carries the inbound nonce.
 ///
 /// [jsonEncode] turns [data] into a valid JavaScript string literal: quotes,
 /// backslashes, and control characters are escaped. U+2028 and U+2029 are

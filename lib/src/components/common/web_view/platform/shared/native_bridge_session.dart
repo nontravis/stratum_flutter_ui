@@ -73,7 +73,8 @@ final RegExp _documentIdShape = RegExp(r'^[0-9a-f]{32}$');
 extension type const BridgeReplyProxy(int id);
 
 /// The sender a platform names for one bridge message: Android through its
-/// web message listener, iOS and macOS through `WKScriptMessage.frameInfo`.
+/// web message listener, iOS and macOS through `WKScriptMessage.frameInfo`,
+/// Windows and Linux through the `JavaScriptMessage` sender fields.
 final class BridgeMessageSender {
   const new({required this.origin, required this.isMainFrame, this.replyProxy});
 
@@ -115,10 +116,6 @@ final class NativeHtmlDocumentSender extends PlatformHtmlDocumentSender {
 /// Adapters report platform events here and ask whether a message may pass.
 /// The class holds no platform types, so both adapters use it unchanged.
 final class NativeBridgeSession {
-  /// [namesSenders] is whether the platform names the sender of every page
-  /// message (Android, iOS, macOS); then a message without one drops,
-  /// instead of being judged by the tracked page (Windows, Linux).
-  ///
   /// [bindsSendsToDocument] is whether the platform can run a send through
   /// the reply proxy of the document that sent a `hello` (Android only), a
   /// platform fact the caller passes instead of one this class infers from
@@ -130,18 +127,15 @@ final class NativeBridgeSession {
   new({
     required Set<Uri> Function() allowedOrigins,
     required TargetPlatform platform,
-    bool namesSenders = false,
     bool bindsSendsToDocument = false,
   }) : _allowedOrigins = allowedOrigins,
        _platform = platform,
-       _namesSenders = namesSenders,
        _bindsSendsToDocument = bindsSendsToDocument;
 
   static final Random _random = Random.secure();
 
   final Set<Uri> Function() _allowedOrigins;
   final TargetPlatform _platform;
-  final bool _namesSenders;
   final bool _bindsSendsToDocument;
   Uri? _pageUrl;
 
@@ -278,24 +272,23 @@ final class NativeBridgeSession {
   /// Returns the message to deliver for [data] and its sender, or `null` to
   /// drop it.
   ///
-  /// [sender] is the sender the platform names (Android, iOS, macOS): only
-  /// main-frame messages pass, and an untagged message is judged by the
-  /// sender's origin; where the platform names senders, a message without
-  /// one drops. Without [sender] (Windows, Linux) an untagged message is
-  /// judged by the origin of the tracked page at receipt.
+  /// [sender] is the sender the platform names for the message, `null` when
+  /// it names none. Only a main-frame sender passes, and an untagged message
+  /// is judged by that sender's origin; the tracked page never stands in for
+  /// a missing sender.
   /// A message that carries [nativeBridgeEnvelopeTag] is judged only by its
   /// nonce and the proof, so a host-less page never passes as the app's
   /// HTML. No page start, URL, or arrival order decides HTML trust.
   AcceptedMessage? acceptMessage(String data, {BridgeMessageSender? sender}) {
     if (_bridgeUnsupported) return null;
-    if (sender == null ? _namesSenders : !sender.isMainFrame) return null;
+    if (sender == null || !sender.isMainFrame) return null;
     if (data.startsWith(nativeBridgeEnvelopeTag)) {
       return _receiveEnvelope(
         data.substring(nativeBridgeEnvelopeTag.length),
-        sender?.replyProxy,
+        sender.replyProxy,
       );
     }
-    final origin = originOf(sender == null ? _pageUrl : sender.origin);
+    final origin = originOf(sender.origin);
     if (!isAllowedOrigin(origin, _allowedOrigins())) return null;
     return (
       message: StratumWebViewMessage(data: data, origin: origin),
