@@ -22,6 +22,12 @@ from stratum_e2e.round.runner import Runner
 DOCKERFILE = E2E_ROOT / "docker" / "linux.Dockerfile"
 IMAGE_NAME = "stratum-e2e-linux"
 
+# The dev packages e2e/docker/linux.Dockerfile installs that a plugin may ask for (`linux.sh::LINUX_IMAGE_APT`);
+# a unit test keeps this tuple and the Dockerfile in step.
+DEFAULT_PACKAGES = ("libgtk-3-dev", "libsecret-1-dev")
+
+ROUND_LABEL = "stratum-e2e-round=1"
+
 _BUILD_TIMEOUT_S = 3600.0
 _REPORT_PATH = "/round/report.json"
 
@@ -162,7 +168,12 @@ def ensure_image(runner: Runner, target: Target, flutter_version: str) -> str:
 
 
 def inner_command(files: Sequence[str], plain_name: str | None, sequence: bool) -> str:
-    """The `flutter test` line the container runs under xvfb; the per-test report lands in the mounted `/round`."""
+    """The `flutter test` line the container runs under xvfb; the per-test report lands in the mounted `/round`.
+
+    Raises `ValueError` for no files: `flutter test` with none would run the whole `test/` folder.
+    """
+    if not files:
+        raise ValueError("inner_command needs at least one test file")
     parts = [
         "xvfb-run flutter test",
         *(shlex.quote(name) for name in files),
@@ -211,6 +222,11 @@ def home_volume(target: str) -> str:
     return f"dt-linux-home-{target}"
 
 
+def container_name(target: str) -> str:
+    """The name of the target's run container; pass it as `container` to `docker_run_argv`."""
+    return f"dt-linux-run-{target}"
+
+
 def host_pub_cache(environ: Mapping[str, str], home: Path) -> Path:
     """The host pub cache, mounted so private git dependencies fetched on the host resolve offline in the container."""
     return Path(environ.get("PUB_CACHE") or home / ".pub-cache")
@@ -231,7 +247,16 @@ def docker_run_argv(
     The repo mounts at `/work`, the host pub cache at `/root/.pub-cache`, `item_dir` at `/round` (where the report
     leaves the container), and the target's build volume at `/work/<app_rel>/build`. A `sequence` also mounts the home
     volume so its launches share app data. `target` names both volumes, the same name `linux_fresh_volume` removes.
+    The run carries `ROUND_LABEL` so a stray container is findable.
+
+    The caller holds the per-target lane lock, so at most one container named `container` runs; it runs
+    `remove_stale_container_argv(target)` first when a killed round may have left one, and passes
+    `container_name(target)` as `container`. Raises `ValueError` for a relative `repo_root` or `item_dir`, or an
+    `app_rel` that leaves the repo.
     """
+    for name, path in (("repo_root", repo_root), ("item_dir", item_dir)):
+        if not path.is_absolute():
+            raise ValueError(f"{name} must be absolute, got {str(path)!r}")
     app = PurePosixPath(app_rel)
     if app.is_absolute() or ".." in app.parts:
         raise ValueError(f"app_rel must stay inside the repo, got {app_rel!r}")
@@ -244,6 +269,8 @@ def docker_run_argv(
         "--init",
         "--name",
         container,
+        "--label",
+        ROUND_LABEL,
         "-v",
         f"{repo_root}:/work",
         "-v",
@@ -271,6 +298,24 @@ def linux_fresh_volume(runner: Runner, target: str, fresh: bool, freshed: set[st
         return False
     freshed.add(target)
     return runner.run(["docker", "volume", "rm", build_volume(target)]).status == 0
+
+
+def remove_stale_container_argv(target: str) -> list[str]:
+    """The argv that removes a container a killed round left under the target's run name; `-f` succeeds when none."""
+    return ["docker", "rm", "-f", container_name(target)]
+
+
+def reset_home_volume(runner: Runner, target: str) -> None:
+    """Remove the target's home volume so a sequence's first launch starts with no app data.
+
+    Task 9 or 13 calls it before launch 1 of a sequence, not after the last launch: a round that dies mid-sequence
+    then never seeds the next one. A volume that does not exist counts as removed.
+    Raises `RoundEnvError` when docker fails for another reason, such as a container still using the volume.
+    """
+    removed = runner.run(["docker", "volume", "rm", "-f", home_volume(target)])
+    if removed.status != 0 and "no such volume" not in removed.stderr.lower():
+        detail = (removed.stderr.strip().splitlines() or ["no output"])[-1]
+        raise RoundEnvError(f"docker volume rm {home_volume(target)} failed (status {removed.status}): {detail}")
 
 
 def linux_deps_resolve(
@@ -334,3 +379,17 @@ def flutter_version(runner: Runner) -> str:
     if not isinstance(version, str) or not version:
         raise RoundEnvError("flutter --version --machine printed no frameworkVersion")
     return version
+
+
+def check_packages(resolved: DepsResolution, target_apt: Sequence[str]) -> None:
+    """Fail before any image build when a plugin needs a package the image and the target's apt list both lack.
+
+    Ports `linux.sh::p_prepare` (`linux.sh:344-351`): a round that would fail at a CMake error minutes into a build
+    fails in seconds instead. Raises `RoundEnvError` naming each missing package.
+    """
+    have = {*DEFAULT_PACKAGES, *target_apt}
+    missing = [package for package in resolved.packages if package not in have]
+    if missing:
+        raise RoundEnvError(
+            f"missing native packages: {' '.join(missing)}; add them to the target's apt list in e2e/targets.toml"
+        )

@@ -12,9 +12,14 @@ from stratum_e2e.round import linux_docker
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.linux_docker import (
+    DEFAULT_PACKAGES,
     DOCKERFILE,
     IMAGE_NAME,
     LINUX_MODULE_PACKAGES,
+    ROUND_LABEL,
+    DepsResolution,
+    check_packages,
+    container_name,
     container_script,
     docker_run_argv,
     ensure_image,
@@ -24,6 +29,8 @@ from stratum_e2e.round.linux_docker import (
     linux_deps_resolve,
     linux_fresh_volume,
     linux_pub_gate,
+    remove_stale_container_argv,
+    reset_home_volume,
 )
 from stratum_e2e.round.runner import Completed, SubprocessRunner
 from unit.round_fakes import FakeRunner
@@ -332,3 +339,74 @@ def test_dockerfile_moved_under_e2e() -> None:
     assert DOCKERFILE == linux_docker.E2E_ROOT / "docker" / "linux.Dockerfile"
     assert DOCKERFILE.is_file()
     assert "FROM ubuntu:24.04" in DOCKERFILE.read_text(encoding="utf-8")
+
+
+def test_inner_command_without_files_is_refused() -> None:
+    with pytest.raises(ValueError, match="at least one test file"):
+        inner_command([], None, False)
+
+
+@pytest.mark.parametrize("field", ["repo_root", "item_dir"])
+def test_docker_run_argv_refuses_a_relative_mount_source(field: str) -> None:
+    mounts = {"repo_root": Path("/repo"), "item_dir": Path("/repo/.round/item")}
+    mounts[field] = Path("relative/dir")
+
+    with pytest.raises(ValueError, match=field):
+        docker_run_argv("t", mounts["repo_root"], "test_app", mounts["item_dir"], "x", "c", False, "linux")
+
+
+def test_docker_run_argv_labels_the_run() -> None:
+    assert argv_pair(argv_for(), "--label", ROUND_LABEL)
+    assert ROUND_LABEL == "stratum-e2e-round=1"
+
+
+def test_remove_stale_container_argv_names_the_runs_container() -> None:
+    argv = remove_stale_container_argv("linux")
+
+    assert argv == ["docker", "rm", "-f", container_name("linux")]
+    run = docker_run_argv("t", Path("/repo"), "test_app", Path("/i"), "x", container_name("linux"), False, "linux")
+    assert run[run.index("--name") + 1] == argv[-1]
+
+
+def test_reset_home_volume_removes_the_targets_home_volume() -> None:
+    runner = FakeRunner([(("docker", "volume", "rm", "-f", "dt-linux-home-linux"), done())])
+
+    reset_home_volume(runner, "linux")
+
+    assert runner.calls == [("docker", "volume", "rm", "-f", "dt-linux-home-linux")]
+
+
+def test_reset_home_volume_treats_no_such_volume_as_success() -> None:
+    runner = FakeRunner([(("docker", "volume", "rm"), done(1, stderr="Error: No such volume: dt-linux-home-linux\n"))])
+
+    reset_home_volume(runner, "linux")
+
+
+def test_reset_home_volume_surfaces_a_volume_in_use_as_env() -> None:
+    runner = FakeRunner([(("docker", "volume", "rm"), done(1, stderr="volume is in use - [abc123]\n"))])
+
+    with pytest.raises(RoundEnvError, match="volume is in use"):
+        reset_home_volume(runner, "linux")
+
+
+def resolution(*packages: str) -> DepsResolution:
+    return DepsResolution(lines=(), packages=tuple(sorted(packages)), unknown=())
+
+
+def test_check_packages_names_each_package_the_image_and_apt_lack() -> None:
+    resolved = resolution("libwebkit2gtk-4.1-dev", "libnotify-dev", "libgtk-3-dev")
+
+    with pytest.raises(RoundEnvError, match="libnotify-dev libwebkit2gtk-4.1-dev"):
+        check_packages(resolved, [])
+
+
+def test_check_packages_accepts_image_defaults_and_the_targets_apt() -> None:
+    resolved = resolution("libgtk-3-dev", "libsecret-1-dev", "libwebkit2gtk-4.1-dev")
+
+    check_packages(resolved, ["libwebkit2gtk-4.1-dev"])
+
+
+def test_default_packages_match_the_dockerfile() -> None:
+    text = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert all(package in text for package in DEFAULT_PACKAGES)
