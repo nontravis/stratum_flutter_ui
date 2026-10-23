@@ -9,6 +9,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from stratum_e2e.paths import E2E_ROOT
+from stratum_e2e.round.android_host import sdk_root
+from stratum_e2e.round.errors import RoundEnvError
+
 LOOPBACK_ADDRESS = "127.0.0.1"
 POLL_INTERVAL_S = 0.25
 STATUS_TIMEOUT_S = 2.0
@@ -105,11 +109,8 @@ class AppiumServer:
 
 
 def default_android_home() -> Path | None:
-    """Return ANDROID_HOME, else ~/Library/Android/sdk when it exists."""
-    from_env = os.environ.get("ANDROID_HOME")
-    if from_env:
-        return Path(from_env)
-    fallback = Path.home() / "Library" / "Android" / "sdk"
-    if fallback.is_dir():
-        return fallback
-    return None
+    """Return the Android SDK the device round resolves, or None when none exists."""
+    try:
+        return sdk_root(E2E_ROOT.parent / "test_app", os.environ, Path.home())
+    except RoundEnvError:
+        return None

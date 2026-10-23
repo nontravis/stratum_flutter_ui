@@ -1,0 +1,5 @@
+  mBindingController:
+    mMainConnection=android.os.BinderProxy@1
+    mCurClient=ClientState{com.example/1234}
+    boundToMethod=false
+    mBoundToMethod=false

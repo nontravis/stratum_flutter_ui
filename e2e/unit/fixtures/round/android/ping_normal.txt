@@ -1,0 +1,1 @@
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms
