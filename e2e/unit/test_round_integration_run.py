@@ -35,6 +35,7 @@ from stratum_e2e.round.integration_run import (
     story_tags,
 )
 from stratum_e2e.round.runner import Completed
+from stratum_e2e.round.runs import _built_nothing
 from unit.round_fakes import FakeProcess, FakeRunner
 
 REPORTS = Path(__file__).parent / "fixtures" / "round" / "reports"
@@ -405,14 +406,131 @@ def test_drive_response_splits_per_file() -> None:
     assert {file: result.cls for file, result in passing.items()} == {KEYBOARD: "pass", SMOKE: "pass"}
 
 
-def test_drive_response_missing_fails_every_file() -> None:
+def test_drive_response_without_a_file_reads_build() -> None:
     plan = plan_of("web", [KEYBOARD, SMOKE])
 
-    for data in (None, {}, {"stratum_round": "garbled"}):
-        files = read_drive_response(data, plan)
-        assert files == {file: FileResult("build", 0, 1, "no test started", ()) for file in plan.files}
-    empty = read_drive_response({"stratum_round": {KEYBOARD: {}}}, plan)
+    files = read_drive_response(None, plan)
+
+    assert files == {file: FileResult("build", 0, 1, "no test started", ()) for file in plan.files}
+
+
+@pytest.mark.parametrize("data", [{}, {"rasterWidth": 220.0}, {"stratum_round": "garbled"}])
+def test_drive_response_without_the_round_map_names_the_missing_key(data: dict[str, object]) -> None:
+    """The run reached the driver, so the app built and ran: a harness fault, `fail`, never `build` (M7-T35)."""
+    plan = plan_of("web", [KEYBOARD, SMOKE])
+
+    files = read_drive_response(data, plan, log="00:01 +1: All tests passed!\nunrelated error line\n")
+
+    for result in files.values():
+        assert result.cls == "fail"
+        assert "stratum_round" in result.reason
+        assert "binding.reportData" in result.reason
+    assert not _built_nothing(files)
+
+
+def test_drive_response_with_an_empty_file_map_still_fails_it_all_skipped() -> None:
+    empty = read_drive_response({"stratum_round": {KEYBOARD: {}}}, plan_of("web", [KEYBOARD, SMOKE]))
+
     assert empty[KEYBOARD].reason == "all skipped"
+
+
+def test_a_skip_row_credits_no_tag_and_a_file_of_only_skips_fails_all_skipped() -> None:
+    """`markTestSkipped` on a drive target: the entry records `skip`, and a skip counts neither way (design 9)."""
+    plan = plan_of("android", [WEB_VIEW, SMOKE], build_mode="profile")
+    response = {
+        "stratum_round": {
+            WEB_VIEW: {"co01_02/us03/s2: ran": "pass", "co01_02/us03/fr01/e11: gated": "skip"},
+            SMOKE: {"co01_02/us03/s1: gated": "skip"},
+        }
+    }
+
+    files = read_drive_response(response, plan)
+
+    assert files[WEB_VIEW] == FileResult("pass", 1, 1, "", ("co01_02/us03/s2",))
+    assert files[SMOKE].cls == "fail"
+    assert files[SMOKE].reason == "all skipped"
+    assert files[SMOKE].tags == ()
+
+
+def test_a_wrapped_block_whose_iterations_all_skip_is_skipped_not_a_short_count() -> None:
+    plan = plan_of("android", [WEB_VIEW], build_mode="profile", wrapped={WEB_VIEW: (REPEAT_PREFIX,)}, repeat=3)
+    own = "co01_02/us03/s2: a standalone case"
+    skipped = {f"REPEAT run {run} {REPEAT_PREFIX}, co01_02/us03/s2: a page": "skip" for run in range(3)}
+
+    only = read_drive_response({"stratum_round": {WEB_VIEW: skipped}}, plan)
+    beside = read_drive_response({"stratum_round": {WEB_VIEW: {**skipped, own: "pass"}}}, plan)
+
+    assert only[WEB_VIEW].reason == "all skipped"
+    assert beside[WEB_VIEW].cls == "pass"
+    assert beside[WEB_VIEW].reason == ""
+
+
+def test_a_wrapped_block_with_a_skip_and_a_pass_still_needs_the_full_count() -> None:
+    plan = plan_of("android", [WEB_VIEW], build_mode="profile", wrapped={WEB_VIEW: (REPEAT_PREFIX,)}, repeat=3)
+    rows = {f"REPEAT run {run} {REPEAT_PREFIX}, co01_02/us03/s2: a page": ("skip" if run == 0 else "pass")
+            for run in range(3)}
+
+    files = read_drive_response({"stratum_round": {WEB_VIEW: rows}}, plan,
+                                log=f"REPEAT {REPEAT_PREFIX} 1/3 ok\nREPEAT {REPEAT_PREFIX} 2/3 ok\n")
+
+    assert files[WEB_VIEW].cls == "fail"
+    assert files[WEB_VIEW].reason == "2/3"
+
+
+@pytest.mark.parametrize("text", ["", "null", "[1]", "{not json"])
+def test_a_response_file_that_is_not_a_json_object_reads_fail_naming_the_key(tmp_path: Path, text: str) -> None:
+    app = app_with_tests(tmp_path)
+    item = tmp_path / "item"
+    item.mkdir()
+    runner = RecordingRunner([(("flutter", "drive"), done(0, "00:01 +1: All tests passed!\n"))],
+                             {item / "integration_response_data.json": text})
+
+    outcome = run_plan(plan_of("android", [KEYBOARD, SMOKE], build_mode="profile"), PIXEL_8,
+                       record_of(PIXEL_8, "emulator-5556"), FakeBooter(), app, item, runner, 60.0, tmp_path / "ports")
+
+    for result in outcome.files.values():
+        assert result.cls == "fail"
+        assert "stratum_round" in result.reason
+
+
+def test_a_missing_response_file_still_reads_build(tmp_path: Path) -> None:
+    app = app_with_tests(tmp_path)
+    item = tmp_path / "item"
+    runner = RecordingRunner([(("flutter", "drive"), done(0, "00:01 +1: All tests passed!\n"))])
+
+    outcome = run_plan(plan_of("android", [KEYBOARD], build_mode="profile"), PIXEL_8,
+                       record_of(PIXEL_8, "emulator-5556"), FakeBooter(), app, item, runner, 60.0, tmp_path / "ports")
+
+    assert outcome.files[KEYBOARD].cls == "build"
+
+
+def test_a_missing_round_map_on_a_wrapped_plan_counts_the_repeat_runs() -> None:
+    plan = plan_of("android", [WEB_VIEW], build_mode="profile", wrapped={WEB_VIEW: (REPEAT_PREFIX,)}, repeat=10)
+
+    files = read_drive_response({}, plan)
+
+    assert (files[WEB_VIEW].passed, files[WEB_VIEW].runs) == (0, 10)
+
+
+def test_replay_of_the_t35_pixel_8_run_reads_every_file_pass() -> None:
+    """The recorded `flutter drive --profile` output of the six files that read `build` in the first full round,
+    with the response a fixed entry writes: the test-side data kept beside the round's map (M7-T35)."""
+    log = (REPORTS / "pixel_8-profile-drive-six-files.log").read_text(encoding="utf-8")
+    six = [KEYBOARD, "common/reorderable_list_view_layout_test.dart", "common/screen_radius_scope_test.dart",
+           "common/split_layout_setting_test.dart", WEB_VIEW, SMOKE]
+    plan = plan_of("android", six, build_mode="profile", wrapped={WEB_VIEW: (REPEAT_PREFIX,)}, repeat=10)
+    response = {
+        "rasterWidth": 220.0,
+        "rasterHeight": 56.0,
+        "framesChecked": 4,
+        "stratum_round": {file: {f"{file}: a test": "pass"} for file in six},
+    }
+
+    files = read_drive_response(response, plan, log=log)
+
+    assert {file: result.cls for file, result in files.items()} == dict.fromkeys(six, "pass")
+    assert (files[WEB_VIEW].passed, files[WEB_VIEW].runs) == (10, 10)
+    assert not _built_nothing(files)
 
 
 # classify_env (C6, scripts/lib/run.sh:31-44).

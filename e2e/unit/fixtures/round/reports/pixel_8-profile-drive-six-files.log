@@ -1,0 +1,401 @@
+Running Gradle task 'assembleProfile'...                        
+Running Gradle task 'assembleProfile'...                            7.9s
+✓ Built build/app/outputs/flutter-apk/app-profile.apk (64.1MB)
+Installing build/app/outputs/flutter-apk/app-profile.apk...        346ms
+D/WindowLayoutComponentImpl( 8647): Register WindowLayoutInfoListener on Context=dev.stratum.stratum_ui_test_app.MainActivity@44b8cad, of which baseContext=android.app.ContextImpl@815bbcf
+00:00 +0: common/keyboard_visibility_scope_test.dart fo07/us04/fr02/e02, fo07/us04/s2: the keyboard-visibility scope reads the real on-screen keyboard open once and closed once
+D/InsetsController( 8647): hide(ime())
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:4fbe0e11: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:63a4ff8c: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+I/HWUI    ( 8647): Using FreeType backend (prop=Auto)
+D/InsetsController( 8647): show(ime())
+D/InsetsController( 8647): Setting requestedVisibleTypes to 511 (was 503)
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:3ae94491: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): show(ime())
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:3ae94491: onCancelled at PHASE_CLIENT_REPORT_REQUESTED_VISIBLE_TYPES
+I/AssistStructure( 8647): Flattened final assist data: 444 bytes, containing 1 windows, 3 views
+D/WindowOnBackDispatcher( 8647): setTopOnBackInvokedCallback (unwrapped): android.view.ImeBackAnimationController@f70e342
+D/WindowOnBackDispatcher( 8647): setOnBackInvokedCallbackInfo: android.view.ImeBackAnimationController@f70e342
+D/VRI[MainActivity]( 8647): WindowInsets changed: ime:[0,0,0,883] 
+W/InteractionJankMonitor( 8647): Initializing without READ_DEVICE_CONFIG permission. enabled=false, interval=1, missedFrameThreshold=3, frameTimeThreshold=64, package=dev.stratum.stratum_ui_test_app
+KV-DIAG warm-up open ms=264
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:8158c324: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): hide(ime())
+D/WindowOnBackDispatcher( 8647): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@4961f91
+D/WindowOnBackDispatcher( 8647): setOnBackInvokedCallbackInfo: android.app.Activity$$ExternalSyntheticLambda0@4961f91
+D/InsetsController( 8647): Setting requestedVisibleTypes to 503 (was 511)
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:63a4ff8c: onCancelled at PHASE_CLIENT_ANIMATION_CANCEL
+D/CompatChangeReporter( 8647): Compat change id reported: 395521150; UID 10234; state: ENABLED
+D/VRI[MainActivity]( 8647): WindowInsets changed: ime:null 
+I/ImeTracker( 8647): system_server:35b872e1: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+W/RemoteInputConnectionImpl( 8647): requestCursorUpdates on inactive InputConnection
+KV-DIAG warm-up close ms=349
+fo07/us04/fr02/e02, s2: platform=android
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:48d38b6d: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): show(ime())
+D/InsetsController( 8647): Setting requestedVisibleTypes to 511 (was 503)
+D/WindowOnBackDispatcher( 8647): setTopOnBackInvokedCallback (unwrapped): android.view.ImeBackAnimationController@f70e342
+D/WindowOnBackDispatcher( 8647): setOnBackInvokedCallbackInfo: android.view.ImeBackAnimationController@f70e342
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:48d38b6d: onCancelled at PHASE_CLIENT_ANIMATION_CANCEL
+D/VRI[MainActivity]( 8647): WindowInsets changed: ime:[0,0,0,883] 
+KV-DIAG build=true ms=85
+KV-DIAG inset>0 ms=136
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:c98440cb: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): hide(ime())
+D/WindowOnBackDispatcher( 8647): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@4961f91
+D/InsetsController( 8647): Setting requestedVisibleTypes to 503 (was 511)
+D/WindowOnBackDispatcher( 8647): setOnBackInvokedCallbackInfo: android.app.Activity$$ExternalSyntheticLambda0@4961f91
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:48d38b6d: onCancelled at PHASE_CLIENT_ANIMATION_CANCEL
+D/VRI[MainActivity]( 8647): WindowInsets changed: ime:null 
+KV-DIAG build=false ms=14
+I/ImeTracker( 8647): system_server:d7f577c8: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+W/RemoteInputConnectionImpl( 8647): requestCursorUpdates on inactive InputConnection
+KV-DIAG inset==0 ms=345
+00:01 +1: common/reorderable_list_view_layout_test.dart s03/inv60 and fo06/us11/fr06/e01: a screen-reader move announces through a 1x1 live-region leaf beside the item-count node
+D/ProfileInstaller( 8647): Installing profile for dev.stratum.stratum_ui_test_app
+00:06 +2: common/reorderable_list_view_layout_test.dart fo06/us11/fr01/e14, d5, d16: lifting an item with a running spinner and a focused caret freezes a still raster at the item size and place, with its screen-reader node kept at its slot
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:7898ed0b: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): show(ime())
+D/InsetsController( 8647): Setting requestedVisibleTypes to 511 (was 503)
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:75805c89: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): show(ime())
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:75805c89: onCancelled at PHASE_CLIENT_REPORT_REQUESTED_VISIBLE_TYPES
+I/AssistStructure( 8647): Flattened final assist data: 444 bytes, containing 1 windows, 3 views
+D/WindowOnBackDispatcher( 8647): setTopOnBackInvokedCallback (unwrapped): android.view.ImeBackAnimationController@f70e342
+D/WindowOnBackDispatcher( 8647): setOnBackInvokedCallbackInfo: android.view.ImeBackAnimationController@f70e342
+D/VRI[MainActivity]( 8647): WindowInsets changed: ime:[0,0,0,883] 
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:7898ed0b: onShown
+00:08 +3: common/screen_radius_scope_test.dart fo07/us04/fr03: a Flutter-filled radius (Android API 31+) is never overridden, and Windows/Linux/web/API-30 Android read null with no probe mocked (E01, E05)
+I/ImeTracker( 8647): dev.stratum.stratum_ui_test_app:3e4e2e6f: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false userId 0 displayId 0
+D/InsetsController( 8647): hide(ime())
+D/WindowOnBackDispatcher( 8647): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@4961f91
+D/InsetsController( 8647): Setting requestedVisibleTypes to 503 (was 511)
+D/WindowOnBackDispatcher( 8647): setOnBackInvokedCallbackInfo: android.app.Activity$$ExternalSyntheticLambda0@4961f91
+D/VRI[MainActivity]( 8647): WindowInsets changed: ime:null 
+I/ImeTracker( 8647): system_server:29c26133: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+W/RemoteInputConnectionImpl( 8647): requestCursorUpdates on inactive InputConnection
+00:08 +4: common/screen_radius_scope_test.dart fo07/us04/fr03/e03,e04: on the real OS this run reports, unmocked, radius is non-null on iOS 26+ and macOS 27+, and null on an older iOS or macOS, Android, Windows, Linux, and web
+00:09 +5: common/split_layout_setting_test.dart fo10/us03/fr03/e01: a full localStorage refuses the save, the pane keeps its new size for the session, and one report names stratum_ui
+00:09 +5 ~1: common/web_view_test.dart (setUpAll)
+00:09 +6 ~1: common/web_view_test.dart group A, the fixture tabs co01_02/us01/s1, co01_02/us02/s1, co01_02/us03/s1, co01_02/us03/s2: the URL, HTML, and Bridge tabs show their content
+I/WebViewFactory( 8647): Loading com.google.android.webview version 155.0.8059.43 (code 805904303)
+V/ResourcesManager( 8647): The following library key has been added: com.google.android.webview -> ResourcesKey{ mHash=1fc0c5cb mResDir=null mSplitDirs=[] mOverlayDirs=[] mLibDirs=[/data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/base.apk,/system/framework/android.test.base.jar,/system_ext/framework/androidx.window.extensions.jar] mDisplayId=0 mOverrideConfig=v37 mCompatInfo={420dpi always-compat} mLoaders=[]}
+D/ApplicationLoaders( 8647): Returning zygote-cached class loader: /system/framework/android.test.base.jar
+D/ApplicationLoaders( 8647): Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+W/tum_ui_test_app( 8647): Loading /data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/oat/arm64/base.odex non-executable as it requires an image which we failed to load
+D/nativeloader( 8647): Configuring clns-10 for other apk /data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/base.apk. target_sdk_version=37, uses_libraries=, library_path=/data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/lib/arm64:/data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand
+I/cr_WVCFactoryProvider( 8647): version=155.0.8059.43 (805904303) minSdkVersion=29 multiprocess=true packageId=2 splits=<none>
+D/nativeloader( 8647): Load /data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/base.apk!/lib/arm64-v8a/libwebviewchromium.so using class loader ns clns-10 (caller=/data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/base.apk): ok
+D/nativeloader( 8647): Load /system/lib64/libwebviewchromium_plat_support.so using class loader ns clns-10 (caller=/data/app/~~HcBI84o4wFBxXEhzIH-zfw==/com.google.android.webview-Wu9RtGtsdi75X3x2jWGNOQ==/base.apk): ok
+I/chromium( 8647): [1024/155219.552559:INFO:android_webview/browser/variations/variations_seed_loader.cc:63] Failed to open file for reading.: No such file or directory (2)
+I/chromium( 8647): [1024/155219.552977:INFO:android_webview/browser/variations/variations_seed_loader.cc:63] Failed to open file for reading.: No such file or directory (2)
+I/cr_LibraryLoader( 8647): Successfully loaded native library
+I/cr_CachingUmaRecorder( 8647): Flushed 38 samples from 20 histograms, 0 samples were dropped.
+I/cr_ChildProcLH( 8647): ScopedServiceBindingBatch.tryActivate: false
+I/cr_CombinedPProvider( 8647): #registerProvider() provider:WV.fj@ba0fe3f isPolicyCacheEnabled:false policyProvidersSize:0
+I/cr_PolicyProvider( 8647): #setManagerAndSource() 0
+I/cr_DisplayManager( 8647): Is Display Topology available: false
+I/cr_policy( 8647): registerReceiver succeeded after 2ms
+I/cr_CombinedPProvider( 8647): #linkNativeInternal() 1
+I/cr_AppResProvider( 8647): #getApplicationRestrictionsFromUserManager() Bundle[EMPTY_PARCEL]
+I/cr_PolicyProvider( 8647): #notifySettingsAvailable() 0
+I/cr_CombinedPProvider( 8647): #onSettingsAvailable() 0
+I/cr_CombinedPProvider( 8647): #flushPolicies()
+I/cr_AppResProvider( 8647): #getApplicationRestrictionsFromUserManager() Bundle[EMPTY_PARCEL]
+I/cr_PolicyProvider( 8647): #notifySettingsAvailable() 0
+I/cr_CombinedPProvider( 8647): #onSettingsAvailable() 0
+I/cr_CombinedPProvider( 8647): #flushPolicies()
+I/CameraManagerGlobal( 8647): Connecting to camera service
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-2 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-0 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-3 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2148f22m7-8647-1 with slotExpansion=1 for 64 slots
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.log"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.log.level"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.log.prefix"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.gallium.print.options"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.log.file.auto"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.log.file"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+D/vulkan  ( 8647): searching for layers in '/data/app/~~tL-Hb_sKIxb9ylkH1J-tBQ==/dev.stratum.stratum_ui_test_app-hwTT5BPyaYfGo2iqVxYgUQ==/lib/arm64'
+D/vulkan  ( 8647): searching for layers in '/data/app/~~tL-Hb_sKIxb9ylkH1J-tBQ==/dev.stratum.stratum_ui_test_app-hwTT5BPyaYfGo2iqVxYgUQ==/base.apk!/lib/arm64-v8a'
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.trace"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.trace.per.submit"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.trace.frame"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.trace.trigger"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.wsi.debug"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.wsi.present.mode"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.vk.wsi.headless.swapchain"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+E/MESA    ( 8647): Failed to open rendernode: No such file or directory
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+W/libc    ( 8647): Access denied finding property "vendor.mesa.virtgpu.kumquat"
+W/cr_media( 8647): BLUETOOTH_CONNECT permission is missing.
+W/cr_media( 8647): getBluetoothAdapter() requires BLUETOOTH permission
+W/cr_media( 8647): registerBluetoothIntentsIfNeeded: Requires BLUETOOTH permission
+D/AudioSystem( 8647): onNewService: media.audio_policy service obtained 0xb40071487606bef0
+D/AudioSystem( 8647): getService: IAudioPolicyService retrieved: 0xb40071487606bef0  cached: 0xb40071487606bef0
+I/AudioPortEventHandler( 8647): init: AudioPortEventHandler successfully initialized
+I/AudioManager( 8647): broadcastDeviceListChange_sync: device update event from native but no device diff found
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-0] abandonLocked: ConsumerBase is abandoned!
+W/cr_VAUtil( 8647): Unknown profile: 8 for codec video/hevc
+I/tum_ui_test_app( 8647): Background young concurrent mark compact GC freed 2081KB AllocSpace bytes, 8(448KB) LOS objects, 15% free, 5262KB/6229KB, paused 126us,1.536ms total 225.563ms
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-4 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-2 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-5 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2274f22m7-8647-3 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-2] abandonLocked: ConsumerBase is abandoned!
+E/ConsumerBase( 8647): [ImageReader-1080x2148f22m7-8647-1] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-6 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-4 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-7 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2106f22m7-8647-5 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-4] abandonLocked: ConsumerBase is abandoned!
+E/ConsumerBase( 8647): [ImageReader-1080x2274f22m7-8647-3] abandonLocked: ConsumerBase is abandoned!
+00:15 +7 ~1: common/web_view_test.dart group B, native only co01_02/us01/s1: a 200 page starts and finishes with no error
+E/ConsumerBase( 8647): [ImageReader-1080x2106f22m7-8647-5] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-8 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-6 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-9 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-7 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-6] abandonLocked: ConsumerBase is abandoned!
+ORDER android 200 page: started http://127.0.0.1:35827/ok | finished http://127.0.0.1:35827/ok
+00:18 +8 ~1: common/web_view_test.dart group B, native only co01_02/us01/s4: a plain 404 reports one http error
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-7] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-10 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-8 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-11 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-9 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-8] abandonLocked: ConsumerBase is abandoned!
+ORDER android plain 404: started http://127.0.0.1:35827/missing | error http 404 http://127.0.0.1:35827/missing HTTP error 404 | finished http://127.0.0.1:35827/missing
+00:20 +9 ~1: common/web_view_test.dart group B, native only co01_02/us01/s4, co01_02/us01/fr02/e07: a 302 then 404 reports one http error that names the redirect target
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-9] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-12 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-10 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-13 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-11 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-10] abandonLocked: ConsumerBase is abandoned!
+ORDER android 302 then 404: started http://127.0.0.1:35827/gone | error http 404 http://127.0.0.1:35827/gone HTTP error 404 | finished http://127.0.0.1:35827/gone
+00:22 +10 ~1: common/web_view_test.dart group B, native only co01_02/us01/s1, co01_02/us01/fr01/e05: a 302 then 200 starts once, finishes once, and reports no error
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-11] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-14 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-12 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-15 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-13 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-12] abandonLocked: ConsumerBase is abandoned!
+ORDER android 302 then 200: started http://127.0.0.1:35827/ok | finished http://127.0.0.1:35827/ok
+00:24 +11 ~1: common/web_view_test.dart group B, native only co01_02/us01/s4: a closed port reports one network error
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-13] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-16 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-14 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-17 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-15 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-14] abandonLocked: ConsumerBase is abandoned!
+ORDER android closed port: started http://127.0.0.1:41965/ | error network -6 http://127.0.0.1:41965/ net::ERR_CONNECTION_REFUSED | finished http://127.0.0.1:41965/
+00:26 +12 ~1: common/web_view_test.dart group B, native only co01_02/us04/s5, co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: going back to a no-store page that now answers 404 reports start, one http error, finish on Android, and start, finish with no error on iOS, macOS, and Linux
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-15] abandonLocked: ConsumerBase is abandoned!
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-18 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-16 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-19 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-17 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-16] abandonLocked: ConsumerBase is abandoned!
+ORDER android back to 404: started http://127.0.0.1:35827/flip-nostore?case=back | finished http://127.0.0.1:35827/flip-nostore?case=back | started http://127.0.0.1:35827/ok | finished http://127.0.0.1:35827/ok | started http://127.0.0.1:35827/flip-nostore?case=back | error http 404 http://127.0.0.1:35827/flip-nostore?case=back HTTP error 404 | finished http://127.0.0.1:35827/flip-nostore?case=back
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-17] abandonLocked: ConsumerBase is abandoned!
+00:33 +13 ~1: common/web_view_test.dart group B, native only co01_02/us04/s5, co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: going forward to an entry that answered 404 reports start, one http error, finish on Android, start, finish with no error on iOS and macOS, and start, the kept http error, finish on Linux
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-20 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-18 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-21 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-19 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-18] abandonLocked: ConsumerBase is abandoned!
+W/tum_ui_test_app( 8647): Cleared Reference was only reachable from finalizer (only reported once)
+ORDER android forward to 404: started http://127.0.0.1:35827/ok | finished http://127.0.0.1:35827/ok | started http://127.0.0.1:35827/missing?case=forward | error http 404 http://127.0.0.1:35827/missing?case=forward HTTP error 404 | finished http://127.0.0.1:35827/missing?case=forward | started http://127.0.0.1:35827/ok | finished http://127.0.0.1:35827/ok | started http://127.0.0.1:35827/missing?case=forward | error http 404 http://127.0.0.1:35827/missing?case=forward HTTP error 404 | finished http://127.0.0.1:35827/missing?case=forward
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-19] abandonLocked: ConsumerBase is abandoned!
+00:42 +14 ~1: common/web_view_test.dart group B, native only co01_02/us04/s5, co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: reloading a page that now answers 404 reports start, one http error, finish
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-22 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-20 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-23 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-21 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-20] abandonLocked: ConsumerBase is abandoned!
+ORDER android reload to 404: started http://127.0.0.1:35827/flip?case=reload | finished http://127.0.0.1:35827/flip?case=reload | started http://127.0.0.1:35827/flip?case=reload | error http 404 http://127.0.0.1:35827/flip?case=reload HTTP error 404 | finished http://127.0.0.1:35827/flip?case=reload
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-21] abandonLocked: ConsumerBase is abandoned!
+00:46 +15 ~1: common/web_view_test.dart group B, native only co01_02/us04/s5, co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: reloading after a 302 then 404 reports start, one http error naming the target, finish
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-24 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-22 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-25 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-23 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-22] abandonLocked: ConsumerBase is abandoned!
+ORDER android reload after 302 then 404: started http://127.0.0.1:35827/gone | error http 404 http://127.0.0.1:35827/gone HTTP error 404 | finished http://127.0.0.1:35827/gone | started http://127.0.0.1:35827/gone | error http 404 http://127.0.0.1:35827/gone HTTP error 404 | finished http://127.0.0.1:35827/gone
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-23] abandonLocked: ConsumerBase is abandoned!
+00:50 +16 ~1: common/web_view_test.dart group B, native only REPEAT run 0 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-26 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-24 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-27 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-25 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-24] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 1/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-25] abandonLocked: ConsumerBase is abandoned!
+00:51 +17 ~1: common/web_view_test.dart group B, native only REPEAT run 1 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-28 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-26 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-29 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-27 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-26] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 2/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-27] abandonLocked: ConsumerBase is abandoned!
+00:51 +18 ~1: common/web_view_test.dart group B, native only REPEAT run 2 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-30 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-28 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-31 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-29 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-28] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 3/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-29] abandonLocked: ConsumerBase is abandoned!
+00:51 +19 ~1: common/web_view_test.dart group B, native only REPEAT run 3 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-32 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-30 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-33 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-31 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-30] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 4/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-31] abandonLocked: ConsumerBase is abandoned!
+00:51 +20 ~1: common/web_view_test.dart group B, native only REPEAT run 4 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-34 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-32 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-35 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-33 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-32] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 5/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-33] abandonLocked: ConsumerBase is abandoned!
+00:51 +21 ~1: common/web_view_test.dart group B, native only REPEAT run 5 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-36 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-34 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-37 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-35 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-34] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 6/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-35] abandonLocked: ConsumerBase is abandoned!
+00:51 +22 ~1: common/web_view_test.dart group B, native only REPEAT run 6 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-38 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-36 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-39 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-37 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-36] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 7/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-37] abandonLocked: ConsumerBase is abandoned!
+00:51 +23 ~1: common/web_view_test.dart group B, native only REPEAT run 7 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-40 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-38 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-41 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-39 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-38] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 8/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-39] abandonLocked: ConsumerBase is abandoned!
+00:52 +24 ~1: common/web_view_test.dart group B, native only REPEAT run 8 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-42 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-40 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-43 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-41 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-40] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 9/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-41] abandonLocked: ConsumerBase is abandoned!
+00:52 +25 ~1: common/web_view_test.dart group B, native only REPEAT run 9 co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade messages both ways
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-44 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-42 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-45 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-43 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-42] abandonLocked: ConsumerBase is abandoned!
+ORDER android bridge round trip: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | message echo:ping
+REPEAT co01_02/us03/s1 10/10 ok
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-43] abandonLocked: ConsumerBase is abandoned!
+00:52 +26 ~1: common/web_view_test.dart group B, native only co01_02/us03/s3, nf01/NFR-Sec01: the app HTML document and the app trade messages both ways, the document in standards mode
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-46 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-44 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-47 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-45 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-44] abandonLocked: ConsumerBase is abandoned!
+ORDER android html round trip: started about:blank | message ready:CSS1Compat | finished about:blank | message echo:ping | message echo:pong
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-45] abandonLocked: ConsumerBase is abandoned!
+00:52 +27 ~1: common/web_view_test.dart group B, native only co01_02/us03/s3, co01_02/us03/fr04/e04: a reload keeps the app HTML document connected on Android; on iOS, macOS, and Linux the reloaded page is empty and the bridge stays closed
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-48 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-46 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-49 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-47 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-46] abandonLocked: ConsumerBase is abandoned!
+ORDER android html reload: started about:blank | message ready:CSS1Compat | finished about:blank | started about:blank | message ready:CSS1Compat | finished about:blank | message echo:pong
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-47] abandonLocked: ConsumerBase is abandoned!
+00:54 +28 ~1: common/web_view_test.dart group B, native only co01_02/us03/s7, nf01/NFR-Sec02: the app HTML document follows a link off the allowlist, and the next send is refused
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-50 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-48 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-51 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-49 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-48] abandonLocked: ConsumerBase is abandoned!
+ORDER android html link away: started about:blank | message ready:CSS1Compat | finished about:blank | started http://127.0.0.1:35827/token-copy#65fc7921e6d02adc4e3d59ed33997377 | finished http://127.0.0.1:35827/token-copy#copied:true
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-49] abandonLocked: ConsumerBase is abandoned!
+00:57 +29 ~1: common/web_view_test.dart group B, native only co01_02/us03/s7, nf01/NFR-Sec02: the app HTML document reopens itself, puts its root back, follows a link off the allowlist, and the next send is refused
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-52 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-50 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-53 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-51 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-50] abandonLocked: ConsumerBase is abandoned!
+ORDER android html reopen link away: started about:blank | message ready:CSS1Compat | finished about:blank | started http://127.0.0.1:35827/token-copy#6933b9e33460ca586187fc6f6473459f | finished http://127.0.0.1:35827/token-copy#copied:true
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-51] abandonLocked: ConsumerBase is abandoned!
+00:59 +30 ~1: common/web_view_test.dart group B, native only co01_02/us03/s8, co01_02/us03/fr05/e03, nf01/NFR-Sec02: a reply after the web view moves from page A to page B of another allowed origin throws, and page B receives nothing
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-54 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1x1f22m7-8647-52 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer unnamed-8647-55 with slotExpansion=1 for 64 slots
+I/Surface ( 8647): Creating surface for consumer ImageReader-1080x2400f22m7-8647-53 with slotExpansion=1 for 64 slots
+E/ConsumerBase( 8647): [ImageReader-1x1f22m7-8647-52] abandonLocked: ConsumerBase is abandoned!
+ORDER android reply after a move: started http://127.0.0.1:35827/bridge | message ready | finished http://127.0.0.1:35827/bridge | started http://127.0.0.1:45393/bridge | message ready | finished http://127.0.0.1:45393/bridge | message echo:control
+E/ConsumerBase( 8647): [ImageReader-1080x2400f22m7-8647-53] abandonLocked: ConsumerBase is abandoned!
+01:01 +31 ~1: common/web_view_test.dart (tearDownAll)
+01:01 +32 ~1: smoke/semantics_id_test.dart smoke fixture keeps its semantics identifiers on device
+01:01 +33 ~1: (tearDownAll)
+01:01 +34 ~1: All tests passed!
+All tests passed.
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): flutter_image_compress_common, flutter_udid
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:58442/N2qn_3XPnrs=/
+VMServiceFlutterDriver: Isolate found with number: 2254623531174087
+VMServiceFlutterDriver: Isolate 2254623531174087 is runnable.
+VMServiceFlutterDriver: Isolate is paused at start.
+VMServiceFlutterDriver: Attempting to resume isolate
+VMServiceFlutterDriver: Connected to Flutter application.

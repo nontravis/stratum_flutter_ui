@@ -68,6 +68,9 @@ CHROMEDRIVER_WAIT_S = 30.0
 
 _NOT_FOUND_STATUS = 127
 _NOT_STARTED = "no test started"
+_NO_ROUND_MAP = (
+    "the response data has no stratum_round map: a test replaced binding.reportData, or the driver wrote no round data"
+)
 _NO_TESTS_FOUND = "No tests were found"
 _NO_TESTS_STATUS = 79
 _PROBE_TIMEOUT_S = 30.0
@@ -308,19 +311,30 @@ def read_drive_response(
 ) -> dict[str, FileResult]:
     """One result per file of `plan` from a `flutter drive` run's `integration_response_data.json`.
 
-    The entry stores, under `stratum_round`, each file's map of test name to `pass` or `fail`; a value other than
-    `pass` fails. No data, or no map for a file, reads that file `build` (no test of it started, `_judge`); an empty
-    map (every test skipped) fails it `all skipped`. `log` is the run's output, where a wrapped file's `REPEAT` lines
-    are counted.
+    The entry stores, under `stratum_round`, each file's map of test name to `pass`, `fail`, or `skip` (a test that
+    called `markTestSkipped`); any other value fails. No response file reads every file `build` (no test of it
+    started, `_judge`). A response without the `stratum_round` map reached the driver, so the app built and ran:
+    every file reads `fail` with a reason naming the key, never `build`, which would rerun the plan. An empty map
+    for a file (every test skipped) fails it `all skipped`. `log` is the run's output, where a wrapped file's
+    `REPEAT` lines are counted.
     """
-    per_file = (data or {}).get("stratum_round")
+    if data is None:
+        return {file: _judge(plan, file, None, log) for file in plan.files}
+    per_file = data.get("stratum_round")
+    if not isinstance(per_file, Mapping):
+        return _every_file(plan, "fail", _NO_ROUND_MAP)
     rows: dict[str, list[_Row]] = {}
-    if isinstance(per_file, Mapping):
-        for file in plan.files:
-            tests = per_file.get(file)
-            if isinstance(tests, Mapping):
-                rows[file] = [_Row(str(name), "pass" if value == "pass" else "fail") for name, value in tests.items()]
+    for file in plan.files:
+        tests = per_file.get(file)
+        if isinstance(tests, Mapping):
+            rows[file] = [_Row(str(name), _drive_status(value)) for name, value in tests.items()]
     return {file: _judge(plan, file, rows.get(file), log) for file in plan.files}
+
+
+def _drive_status(value: object) -> _Status:
+    if value == "pass":
+        return "pass"
+    return "skip" if value == "skip" else "fail"
 
 
 def port_accepts(port: int) -> bool:
@@ -475,7 +489,11 @@ def _files_of(
         return env_files(plan, reason)
     if _drives(target):
         response = item_dir / RESPONSE_NAME
-        data = _json_object(response.read_text(encoding="utf-8", errors="replace")) if response.is_file() else None
+        if not response.is_file():
+            return read_drive_response(None, plan, log=log)
+        data = _json_object(response.read_text(encoding="utf-8", errors="replace"))
+        if data is None:
+            return _every_file(plan, "fail", _NO_ROUND_MAP)
         return read_drive_response(data, plan, log=log)
     report = item_dir / REPORT_NAME
     lines = report.read_text(encoding="utf-8", errors="replace").splitlines() if report.is_file() else []
@@ -488,7 +506,7 @@ def env_files(plan: RunPlan, reason: str) -> dict[str, FileResult]:
 
 
 def _every_file(
-    plan: RunPlan, cls: Literal["env", "build"], reason: str, log: str = LOG_NAME
+    plan: RunPlan, cls: Literal["env", "build", "fail"], reason: str, log: str = LOG_NAME
 ) -> dict[str, FileResult]:
     return {
         file: FileResult(cls, 0, plan.repeat if file in plan.wrapped else 1, reason, (), log) for file in plan.files
@@ -498,7 +516,8 @@ def _every_file(
 def _judge(plan: RunPlan, file: str, rows: Sequence[_Row] | None, log: str) -> FileResult:
     """The split pass rule for one file: at least one test ran and every test that ran passed; a skip counts neither
     way. A wrapped file also needs every iteration of each block (`repeat_count == plan.repeat`); its weakest block
-    gives its `n/N`. A file none of whose tests started reads `build`, named by the first error line of `log`."""
+    gives its `n/N`; a block whose iterations all skipped is left out of that count. A file none of whose tests
+    started reads `build`, named by the first error line of `log`."""
     prefixes = plan.wrapped.get(file, ())
     if rows is None:
         return FileResult("build", 0, plan.repeat if prefixes else 1, first_error_line(log) or _NOT_STARTED, ())
@@ -512,12 +531,20 @@ def _judge(plan: RunPlan, file: str, rows: Sequence[_Row] | None, log: str) -> F
     reasons += _failed([row for row in own if row.status == "fail"])
     if not prefixes:
         return FileResult("fail" if reasons else "pass", 0 if reasons else 1, 1, "; ".join(reasons), tags)
-    count = min(repeat_count(log, prefix) for prefix in prefixes)
-    if count != plan.repeat:
+    live = [prefix for prefix in prefixes if not _block_skipped(rows, prefix)]
+    count = min((repeat_count(log, prefix) for prefix in live), default=0)
+    if live and count != plan.repeat:
         reasons.append(f"{count}/{plan.repeat}")
     else:
         reasons += _failed([row for row in iterations if row.status == "fail"])
     return FileResult("fail" if reasons else "pass", count, plan.repeat, "; ".join(reasons), tags)
+
+
+def _block_skipped(rows: Sequence[_Row], prefix: str) -> bool:
+    """Whether every iteration row of the wrapped block `prefix` is skipped: it never prints `REPEAT ... ok`."""
+    own = re.compile(rf"(?:^|\s)REPEAT run \d+ {re.escape(prefix)}")
+    statuses = {row.status for row in rows if own.search(row.name)}
+    return statuses == {"skip"}
 
 
 def _failed(rows: Sequence[_Row]) -> list[str]:

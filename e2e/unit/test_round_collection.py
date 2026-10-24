@@ -15,8 +15,8 @@ WEB_VIEW = "common/web_view_test.dart"
 SMOKE = "smoke/semantics_id_test.dart"
 RESTART_1 = "common/page_layout_restart_1_linux_test.dart"
 SYSTEM_STYLE_LINUX = "themes/system_style_linux_test.dart"
-EVERYWHERE_FILES = 6
-LINUX_FILES = 9
+EVERYWHERE_FILES = 5
+LINUX_FILES = 8
 
 TARGETS_TOML = f"""\
 [apps.test_app]

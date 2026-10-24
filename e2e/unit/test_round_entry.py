@@ -25,6 +25,7 @@ SMOKE = "smoke/semantics_id_test.dart"
 RESTART_1 = "common/page_layout_restart_1_linux_test.dart"
 RESTART_2 = "common/page_layout_restart_2_linux_test.dart"
 SYSTEM_STYLE_LINUX = "themes/system_style_linux_test.dart"
+SPLIT_WEB = "common/split_layout_setting_web_test.dart"
 
 
 def _android_targets() -> list[Target]:
@@ -49,13 +50,34 @@ def test_platform_files_skip_linux_only_off_linux() -> None:
         "common/keyboard_visibility_scope_test.dart",
         "common/reorderable_list_view_layout_test.dart",
         "common/screen_radius_scope_test.dart",
-        "common/split_layout_setting_test.dart",
         WEB_VIEW,
         SMOKE,
     ]
     linux = platform_files(FIXTURE, "linux")
-    assert len(linux) == 9
+    assert len(linux) == 8
     assert {RESTART_1, RESTART_2, SYSTEM_STYLE_LINUX} <= set(linux)
+
+
+@pytest.mark.parametrize("platform", ["android", "ios", "macos", "linux"])
+def test_a_web_only_file_is_absent_off_web(platform: str) -> None:
+    assert SPLIT_WEB not in platform_files(FIXTURE, platform)
+
+
+def test_a_web_only_file_is_present_on_web_and_no_linux_only_file_is() -> None:
+    web = platform_files(FIXTURE, "web")
+
+    assert SPLIT_WEB in web
+    assert not any(name.endswith("_linux_test.dart") for name in web)
+    assert len(web) == 6
+
+
+def test_chrome_and_chrome_wasm_plan_the_web_only_file() -> None:
+    targets = [Target(name="chrome", platform="web", browser="chrome"),
+               Target(name="chrome_wasm", platform="web", browser="chrome", wasm=True)]
+
+    plans = plan_runs("web", targets, platform_files(FIXTURE, "web"), [], 1)
+
+    assert all(SPLIT_WEB in plan.files for target_plans in plans.values() for plan in target_plans)
 
 
 def test_platform_files_never_list_a_round_entry_or_a_wrapped_sibling(tmp_path: Path) -> None:
@@ -66,7 +88,7 @@ def test_platform_files_never_list_a_round_entry_or_a_wrapped_sibling(tmp_path: 
 
     files = platform_files(folder, "linux")
 
-    assert len(files) == 9
+    assert len(files) == 8
     assert not any(ENTRY_PREFIX in f or ".dt_" in f for f in files)
 
 
@@ -270,11 +292,65 @@ def test_entry_records_results_for_drive() -> None:
     assert "binding.results" in source
     assert "setUp(" in source
     assert "tearDown(" in source
-    assert "setUpAll" not in source
-    assert "tearDownAll" not in source
+    assert "setUpAll(" not in source
+    assert source.count("tearDownAll(") == 1
     assert "'success'" in source
     assert "'pass'" in source
     assert "'fail'" in source
+
+
+def test_each_test_puts_the_round_map_back_when_a_test_replaces_report_data() -> None:
+    """A test may assign `binding.reportData = {...}`; the next `tearDown` must restore the round's map in whatever
+    map is then held, or the driver's response loses every file's result (M7-T35)."""
+    (plan,) = plan_runs("android", [Target(name="p", platform="android")], [SMOKE], [], 1)["p"]
+
+    source = entry_source(plan)
+
+    keep_round = source[source.index("void keepRound()"):source.index("keepRound();")]
+    assert "(binding.reportData ??= <String, dynamic>{})['stratum_round'] = round" in keep_round
+    tear_down = source[source.index("tearDown("):source.index("f0.main();")]
+    assert "keepRound();" in tear_down
+
+
+def test_each_test_records_a_runtime_skip_as_skip() -> None:
+    """`markTestSkipped` on a drive target still leaves `results[name] == 'success'`; the live test's state tells."""
+    (plan,) = plan_runs("android", [Target(name="p", platform="android")], [SMOKE], [], 1)["p"]
+
+    source = entry_source(plan)
+
+    assert "import 'package:test_api/src/backend/invoker.dart' show Invoker;" in source
+    assert "import 'package:test_api/src/backend/state.dart' show Result;" in source
+    tear_down = source[source.index("tearDown("):source.index("f0.main();")]
+    assert "state.result == Result.skipped" in tear_down
+    assert "'skip'" in tear_down
+
+
+def test_a_failing_live_state_records_fail_before_skip_before_pass() -> None:
+    """An error in a test's own `tearDown` never reaches the binding, which keeps 'success'; the live state fails."""
+    (plan,) = plan_runs("android", [Target(name="p", platform="android")], [SMOKE], [], 1)["p"]
+
+    source = entry_source(plan)
+
+    tear_down = source[source.index("tearDown("):source.index("f0.main();")]
+    assert "Invoker.current!.liveTest.state" in tear_down
+    assert "state.result.isFailing" in tear_down
+    assert "Result.skipped" in tear_down
+    assert tear_down.index("isFailing") < tear_down.index("Result.skipped") < tear_down.index("'pass'")
+
+
+def test_an_entry_level_tear_down_all_keeps_the_round_map() -> None:
+    (plan,) = plan_runs("android", [Target(name="p", platform="android")], [SMOKE], [], 1)["p"]
+
+    source = entry_source(plan)
+
+    assert source.count("tearDownAll(keepRound);") == 1
+    assert source.index("tearDownAll(keepRound);") > source.index("f0.main();")
+
+
+def test_the_template_names_the_nested_set_up_all_limit() -> None:
+    (plan,) = plan_runs("android", [Target(name="p", platform="android")], [SMOKE], [], 1)["p"]
+
+    assert "a nested group's setUpAll that fails" in entry_source(plan)
 
 
 def test_each_file_records_its_own_results_when_two_files_share_a_test_name() -> None:
@@ -341,7 +417,7 @@ def test_cleanup_removes_the_entry_and_siblings(tmp_path: Path) -> None:
     assert not entry.exists()
     assert not sibling.exists()
     assert sorted(path.relative_to(folder).as_posix() for path in folder.rglob("*.dart")) == sorted(
-        platform_files(folder, "linux"),
+        {*platform_files(folder, "linux"), *platform_files(folder, "web")},
     )
 
 
@@ -351,4 +427,4 @@ def test_cleanup_on_a_clean_folder_is_a_no_op(tmp_path: Path) -> None:
 
     cleanup(folder)
 
-    assert len(platform_files(folder, "linux")) == 9
+    assert len(platform_files(folder, "linux")) == 8

@@ -5,9 +5,9 @@
 // throws. Native and desktop targets have no browser storage quota to
 // fill, so this case runs only on web (`kIsWeb`), skipped everywhere else:
 //
-//   flutter test integration_test/common/split_layout_setting_test.dart -d chrome
+//   flutter test integration_test/common/split_layout_setting_web_test.dart -d chrome
 //   flutter drive --driver=test_driver/integration_test.dart \
-//     --target=integration_test/common/split_layout_setting_test.dart \
+//     --target=integration_test/common/split_layout_setting_web_test.dart \
 //     -d web-server --browser-name=chrome
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
