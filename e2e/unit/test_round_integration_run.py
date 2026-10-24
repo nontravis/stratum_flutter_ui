@@ -725,3 +725,65 @@ def test_linux_timeout_removes_the_container(tmp_path: Path) -> None:
     assert len(removals) == 2
     assert all(isinstance(run["timeout_s"], float) and run["timeout_s"] > 0 for run in removals)
     assert not [call for call in runner.calls if call[:3] == ("docker", "volume", "rm")]
+
+
+class InterruptedLaunchRunner(RecordingRunner):
+    """A RecordingRunner whose `docker run` raises KeyboardInterrupt, as a SIGTERM mid-run does in a round."""
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout_s: float | None = None,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        log: Path | None = None,
+    ) -> Completed:
+        if tuple(argv[:2]) == ("docker", "run"):
+            self.calls.append(tuple(argv))
+            raise KeyboardInterrupt
+        return super().run(argv, timeout_s=timeout_s, cwd=cwd, env=env, log=log)
+
+
+def test_linux_interrupt_removes_the_container_and_reraises(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    runner = InterruptedLaunchRunner([
+        (("flutter", "--version", "--machine"), done(0, '{"frameworkVersion": "3.47.7"}')),
+        (("python3", "-I", "-c"), done(0, "")),
+        (("docker", "image", "inspect"), done(0)),
+        (("docker", "rm", "-f"), done(0)),
+        (("docker", "rm", "-f"), done(0)),
+    ])
+
+    with pytest.raises(KeyboardInterrupt):
+        run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
+                 tmp_path / "item", runner, 60.0, tmp_path / "ports")
+
+    remove = tuple(linux_docker.remove_stale_container_argv("linux"))
+    assert runner.calls[-1] == remove
+    assert runner.calls.count(remove) == 2
+
+
+def test_interrupt_on_a_host_run_removes_no_container(tmp_path: Path) -> None:
+    app = app_with_tests(tmp_path)
+
+    class InterruptedFlutter(RecordingRunner):
+        def run(
+            self,
+            argv: Sequence[str],
+            *,
+            timeout_s: float | None = None,
+            cwd: Path | None = None,
+            env: Mapping[str, str] | None = None,
+            log: Path | None = None,
+        ) -> Completed:
+            self.calls.append(tuple(argv))
+            raise KeyboardInterrupt
+
+    runner = InterruptedFlutter([])
+
+    with pytest.raises(KeyboardInterrupt):
+        run_plan(plan_of("macos", [SMOKE]), MAC, record_of(MAC, "mac"), FakeBooter(), app, tmp_path / "item",
+                 runner, 60.0, tmp_path / "ports")
+
+    assert [call[:2] for call in runner.calls] == [("flutter", "test")]

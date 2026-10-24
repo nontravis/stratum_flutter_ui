@@ -304,8 +304,8 @@ def run_plan(
     `CHROME_WASMGC_FLOOR` for `wasm`), then holds a chromedriver on a port reserved in `port_dir` for the run; a Linux
     run checks the plugin packages, then
     builds or reuses the image (from `flutter_version`, read here when the caller has none), resets a sequence's home
-    volume, and removes a stale container. It writes the plan's entry right before the launch and `cleanup` removes
-    it after, whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
+    volume, and removes a stale container, and again after a launch that timed out or was interrupted. It writes the
+    plan's entry right before the launch and `cleanup` removes it after, whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
     A failed preparation, a missing command, or `classify_env` classes every file `env` with the reason.
     Raises `ValueError` for a plan no run covers (`run_argv`) or a repeat prefix with no block to wrap.
     """
@@ -328,11 +328,15 @@ def run_plan(
                                   linux=linux))
             env = {"FLUTTER_TEST_OUTPUTS_DIR": str(item_dir)} if _drives(target) else None
             started = time.monotonic()
-            completed = runner.run(argv, timeout_s=timeout_s, cwd=app_dir, env=env)
+            try:
+                completed = runner.run(argv, timeout_s=timeout_s, cwd=app_dir, env=env)
+            except BaseException:
+                if linux is not None:
+                    _remove_container(runner, target)
+                raise
             seconds = time.monotonic() - started
         if completed.timed_out and linux is not None:
-            # Killing `docker run` leaves its container running; end it before the next run takes the name.
-            runner.run(linux_docker.remove_stale_container_argv(target.name), timeout_s=_PROBE_TIMEOUT_S)
+            _remove_container(runner, target)
     except RoundEnvError as error:
         return RunOutcome((), 0.0, _env_files(plan, error.reason))
     finally:
@@ -341,6 +345,12 @@ def run_plan(
     log = strip_drive_prefix(output) if _drives(target) else output
     (item_dir / LOG_NAME).write_text(log, encoding="utf-8")
     return RunOutcome(argv, seconds, _files_of(plan, target, argv, completed, log, item_dir))
+
+
+def _remove_container(runner: Runner, target: Target) -> None:
+    """End the target's run container: killing `docker run` on a timeout or an interrupt leaves it running, writing
+    into the mounted worktree, and holding the name the next run takes."""
+    runner.run(linux_docker.remove_stale_container_argv(target.name), timeout_s=_PROBE_TIMEOUT_S)
 
 
 def _drives(target: Target) -> bool:
