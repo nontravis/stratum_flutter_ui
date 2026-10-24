@@ -17,7 +17,7 @@ from stratum_e2e.round.app_build import AppBuild
 from stratum_e2e.round.boot import Booter, BootRecord
 from stratum_e2e.round.catalog import Catalog, LaneConfig, RoundPlan, Target
 from stratum_e2e.round.entry import RunPlan
-from stratum_e2e.round.errors import CatalogError, CompileFailure
+from stratum_e2e.round.errors import BuildFailure, CatalogError
 from stratum_e2e.round.integration_run import FileResult, RunOutcome
 from stratum_e2e.round.results import Cell, ItemKind, Recorder, RetryLedger, RoundDir, rounds_root
 from stratum_e2e.round.runner import Runner
@@ -95,8 +95,8 @@ class RoundState:
         self.down: set[str] = set()
         self.live: dict[str, RoundTarget] = {}
         self.app_builds: dict[tuple[str, bool], Path] = {}
-        # (platform, wasm) -> the app build's failure on the code under test, raised again for later items.
-        self.compile_failures: dict[tuple[str, bool], CompileFailure] = {}
+        # (platform, wasm) -> the app build that failed twice, raised again for the platform's later items.
+        self.build_failures: dict[tuple[str, bool], BuildFailure] = {}
         # Linux targets whose app built in its own container step this round (`integration_run.run_plan`).
         self.linux_built: set[str] = set()
         self.resolved = False

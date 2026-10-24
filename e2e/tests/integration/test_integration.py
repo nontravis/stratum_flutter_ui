@@ -16,12 +16,13 @@ from stratum_e2e.round.state import RoundTarget
 def test_integration_file(
     round_target: RoundTarget | None, integration_file: str, integration_outcomes: dict[str, FileResult]
 ) -> None:
-    """Pass, fail, or class `env` as the file's result says; the plugin records its `n/N` cell."""
+    """Pass, fail, or class `env` as the file's result says (a `build` fails the item); the plugin records its cell
+    from the result itself."""
     result = integration_outcomes.get(integration_file)
     if result is None:
         target = round_target.target.name if round_target is not None else "this target"
         pytest.fail(f"no integration run on {target} covered {integration_file}", pytrace=False)
     if result.cls == "env":
         raise RoundEnvError(result.reason)
-    if result.cls == "fail":
+    if result.cls in ("fail", "build"):
         pytest.fail(result.reason or f"{integration_file} failed", pytrace=False)

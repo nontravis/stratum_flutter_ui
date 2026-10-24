@@ -19,7 +19,7 @@ from stratum_e2e.round.app_build import (
     resolve_app_packages,
     source_digest,
 )
-from stratum_e2e.round.errors import CompileFailure, RoundEnvError
+from stratum_e2e.round.errors import BuildFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner, SubprocessRunner
 from unit.round_fakes import FakeRunner
 
@@ -471,39 +471,28 @@ def test_later_flutter_build_does_not_touch_the_copy(tmp_path: Path) -> None:
     assert result.path.read_bytes() == b"apk"
 
 
-def test_failed_build_is_env(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "reason"),
+    [
+        ("", "Gradle task assembleDebug failed\n", "flutter build apk --debug failed (exit 1)"),
+        (
+            "lib/main.dart:1:13: Error: Expected a declaration, but got '}'.\n", "Error: Gradle task failed\n",
+            "lib/main.dart:1:13: Error: Expected a declaration, but got '}'.",
+        ),
+    ],
+)
+def test_failed_build_is_a_build_failure_with_its_log(tmp_path: Path, stdout: str, stderr: str, reason: str) -> None:
     app, package = make_tree(tmp_path)
-    failed = Completed(("flutter",), 1, "", "Gradle task assembleDebug failed\n", False)
+    failed = Completed(("flutter",), 1, stdout, stderr, False)
     runner = BuildingRunner([(("flutter", "build"), failed)], "android", False)
 
-    with pytest.raises(RoundEnvError, match=r"flutter build apk --debug") as raised:
+    with pytest.raises(BuildFailure) as raised:
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
-    assert "Gradle task assembleDebug failed" in raised.value.reason
+    assert raised.value.reason == reason
+    assert (raised.value.log, raised.value.argv) == (tmp_path / "build.log", ("flutter", "build", "apk", "--debug"))
+    assert raised.value.seconds >= 0
     assert not (app / "build" / "e2e").exists()
-
-
-def test_failed_build_with_a_dart_error_is_a_compile_failure(tmp_path: Path) -> None:
-    app, package = make_tree(tmp_path)
-    dart = "lib/main.dart:1:13: Error: Expected a declaration, but got '}'.\n"
-    failed = Completed(("flutter",), 1, dart, "Gradle task assembleDebug failed\n", False)
-    runner = BuildingRunner([(("flutter", "build"), failed)], "android", False)
-
-    with pytest.raises(CompileFailure) as raised:
-        ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
-
-    assert raised.value.reason == "app build: lib/main.dart:1:13: Error: Expected a declaration, but got '}'."
-    assert not (app / "build" / "e2e").exists()
-
-
-def test_failed_build_with_a_dart_error_outside_the_package_is_env(tmp_path: Path) -> None:
-    app, package = make_tree(tmp_path)
-    sdk = tmp_path / "flutter" / "packages" / "flutter" / "lib" / "src" / "widgets" / "framework.dart"
-    failed = Completed(("flutter",), 1, f"{sdk}:12:3: Error: Expected ';' after this.\n", "", False)
-    runner = BuildingRunner([(("flutter", "build"), failed)], "android", False)
-
-    with pytest.raises(RoundEnvError, match=r"flutter build apk --debug"):
-        ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
 
 def test_failed_rebuild_drops_the_stale_copy(tmp_path: Path) -> None:
@@ -513,18 +502,18 @@ def test_failed_rebuild_drops_the_stale_copy(tmp_path: Path) -> None:
     first = ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
     (package / "lib" / "x.dart").write_text("class X { int y = 1; }", encoding="utf-8")
-    with pytest.raises(RoundEnvError):
+    with pytest.raises(BuildFailure):
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
     assert not first.path.exists()
 
 
-def test_build_without_an_artifact_is_env(tmp_path: Path) -> None:
+def test_build_without_an_artifact_is_a_build_failure(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
     runner = BuildingRunner([(("flutter", "build"), OK)], "android", False)
     runner.skip_artifact = True
 
-    with pytest.raises(RoundEnvError, match="produced no"):
+    with pytest.raises(BuildFailure, match="produced no"):
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
 

@@ -106,7 +106,7 @@ from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.app_build import AppBuild
 from stratum_e2e.round.boot import BootRecord
-from stratum_e2e.round.errors import CompileFailure, RoundEnvError
+from stratum_e2e.round.errors import BuildFailure, RoundEnvError
 from stratum_e2e.round.integration_run import LOG_NAME, FileResult, RunOutcome
 from stratum_e2e.round.lane import host_memory_reasons
 from stratum_e2e.round.runner import Completed
@@ -218,7 +218,8 @@ def resolve(app_dir, package_root, flutter_version, runner, log):
 
 
 _build_failures = dict(SCENARIO.get("build_fail", {}))
-_compile_failures = dict(SCENARIO.get("compile_fail", {}))
+_broken_builds = dict(SCENARIO.get("broken_build", {}))
+BROKEN_LINE = "lib/main.dart:5:3: Error: Method not found: 'runAp'."
 
 
 def build(app_dir, package_root, platform, wasm, runner, log):
@@ -226,9 +227,11 @@ def build(app_dir, package_root, platform, wasm, runner, log):
     if _build_failures.get(platform, 0):
         _build_failures[platform] -= 1
         raise RoundEnvError("flutter build failed (exit 1): Gradle daemon died")
-    if _compile_failures.get(platform, 0):
-        _compile_failures[platform] -= 1
-        raise CompileFailure("app build: lib/main.dart:5:3: Error: Method not found: 'runAp'.")
+    if _broken_builds.get(platform, 0):
+        _broken_builds[platform] -= 1
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(f"Building...\n{BROKEN_LINE}\n", encoding="utf-8")
+        raise BuildFailure(BROKEN_LINE, log, ("flutter", "build", platform), 3.0)
     path = ROOT / f"app-{platform}"
     path.mkdir(exist_ok=True)  # a web build is a folder the static server serves
     return AppBuild(path=path, argv=("flutter", "build", platform), seconds=2.0, reused=False)
@@ -245,8 +248,10 @@ def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_t
     (item_dir / LOG_NAME).write_text(f"ran {plan.key}\n", encoding="utf-8")
     if build_first and _linux_build_failures[0]:
         _linux_build_failures[0] -= 1
-        reason = "flutter build linux failed (exit 1): Build process failed."
-        return RunOutcome((), 0.0, {file: FileResult("env", 0, 1, reason, ()) for file in plan.files})
+        reason = "CMake Error: The source does not match the source used to generate cache."
+        (item_dir / "linux_build.log").write_text(reason + "\n", encoding="utf-8")
+        files = {file: FileResult("build", 0, 1, reason, (), "linux_build.log") for file in plan.files}
+        return RunOutcome((), 0.0, files, ("flutter", "build", "linux"), 4.0, build_failed=True)
     build_argv = ("flutter", "build", "linux") if build_first else ()
     argv = ("flutter", "test", plan.key)
     if _plan_env.get(target.name, 0):
@@ -886,14 +891,19 @@ def test_linux_builds_its_app_once_per_round_before_its_first_run(
     assert [command[:2] for command, _ in builds[1:]] == [["flutter", "test"]] * 2
 
 
-def test_linux_build_that_failed_builds_again_on_the_rerun(
+def test_linux_build_that_failed_reads_build_and_the_next_run_builds_again(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _make_tree(pytester, monkeypatch, scenario={"linux_build_fail": 1})
-    _round(pytester, "--target", "linux").assert_outcomes(passed=2)
-    assert _events(root, "run_plan ") == [
-        "run_plan linux entry build", "run_plan linux entry build", "run_plan linux plain_name",
-    ]
+    _round(pytester, "--target", "linux").assert_outcomes(passed=1, failed=1)
+    assert _events(root, "run_plan ") == ["run_plan linux entry build", "run_plan linux plain_name build"]
+    cells = _cells(_summary(pytester))
+    build = [cell["linux"] for cell in cells.values() if cell["linux"]["class"] == "build"]
+    assert [cell["reason"] for cell in build] == ["CMake Error: The source does not match the source used to "
+                                                  "generate cache."]
+    assert build[0]["log"].endswith("/linux_build.log")
+    builds = [build["command"] for build in _summary(pytester)["builds"]]
+    assert builds.count(["flutter", "build", "linux"]) == 2
 
 
 def test_linux_builds_again_after_a_failed_launch(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -902,17 +912,33 @@ def test_linux_builds_again_after_a_failed_launch(pytester: pytest.Pytester, mon
     assert _events(root, "run_plan ") == ["run_plan linux entry build", "run_plan linux plain_name build"]
 
 
-def test_a_compile_failure_in_the_app_build_reads_fail_and_is_built_once(
+def test_a_build_that_fails_twice_reads_build_for_every_item_and_blocks_nothing(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    second_app = MAC_APP.replace("test_mac_app", "test_mac_app_again")
-    root = _make_tree(pytester, monkeypatch, MAC_APP + second_app, {"compile_fail": {"macos": 99}})
-    _round(pytester, "--target", "mac").assert_outcomes(passed=2, errors=2)
-    assert _events(root, "build ") == ["build macos"]
-    cells = _cells(_summary(pytester))
-    reason = "app build: lib/main.dart:5:3: Error: Method not found: 'runAp'."
-    for test in ("test_e2e.py::test_mac_app", "test_e2e.py::test_mac_app_again"):
-        assert (cells[test]["mac"]["class"], cells[test]["mac"]["reason"]) == ("fail", reason)
+    apps = MAC_APP + "".join(MAC_APP.replace("test_mac_app", f"test_mac_app_{n}") for n in (2, 3))
+    root = _make_tree(pytester, monkeypatch, apps, {"broken_build": {"macos": 99}})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=2, errors=3)
+    assert _events(root, "build ") == ["build macos", "build macos"]
+    summary = _summary(pytester)
+    cells = _cells(summary)
+    for test in ("test_e2e.py::test_mac_app", "test_e2e.py::test_mac_app_2", "test_e2e.py::test_mac_app_3"):
+        cell = cells[test]["mac"]
+        assert (cell["class"], cell["reason"]) == ("build", "lib/main.dart:5:3: Error: Method not found: 'runAp'.")
+        assert cell["log"] == "mac/app%20build/build.log"
+    app_builds = [build for build in summary["builds"] if build["command"][:2] == ["flutter", "build"]]
+    assert [(build["command"], build["seconds"]) for build in app_builds] == [(["flutter", "build", "macos"], 3.0)] * 2
+
+
+def test_a_build_that_fails_once_runs_on_its_plain_rebuild(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_APP, {"broken_build": {"macos": 1}})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=3)
+    assert _events(root, "build ", "app ") == ["build macos", "build macos", "app app-macos"]
+    assert _cells(_summary(pytester))["test_e2e.py::test_mac_app"]["mac"]["class"] == "pass"
+    app_builds = [build["seconds"] for build in _summary(pytester)["builds"] if build["command"][:2] == ["flutter",
+                                                                                                         "build"]]
+    assert app_builds == [3.0, 2.0]
 
 
 def test_integration_run_is_recorded_as_a_build_entry(

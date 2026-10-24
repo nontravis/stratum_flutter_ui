@@ -25,7 +25,7 @@ _NOON = datetime(2026, 10, 23, 12, 0, 0, tzinfo=UTC)
 
 
 def _cell(
-    cls: Literal["pass", "fail", "env"] = "pass",
+    cls: Literal["pass", "fail", "env", "build"] = "pass",
     passed: int = 1,
     runs: int = 1,
     reason: str = "",
@@ -119,6 +119,7 @@ def test_cell_text() -> None:
     assert cell_text(_cell("pass", 1, 1)) == "1/1"
     assert cell_text(_cell("fail", 0, 1)) == "fail"
     assert cell_text(_cell("env", 0, 1)) == "env"
+    assert cell_text(_cell("build", 0, 1)) == "build"
     assert cell_text(Cell("xfail", 0, 1, "known gap", "")) == "—"
     assert cell_text(Cell("xpass", 1, 1, "fix landed", "")) == "1/1"
     assert cell_text(None) == "—"
@@ -127,6 +128,7 @@ def test_cell_text() -> None:
 def test_cell_text_of_a_repeat_block_reads_n_over_N_whatever_its_class() -> None:
     assert cell_text(_cell("fail", 9, 10)) == "9/10 fail"
     assert cell_text(_cell("env", 0, 10)) == "0/10 env"
+    assert cell_text(_cell("build", 0, 10)) == "0/10 build"
     assert cell_text(_cell("pass", 10, 10)) == "10/10"
 
 

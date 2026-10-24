@@ -26,8 +26,8 @@ from stratum_e2e.round.android_traps import strip_drive_prefix
 from stratum_e2e.round.boot import Booter, BootRecord
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan, cleanup, write_run_file
-from stratum_e2e.round.build_failure import BuildSite, build_failure, tool_compile_error
-from stratum_e2e.round.errors import CompileFailure, RoundEnvError
+from stratum_e2e.round.build_failure import build_failure, first_error_line
+from stratum_e2e.round.errors import BuildFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 from stratum_e2e.round.wrap_repeat import wrap_text
 
@@ -37,6 +37,14 @@ REPORT_NAME = "report.json"
 RESPONSE_NAME = "integration_response_data.json"
 LOG_NAME = "flutter.log"
 LINUX_BUILD_LOG = "linux_build.log"
+
+# flutter_tools prints one of these when the app build inside `flutter test` failed before any launch: an iOS
+# simulator's build step (`ios/simulators.dart:575`, `:582`, printed by `:473`), which then reports "Unable to start the
+# app on the device." (`test/integration_test_device.dart:67`). The run reads `build`, never the `env` of that line.
+BUILD_PHASE_SIGNS = (
+    "Could not build the application for the simulator.",
+    "Could not find the built application bundle at",
+)
 
 # A log line holding one of these never ran a test, so the run is `env`, never `fail` (`scripts/lib/run.sh:31`).
 # `DT_WATCHER:` is left out: the round's own timeout replaces the bash watcher that wrote it.
@@ -55,6 +63,7 @@ CHROMEDRIVER_PORTS = ("chromedriver", 4444, 4474, 1)
 CHROMEDRIVER_WAIT_S = 30.0
 
 _NOT_FOUND_STATUS = 127
+_NOT_STARTED = "no test started"
 _NO_TESTS_FOUND = "No tests were found"
 _NO_TESTS_STATUS = 79
 _PROBE_TIMEOUT_S = 30.0
@@ -74,14 +83,16 @@ class FileResult:
     """One integration file's result on one target.
 
     `passed` of `runs` reads `n/N`: a wrapped file's passing iterations of `plan.repeat`, else 1/1 on a pass and 0/1
-    otherwise. `reason` says why the file did not pass. `tags` are the story ids of the tests that ran.
+    otherwise. `reason` says why the file did not pass. `tags` are the story ids of the tests that ran. `log` names the
+    file in the run's item dir that holds the result's output: the Linux build step's log for a build it failed.
     """
 
-    cls: Literal["pass", "fail", "env"]
+    cls: Literal["pass", "fail", "env", "build"]
     passed: int
     runs: int
     reason: str
     tags: tuple[str, ...]
+    log: str = LOG_NAME
 
 
 @dataclass(frozen=True)
@@ -89,8 +100,8 @@ class RunOutcome:
     """One run of a plan: the command it ran, its wall time, and one result per file.
 
     `argv` is empty and `seconds` 0 when the run never launched (the device, a tool, or a pre-flight check stopped it).
-    `build_argv` and `build_seconds` are a Linux run's own app build step, empty when the run had none or it failed.
-    `exit_status` is the launch's exit status, `None` when it never launched.
+    `build_argv` and `build_seconds` are a Linux run's own app build step, empty when the run had none; `build_failed`
+    says that step failed. `exit_status` is the launch's exit status, `None` when it never launched.
     """
 
     argv: tuple[str, ...]
@@ -99,6 +110,7 @@ class RunOutcome:
     build_argv: tuple[str, ...] = ()
     build_seconds: float = 0.0
     exit_status: int | None = None
+    build_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -293,8 +305,9 @@ def read_drive_response(
     """One result per file of `plan` from a `flutter drive` run's `integration_response_data.json`.
 
     The entry stores, under `stratum_round`, each file's map of test name to `pass` or `fail`; a value other than
-    `pass` fails. No data, or no map for a file, fails that file `no report entry`; an empty map (every test skipped)
-    fails it `all skipped`. `log` is the run's output, where a wrapped file's `REPEAT` lines are counted.
+    `pass` fails. No data, or no map for a file, reads that file `build` (no test of it started, `_judge`); an empty
+    map (every test skipped) fails it `all skipped`. `log` is the run's output, where a wrapped file's `REPEAT` lines
+    are counted.
     """
     per_file = (data or {}).get("stratum_round")
     rows: dict[str, list[_Row]] = {}
@@ -338,10 +351,9 @@ def run_plan(
     the app in its own container step before the tests (`_build_linux`). A container that timed out or was
     interrupted is removed. It writes the plan's entry right before the launch and `cleanup` removes it after,
     whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
-    A failed preparation or build, a missing command, or `classify_env` classes every file `env` with the reason; a
-    build step that fails on a compiler error in the repo's own source classes every file `fail` (`build_failure`). A
-    run whose compiler errors all point outside that source, such as into the round's entry, classes every file `env`
-    with `compile: <the first error>` (`tool_compile_error`).
+    A failed preparation, a missing command, or `classify_env` classes every file `env` with the reason. A failed
+    Linux build step, a `BUILD_PHASE_SIGNS` line, or a file none of whose tests started classes it `build`, named by
+    the first error line, with no blame claimed.
     Raises `ValueError` for a plan no run covers (`run_argv`) or a repeat prefix with no block to wrap.
     """
     timeout_s = run_timeout_s(plan, per_file_timeout_s)
@@ -372,14 +384,15 @@ def run_plan(
             seconds = time.monotonic() - started
     except RoundEnvError as error:
         return RunOutcome((), 0.0, env_files(plan, error.reason))
-    except CompileFailure as failure:
-        return RunOutcome((), 0.0, _every_file(plan, "fail", failure.reason))
+    except BuildFailure as failure:
+        files = _every_file(plan, "build", failure.reason, LINUX_BUILD_LOG)
+        return RunOutcome((), 0.0, files, failure.argv, failure.seconds, build_failed=True)
     finally:
         cleanup(app_dir / INTEGRATION_FOLDER)
     output = completed.stdout + completed.stderr
     log = strip_drive_prefix(output) if _drives(target) else output
     (item_dir / LOG_NAME).write_text(log, encoding="utf-8")
-    files = _files_of(plan, target, argv, completed, log, item_dir, _compile_site(app_dir, linux))
+    files = _files_of(plan, target, argv, completed, log, item_dir)
     return RunOutcome(argv, seconds, files, build_argv, build_seconds, completed.status)
 
 
@@ -409,11 +422,9 @@ def _build_linux(
 ) -> tuple[tuple[str, ...], float]:
     """Build the Linux app in its own container step and return its command and wall time.
 
-    The tests' own launch builds again, but a native build failure (CMake, the toolchain) then reads as a test file
-    that failed to load. This step classes it through `build_failure`, as the host builds are: a compiler error in the
-    repo's own source, a container path under `linux_docker.WORK_ROOT` read as the same path under `linux.repo_root`,
-    raises `CompileFailure`; any other failure or a timeout raises `RoundEnvError`. A load failure after a green build
-    step keeps reading `fail`. The output goes to `<item_dir>/linux_build.log`.
+    The tests' own launch builds again, but its failure would show only as files that never started. A failed or
+    timed-out step raises `BuildFailure` (`build_failure`), so its files read `build` with the step's own log. The
+    output goes to `<item_dir>/linux_build.log`.
     """
     argv = tuple(
         linux_docker.docker_run_argv(
@@ -426,8 +437,8 @@ def _build_linux(
     seconds = time.monotonic() - started
     output = built.stdout + built.stderr
     (item_dir / LINUX_BUILD_LOG).write_text(output, encoding="utf-8")
-    if built.status != 0:
-        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, built, _compile_site(app_dir, linux))
+    if built.status != 0 or built.timed_out:
+        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, argv, built, seconds, item_dir / LINUX_BUILD_LOG)
     return argv, seconds
 
 
@@ -447,27 +458,17 @@ def _run_files(plan: RunPlan, app_dir: Path) -> list[Path]:
     return [write_run_file(plan, app_dir / INTEGRATION_FOLDER).relative_to(app_dir)]
 
 
-def _compile_site(app_dir: Path, linux: LinuxRun | None) -> BuildSite:
-    """Where a run's compiler sees the repo: a Linux container through `linux_docker.WORK_ROOT`; a host run from
-    `app_dir`, whose parent is the repo, with a web run's `org-dartlang-app:///` rooted at the entry's folder."""
-    if linux is not None:
-        return BuildSite(linux.repo_root, linux_docker.WORK_ROOT / linux.app_rel, mount=linux_docker.WORK_ROOT)
-    app = app_dir.absolute()
-    return BuildSite(app.parent, PurePosixPath(app), app_uri_root=PurePosixPath(app / INTEGRATION_FOLDER))
-
-
 def _files_of(
-    plan: RunPlan, target: Target, argv: Sequence[str], completed: Completed, log: str, item_dir: Path,
-    site: BuildSite,
+    plan: RunPlan, target: Target, argv: Sequence[str], completed: Completed, log: str, item_dir: Path
 ) -> dict[str, FileResult]:
     if completed.status == _NOT_FOUND_STATUS and not completed.stdout:
         return env_files(plan, f"{argv[0]} not found")
+    sign = next((sign for sign in BUILD_PHASE_SIGNS if sign in log), None)
+    if sign is not None and not completed.timed_out:
+        return _every_file(plan, "build", first_error_line(log) or sign)
     reason = classify_env(log, completed.status, completed.timed_out)
     if reason is not None:
         return env_files(plan, reason)
-    tool_error = tool_compile_error(log, site)
-    if tool_error is not None:
-        return env_files(plan, f"compile: {tool_error}")
     if _drives(target):
         response = item_dir / RESPONSE_NAME
         data = _json_object(response.read_text(encoding="utf-8", errors="replace")) if response.is_file() else None
@@ -482,25 +483,27 @@ def env_files(plan: RunPlan, reason: str) -> dict[str, FileResult]:
     return _every_file(plan, "env", reason)
 
 
-def _every_file(plan: RunPlan, cls: Literal["fail", "env"], reason: str) -> dict[str, FileResult]:
+def _every_file(
+    plan: RunPlan, cls: Literal["env", "build"], reason: str, log: str = LOG_NAME
+) -> dict[str, FileResult]:
     return {
-        file: FileResult(cls, 0, plan.repeat if file in plan.wrapped else 1, reason, ()) for file in plan.files
+        file: FileResult(cls, 0, plan.repeat if file in plan.wrapped else 1, reason, (), log) for file in plan.files
     }
 
 
 def _judge(plan: RunPlan, file: str, rows: Sequence[_Row] | None, log: str) -> FileResult:
     """The split pass rule for one file: at least one test ran and every test that ran passed; a skip counts neither
     way. A wrapped file also needs every iteration of each block (`repeat_count == plan.repeat`); its weakest block
-    gives its `n/N`."""
+    gives its `n/N`. A file none of whose tests started reads `build`, named by the first error line of `log`."""
     prefixes = plan.wrapped.get(file, ())
-    ran = [row for row in rows or () if row.status != "skip"]
+    if rows is None:
+        return FileResult("build", 0, plan.repeat if prefixes else 1, first_error_line(log) or _NOT_STARTED, ())
+    ran = [row for row in rows if row.status != "skip"]
     tags = tuple(dict.fromkeys(tag for row in ran for tag in story_tags(row.name)))
     iterations = [row for row in ran if prefixes and _REPEAT_TEST.search(row.name)]
     own = [row for row in ran if row not in iterations]
     reasons: list[str] = []
-    if rows is None:
-        reasons.append("no report entry")
-    elif not ran:
+    if not ran:
         reasons.append("all skipped")
     reasons += _failed([row for row in own if row.status == "fail"])
     if not prefixes:

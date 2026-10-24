@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Final
 
 from stratum_e2e.paths import E2E_ROOT
+from stratum_e2e.round.app_build import AppBuild
 from stratum_e2e.round.capture import save_device_log
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan
-from stratum_e2e.round.errors import CompileFailure, RoundEnvError
+from stratum_e2e.round.errors import BuildFailure, RoundEnvError
 from stratum_e2e.round.integration_run import FileResult, env_files
 from stratum_e2e.round.linux_docker import flutter_version
 from stratum_e2e.round.runner import Runner
@@ -36,11 +37,12 @@ def _resolve_app(state: RoundState, backends: Backends, target: Target) -> None:
 def app_build(state: RoundState, backends: Backends, target: Target) -> Path:
     """The e2e app build of the target's platform; the first target of a platform builds it for the rest.
 
-    A build that fails on the code under test (`CompileFailure`) is kept and raised again for the platform's later
-    items, since the sources do not change within a round; a tool failure is not kept, so the next item builds again.
+    A failed build (`BuildFailure`) gets one plain rebuild. A second failure is kept and raised again for the
+    platform's later items, since the sources do not change within a round; it reads `build`, so it never reaches the
+    retry ledger. Every build command, a failed one too, lands in the summary's builds.
     """
     key = (target.platform, target.wasm)
-    failure = state.compile_failures.get(key)
+    failure = state.build_failures.get(key)
     if failure is not None:
         raise failure
     path = state.app_builds.get(key)
@@ -49,13 +51,26 @@ def app_build(state: RoundState, backends: Backends, target: Target) -> Path:
         round_dir = state.open_round_dir(backends.now)
         log = round_dir.item_dir(target.name, _BUILD_DIR) / "build.log"
         try:
-            build = backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
-        except CompileFailure as failed:
-            state.compile_failures[key] = failed
+            build = _build_once_more_on_failure(state, backends, target, log)
+        except BuildFailure as failed:
+            state.build_failures[key] = failed
             raise
         state.recorder.build(target.name, build.argv, build.seconds, build.reused)
         path = state.app_builds[key] = build.path
     return path
+
+
+def _build_once_more_on_failure(state: RoundState, backends: Backends, target: Target, log: Path) -> AppBuild:
+    """Build the target's platform; after a `BuildFailure`, recorded as a build, build once more with no clean."""
+    try:
+        return backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
+    except BuildFailure as failed:
+        state.recorder.build(target.name, failed.argv, failed.seconds, reused=False)
+    try:
+        return backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
+    except BuildFailure as failed:
+        state.recorder.build(target.name, failed.argv, failed.seconds, reused=False)
+        raise
 
 
 def run_with_retry(
@@ -101,7 +116,8 @@ def _run_once(
     )
     if outcome.build_argv:
         state.recorder.build(target.name, outcome.build_argv, outcome.build_seconds, reused=False)
-        state.linux_built.add(target.name)
+        if not outcome.build_failed:
+            state.linux_built.add(target.name)
     if outcome.exit_status not in (None, 0):
         state.linux_built.discard(target.name)
     if outcome.argv:

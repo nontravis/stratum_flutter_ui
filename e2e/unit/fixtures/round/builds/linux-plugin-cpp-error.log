@@ -1,7 +1,0 @@
-Building Linux application...
-/work/test_app/linux/flutter/ephemeral/.plugin_symlinks/flutter_secure_storage_linux/linux/include/Secret.hpp:12:3: error: unknown type name 'SecretSchema'
-   12 |   SecretSchema the_schema;
-      |   ^
-1 error generated.
-ninja: build stopped: subcommand failed.
-Build process failed

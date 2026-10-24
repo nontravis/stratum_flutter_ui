@@ -31,9 +31,10 @@ _MAX_SEGMENT = 120
 _HASH_LENGTH = 12
 _BLOCK_AT = 2
 
+# `build`: the app was not built, or no test of the file started; it claims no blame (design section 10).
 # An e2e item pytest expected to fail: `xfail` when it failed (counted neither way, read as no cell), `xpass` when it
 # passed anyway (read as a pass).
-CellClass = Literal["pass", "fail", "env", "xfail", "xpass"]
+CellClass = Literal["pass", "fail", "env", "build", "xfail", "xpass"]
 _PASSING: tuple[CellClass, ...] = ("pass", "xpass")
 ItemKind = Literal["integration", "e2e", "perf"]
 
@@ -108,8 +109,8 @@ def cell_text(cell: Cell | None) -> str:
     """Return the grid text of a cell.
 
     A pass or an `xpass` reads `n/N`. A repeat block that did not pass reads `n/N` and its class (`0/10 env`,
-    `7/10 fail`), so a tool failure never looks like a widget result. A single run that did not pass reads `fail` or
-    `env`; none, or an `xfail`, is `—` (its reason line says why).
+    `7/10 fail`), so a tool failure never looks like a widget result. A single run that did not pass reads `fail`,
+    `env`, or `build`; none, or an `xfail`, is `—` (its reason line says why).
     """
     if cell is None or cell.cls == "xfail":
         return NO_CELL

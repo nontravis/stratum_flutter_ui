@@ -1,7 +1,0 @@
-Running Xcode build...
-Xcode build done.                                           14.2s
-Failed to build iOS app
-Swift Compiler Error (Xcode): Cannot find 'radius' in scope
-/Users/dev/NTD%20OS/stratum_ui/darwin/stratum_ui/Sources/stratum_ui/StratumUiPlugin.swift:17:8
-
-Encountered error while building for simulator.

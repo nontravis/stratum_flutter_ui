@@ -17,11 +17,11 @@ import shutil
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Final
 
-from stratum_e2e.round.build_failure import BuildSite, build_failure, error_tail
-from stratum_e2e.round.errors import RoundEnvError
+from stratum_e2e.round.build_failure import build_failure, error_tail
+from stratum_e2e.round.errors import BuildFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 
 _BUILD_TIMEOUT_S: Final = 3600.0
@@ -180,10 +180,9 @@ def ensure_app_build(
 ) -> AppBuild:
     """Return the app build for `platform`, building it only when its sources changed since the last copy.
 
-    A reused build reports `seconds` 0.0. A build that fails on a compiler error in `package_root`'s own source raises
-    `CompileFailure` (`build_failure`); any other failed build, one that leaves no artifact, or a failed git or
-    toolchain query raises `RoundEnvError`. A failed build leaves no copy behind, so a later call never reuses a half
-    build.
+    A reused build reports `seconds` 0.0. A build that fails, times out, or leaves no artifact raises `BuildFailure`
+    (`build_failure`), its output in `log`; a failed git or toolchain query raises `RoundEnvError`. A failed build
+    leaves no copy behind, so a later call never reuses a half build.
     """
     argv = tuple(build_argv(platform, wasm))
     digest = source_digest(app_dir, package_root, platform, argv, runner)
@@ -198,10 +197,12 @@ def ensure_app_build(
     shutil.rmtree(folder, ignore_errors=True)
     started = time.monotonic()
     done = runner.run(argv, timeout_s=_BUILD_TIMEOUT_S, cwd=app_dir, log=log)
-    if done.status != 0:
-        raise build_failure(" ".join(argv), done, BuildSite(package_root, PurePosixPath(app_dir)))
+    command = " ".join(argv)
+    if done.status != 0 or done.timed_out:
+        raise build_failure(command, argv, done, time.monotonic() - started, log)
     if not output.exists():
-        raise RoundEnvError(f"{' '.join(argv)} produced no {output.relative_to(app_dir).as_posix()}")
+        missing = f"{command} produced no {output.relative_to(app_dir).as_posix()}"
+        raise BuildFailure(missing, log, argv, time.monotonic() - started)
 
     folder.mkdir(parents=True)
     if output.is_dir():

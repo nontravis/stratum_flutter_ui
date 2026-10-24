@@ -346,11 +346,14 @@ def test_failed_test_fails_its_file_only() -> None:
     assert files[SMOKE].cls == "pass"
 
 
-def test_file_with_no_report_entry_fails() -> None:
-    files = read_test_report(report_lines(), plan_of("android", [KEYBOARD, SMOKE, WEB_VIEW], build_mode="debug"))
+def test_a_file_none_of_whose_tests_started_reads_build_named_by_the_first_error_line() -> None:
+    log = "Building macOS application...\nlib/main.dart:5:3: Error: Method not found: 'runAp'.\n"
+    files = read_test_report(report_lines(), plan_of("android", [KEYBOARD, SMOKE, WEB_VIEW], build_mode="debug"),
+                             log=log)
 
-    assert files[WEB_VIEW] == FileResult("fail", 0, 1, "no report entry", ())
-    assert read_test_report([], plan_of("macos", [SMOKE]))[SMOKE].reason == "no report entry"
+    assert files[WEB_VIEW] == FileResult("build", 0, 1, "lib/main.dart:5:3: Error: Method not found: 'runAp'.", ())
+    assert files[KEYBOARD].cls == "fail"
+    assert read_test_report([], plan_of("macos", [SMOKE]))[SMOKE] == FileResult("build", 0, 1, "no test started", ())
 
 
 def test_skipped_tests_neither_pass_nor_fail_the_file() -> None:
@@ -407,7 +410,7 @@ def test_drive_response_missing_fails_every_file() -> None:
 
     for data in (None, {}, {"stratum_round": "garbled"}):
         files = read_drive_response(data, plan)
-        assert files == {file: FileResult("fail", 0, 1, "no report entry", ()) for file in plan.files}
+        assert files == {file: FileResult("build", 0, 1, "no test started", ()) for file in plan.files}
     empty = read_drive_response({"stratum_round": {KEYBOARD: {}}}, plan)
     assert empty[KEYBOARD].reason == "all skipped"
 
@@ -621,29 +624,49 @@ def test_chromedriver_port_comes_from_the_port_dir(tmp_path: Path, monkeypatch: 
     assert runner.launch()["env"] == {"FLUTTER_TEST_OUTPUTS_DIR": str(item)}
 
 
-@pytest.mark.parametrize(
-    ("log", "cls", "reason"),
-    [
-        (
-            "web-entry-compile-error.log", "env",
-            "compile: org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:6:8: Error: Error when reading "
-            "'org-dartlang-app:///smoke/semantics_id_test.dart': File not found",
-        ),
-        ("web-test-file-compile-error.log", "fail", "no report entry"),
-    ],
-)
-def test_a_web_run_that_fails_to_compile_reads_env_only_for_an_error_in_the_round_entry(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: str, cls: str, reason: str
-) -> None:
+def test_a_web_run_that_fails_to_compile_reads_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(integration_run, "port_accepts", lambda port: True)
     app = app_with_tests(tmp_path)
-    output = (BUILDS / log).read_text(encoding="utf-8")
+    output = (BUILDS / "web-entry-compile-error.log").read_text(encoding="utf-8")
     runner = RecordingRunner([chrome_answer(), (("flutter", "drive"), done(1, output))])
 
     outcome = run_plan(plan_of("web", [SMOKE]), CHROME, record_of(CHROME, "chrome"), FakeBooter(), app,
                        tmp_path / "item", runner, 60.0, tmp_path / "ports")
 
-    assert (outcome.files[SMOKE].cls, outcome.files[SMOKE].reason) == (cls, reason)
+    assert outcome.files[SMOKE] == FileResult("build", 0, 1, (
+        "org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:6:8: Error: Error when reading "
+        "'org-dartlang-app:///smoke/semantics_id_test.dart': File not found"
+    ), ())
+
+
+@pytest.mark.parametrize(
+    ("phase", "cls", "reason"),
+    [
+        # The simulator build failed: flutter_tools prints it (ios/simulators.dart:473, :575), then cannot start.
+        (
+            "Swift Compiler Error (Xcode): Cannot find 'radius' in scope\n/x/darwin/Plugin.swift:17:8\n\n"
+            "Could not build the application for the simulator.\n",
+            "build", "Swift Compiler Error (Xcode): Cannot find 'radius' in scope",
+        ),
+        # The build finished and the install failed (ios/simulators.dart:230): the launch, not the build.
+        (
+            "Xcode build done.                                           14.2s\n"
+            "Unable to install /x/Runner.app on UDID-1. This is sometimes caused by a malformed plist file:\n",
+            "env", "Unable to start the app on the device",
+        ),
+    ],
+)
+def test_an_ios_run_that_cannot_start_reads_build_only_when_its_build_failed(
+    tmp_path: Path, phase: str, cls: str, reason: str
+) -> None:
+    app = app_with_tests(tmp_path)
+    output = f"{phase}Unable to start the app on the device.\n"
+    runner = RecordingRunner([(("flutter", "test"), done(1, output))])
+
+    outcome = run_plan(plan_of("ios", [KEYBOARD]), IPHONE, record_of(IPHONE, "UDID-1"), FakeBooter(), app,
+                       tmp_path / "item", runner, 60.0, tmp_path / "ports")
+
+    assert (outcome.files[KEYBOARD].cls, outcome.files[KEYBOARD].reason) == (cls, reason)
 
 
 def test_chromedriver_that_never_answers_is_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -718,7 +741,7 @@ def test_a_report_left_by_an_earlier_run_is_never_read(tmp_path: Path) -> None:
     outcome = run_plan(plan_of("macos", [SMOKE]), MAC, record_of(MAC, "mac"), FakeBooter(), app, item, runner, 60.0,
                        tmp_path / "ports")
 
-    assert outcome.files[SMOKE].reason == "no report entry"
+    assert (outcome.files[SMOKE].cls, outcome.files[SMOKE].reason) == ("build", "no test started")
 
 
 # Linux: the docker image around inner_command (M1a-T6).
@@ -775,7 +798,7 @@ def linux_prepared() -> list[Entry]:
     ]
 
 
-def test_linux_build_step_failure_is_env_and_runs_no_test(tmp_path: Path) -> None:
+def test_linux_build_step_failure_reads_build_and_runs_no_test(tmp_path: Path) -> None:
     app = linux_app(tmp_path)
     item = tmp_path / "item"
     cmake = "CMake Error: The current CMakeCache.txt directory /work/test_app/build/linux/arm64/debug is different\n"
@@ -784,18 +807,17 @@ def test_linux_build_step_failure_is_env_and_runs_no_test(tmp_path: Path) -> Non
     outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app, item,
                        runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
 
-    assert outcome.files[KEYBOARD].cls == "env"
-    assert outcome.files[KEYBOARD].reason.startswith("flutter build linux --debug failed (exit 1): CMake Error: ")
-    assert outcome.files[KEYBOARD].reason.endswith(" | Build process failed.")
-    assert outcome.build_argv == ()
+    assert outcome.files[KEYBOARD] == FileResult("build", 0, 1, cmake.strip(), (), integration_run.LINUX_BUILD_LOG)
     launches = [call for call in runner.calls if call[:2] == ("docker", "run")]
     assert len(launches) == 1
     assert launches[0][-1].endswith(f"&& {linux_docker.LINUX_BUILD_COMMAND}; " + 'rc=$?; echo "$rc" > build/'
                                     '.dt-last-exit; exit "$rc"')
+    assert (outcome.build_argv, outcome.build_failed, outcome.argv) == (launches[0], True, ())
+    assert outcome.build_seconds >= 0
     assert "CMakeCache.txt" in (item / integration_run.LINUX_BUILD_LOG).read_text(encoding="utf-8")
 
 
-def test_linux_build_step_that_times_out_is_env_and_removes_the_container(tmp_path: Path) -> None:
+def test_linux_build_step_that_times_out_reads_build_and_removes_the_container(tmp_path: Path) -> None:
     app = linux_app(tmp_path)
     runner = RecordingRunner([
         *linux_prepared(), (("docker", "run"), done(-9, timed_out=True)), (("docker", "rm", "-f"), done(0)),
@@ -804,38 +826,12 @@ def test_linux_build_step_that_times_out_is_env_and_removes_the_container(tmp_pa
     outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
                        tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
 
-    assert outcome.files[KEYBOARD].cls == "env"
-    assert outcome.files[KEYBOARD].reason.startswith("flutter build linux --debug failed (timed out)")
+    assert outcome.files[KEYBOARD].cls == "build"
+    assert outcome.files[KEYBOARD].reason == "flutter build linux --debug timed out"
     assert runner.calls[-1] == tuple(linux_docker.remove_stale_container_argv("linux"))
 
 
-def test_linux_build_step_with_a_dart_error_reads_fail_and_runs_no_test(tmp_path: Path) -> None:
-    app = linux_app(tmp_path)
-    dart = (BUILDS / "linux-dart-error.log").read_text(encoding="utf-8")
-    runner = RecordingRunner([*linux_prepared(), (("docker", "run"), done(1, dart))])
-
-    outcome = run_plan(plan_of("linux", [KEYBOARD, SMOKE]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
-                       tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
-
-    reason = "app build: ../lib/src/layout/column_layout.dart:18:30: Error: Expected ';' after this."
-    assert outcome.files == {file: FileResult("fail", 0, 1, reason, ()) for file in (KEYBOARD, SMOKE)}
-    assert (outcome.argv, outcome.build_argv, outcome.exit_status) == ((), (), None)
-    assert len([call for call in runner.calls if call[:2] == ("docker", "run")]) == 1
-
-
-def test_linux_build_step_reads_a_container_path_in_the_work_root_as_the_repository(tmp_path: Path) -> None:
-    app = linux_app(tmp_path)
-    clang = "/work/test_app/linux/runner/my_application.cc:12:3: error: use of undeclared identifier 'gtk'\n"
-    runner = RecordingRunner([*linux_prepared(), (("docker", "run"), done(1, clang + "Build process failed\n"))])
-
-    outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
-                       tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
-
-    assert outcome.files[KEYBOARD].cls == "fail"
-    assert outcome.files[KEYBOARD].reason == f"app build: {clang.strip()}"
-
-
-def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path: Path) -> None:
+def test_linux_test_file_that_fails_to_load_after_a_green_build_reads_build(tmp_path: Path) -> None:
     app = linux_app(tmp_path)
     item = tmp_path / "item"
     item.mkdir()
@@ -853,8 +849,8 @@ def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path
     outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app, item,
                        runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
 
-    assert outcome.files[KEYBOARD].cls == "fail"
-    assert outcome.exit_status == 1
+    assert outcome.files[KEYBOARD] == FileResult("build", 0, 1, "Error: Expected ';' after this.", ())
+    assert (outcome.exit_status, outcome.build_failed) == (1, False)
     build, test = (call for call in runner.calls if call[:2] == ("docker", "run"))
     assert outcome.build_argv == build
     assert outcome.argv == test

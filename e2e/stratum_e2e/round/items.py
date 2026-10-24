@@ -14,12 +14,15 @@ from stratum_e2e.round.capture import save_device_log, save_screenshot
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.collect import is_integration, item_params, under_tests
 from stratum_e2e.round.integration_run import LOG_NAME
-from stratum_e2e.round.results import Cell, ItemKind
+from stratum_e2e.round.results import Cell, CellClass, ItemKind
 from stratum_e2e.round.state import DEVICE_LOG, TESTS_DIR, RoundState
 
-# The report properties `pytest_runtest_makereport` writes and `_outcome` reads.
+# The report properties `pytest_runtest_makereport` writes and `_outcome` reads; a `build` names its build log.
 CLASS_PROPERTY: Final = "round_class"
 REASON_PROPERTY: Final = "round_reason"
+LOG_PROPERTY: Final = "round_log"
+# The classes a failed phase reads besides `fail`.
+_FAILED_CLASSES: Final[dict[str, CellClass]] = {"env": "env", "build": "build"}
 # When the item's setup began, so its device log starts there.
 SINCE_KEY: Final = pytest.StashKey[datetime]()
 
@@ -59,7 +62,8 @@ def record_item(
     if isinstance(file, str):
         result = state.outcomes.get(target.name, {}).get(file)
         run_dir = state.run_dirs.get((target.name, file))
-        log = state.relative(run_dir / LOG_NAME) if run_dir is not None else ""
+        log_name = result.log if result is not None else LOG_NAME
+        log = state.relative(run_dir / log_name) if run_dir is not None else ""
         if result is not None:
             cell = Cell(result.cls, result.passed, result.runs, result.reason, log)
             state.record(target.name, test, "integration", result.tags, cell)
@@ -78,15 +82,16 @@ def record_item(
 
 
 def _cell(reports: Sequence[pytest.TestReport], log: str) -> Cell | None:
-    """The cell of one run: `env` or `fail` from its first failed phase, `pass`, or `None` for a skipped item.
+    """The cell of one run: `env`, `build`, or `fail` from its first failed phase, `pass`, or `None` for a skipped
+    item. A `build` cell's log is the build log.
 
     An item pytest expected to fail gets its row too, its reason the expectation's: `xfail` when it failed, `xpass`
     when it passed. A strict unexpected pass is a failed phase, so it reads `fail`.
     """
     outcome = _outcome(reports)
     if outcome is not None:
-        cls, reason = outcome
-        return Cell("env" if cls == "env" else "fail", 0, 1, reason, log)
+        cls, reason, outcome_log = outcome
+        return Cell(_FAILED_CLASSES.get(cls, "fail"), 0, 1, reason, outcome_log or log)
     expected = next((report for report in reports if hasattr(report, "wasxfail")), None)
     if expected is not None:
         if expected.skipped:
@@ -97,12 +102,17 @@ def _cell(reports: Sequence[pytest.TestReport], log: str) -> Cell | None:
     return Cell("pass", 1, 1, "", log)
 
 
-def _outcome(reports: Sequence[pytest.TestReport]) -> tuple[str, str] | None:
-    """The class and reason of the first failed phase of one run; `None` when no phase failed."""
+def _outcome(reports: Sequence[pytest.TestReport]) -> tuple[str, str, str] | None:
+    """The class, reason, and own log (empty for none) of the first failed phase of one run; `None` when no phase
+    failed."""
     for report in reports:
         if report.failed:
             properties = dict(report.user_properties)
-            return str(properties.get(CLASS_PROPERTY, "fail")), str(properties.get(REASON_PROPERTY, ""))
+            return (
+                str(properties.get(CLASS_PROPERTY, "fail")),
+                str(properties.get(REASON_PROPERTY, "")),
+                str(properties.get(LOG_PROPERTY, "")),
+            )
     return None
 
 

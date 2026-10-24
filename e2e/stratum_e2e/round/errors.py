@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 
 class CatalogError(ValueError):
     """`e2e/targets.toml` or a round request names something the catalog cannot resolve."""
@@ -15,10 +17,17 @@ class RoundEnvError(RuntimeError):
         self.reason = reason
 
 
-class CompileFailure(Exception):
-    """The code under test does not compile in an app build: a widget failure, so the round reads `fail` with
-    `reason` (`app build: <location> <message>` of the first compiler error in the repo's own source), never `env`."""
+class BuildFailure(Exception):
+    """An app build failed, so the round reads `build`, a class that claims no blame: a build's output cannot say
+    whether the code under test or the machine broke it.
 
-    def __init__(self, reason: str) -> None:
+    `reason` is the output's first error line, `log` the build log, and `argv` and `seconds` the failed command, which
+    the summary records as a build.
+    """
+
+    def __init__(self, reason: str, log: Path, argv: tuple[str, ...], seconds: float) -> None:
         super().__init__(reason)
         self.reason = reason
+        self.log = log
+        self.argv = argv
+        self.seconds = seconds
