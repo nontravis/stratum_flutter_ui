@@ -18,8 +18,12 @@ def skip_reason(markers: set[str], platform: str | None) -> str | None:
 
     A test runs only when --platform names one of its platform markers; a
     platform marker with no --platform also skips, so no e2e test ever runs
-    against a host nobody selected.
+    against a host nobody selected. A `perf` item always skips here: it runs
+    only in a device round (`runs_e2e`), so a command-line `-m` that replaces
+    the default `not perf` never starts the perf build on the legacy path.
     """
+    if "perf" in markers:
+        return "perf runs only in a device round"
     if platform is None:
         return "no --platform given"
     if platform not in markers:

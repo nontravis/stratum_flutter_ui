@@ -25,6 +25,10 @@ def test_skip_reason_web_ignored_without_platform() -> None:
     assert skip_reason({"web", "level2"}, None) == "no --platform given"
 
 
+def test_skip_reason_skips_a_perf_item_even_on_its_platform() -> None:
+    assert skip_reason({"perf", "macos"}, "macos") == "perf runs only in a device round"
+
+
 @pytest.mark.parametrize("platform", sorted(PLATFORMS))
 def test_skip_reason_each_platform(platform: str) -> None:
     assert skip_reason({platform}, platform) is None

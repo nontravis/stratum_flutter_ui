@@ -755,6 +755,16 @@ def test_perf_runs_in_example(pytester: pytest.Pytester, monkeypatch: pytest.Mon
     assert _cells(_summary(pytester))["perf/test_perf_abba.py::test_perf_abba"]["mac"]["class"] == "pass"
 
 
+def test_legacy_run_never_runs_perf_even_when_a_marker_selects_it(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch)
+    result = _round(pytester, "--platform", "macos", "-m", "perf", "-rs")
+    result.assert_outcomes(skipped=1)
+    assert "perf runs only in a device round" in result.stdout.str()
+    assert not _events(root, "run dart")
+
+
 def test_perf_fails_on_a_non_zero_exit(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
     _make_tree(pytester, monkeypatch, scenario={"perf_status": 3})
     result = _round(pytester, "--target", "mac", "-m", "perf")
