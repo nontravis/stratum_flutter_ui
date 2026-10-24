@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from stratum_e2e.round.build_failure import build_failure, error_tail
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 
@@ -30,7 +31,6 @@ _RESOLVE_TIMEOUT_S: Final = 600.0
 _LOCK_KEY: Final = ".dart_tool/.dt-lock-hash"
 _PACKAGE_CONFIG: Final = ".dart_tool/package_config.json"
 _PUBSPEC_FILES: Final = ("pubspec.yaml", "pubspec.lock", "pubspec_overrides.yaml")
-_ERROR_TAIL_LINES: Final = 3
 
 _BUILD_ARGV: Final[dict[tuple[str, bool], tuple[str, ...]]] = {
     ("android", False): ("flutter", "build", "apk", "--debug"),
@@ -140,7 +140,7 @@ def resolve_app_packages(app_dir: Path, package_root: Path, flutter_version: str
         if online.status != 0:
             raise RoundEnvError(
                 f"flutter pub get failed (offline {_exit_text(offline)}, online {_exit_text(online)}): "
-                f"{_error_tail(online.stderr or online.stdout)}"
+                f"{error_tail(online.stderr or online.stdout)}"
             )
     key_file.parent.mkdir(parents=True, exist_ok=True)
     key_file.write_text(_resolution_key(app_dir, package_root, flutter_version), encoding="utf-8")
@@ -180,9 +180,9 @@ def ensure_app_build(
 ) -> AppBuild:
     """Return the app build for `platform`, building it only when its sources changed since the last copy.
 
-    A reused build reports `seconds` 0.0. A failed build, one that leaves no artifact, or a failed git or
-    toolchain query raises `RoundEnvError`; a failed build leaves no copy behind, so a later call never reuses a
-    half build.
+    A reused build reports `seconds` 0.0. A build that fails on a Dart compiler error raises `CompileFailure`
+    (`build_failure`); any other failed build, one that leaves no artifact, or a failed git or toolchain query raises
+    `RoundEnvError`. A failed build leaves no copy behind, so a later call never reuses a half build.
     """
     argv = tuple(build_argv(platform, wasm))
     digest = source_digest(app_dir, package_root, platform, argv, runner)
@@ -198,8 +198,7 @@ def ensure_app_build(
     started = time.monotonic()
     done = runner.run(argv, timeout_s=_BUILD_TIMEOUT_S, cwd=app_dir, log=log)
     if done.status != 0:
-        reason = "timed out" if done.timed_out else f"exit {done.status}"
-        raise RoundEnvError(f"{' '.join(argv)} failed ({reason}): {_error_tail(done.stderr or done.stdout)}")
+        raise build_failure(" ".join(argv), done)
     if not output.exists():
         raise RoundEnvError(f"{' '.join(argv)} produced no {output.relative_to(app_dir).as_posix()}")
 
@@ -226,7 +225,7 @@ def _authored_files(runner: Runner, root: Path, pathspecs: Sequence[str]) -> lis
     argv = ("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", *pathspecs)
     done = runner.run(argv, timeout_s=_QUERY_TIMEOUT_S, cwd=root)
     if done.status != 0:
-        raise RoundEnvError(f"git ls-files in {root} failed (exit {done.status}): {_error_tail(done.stderr)}")
+        raise RoundEnvError(f"git ls-files in {root} failed (exit {done.status}): {error_tail(done.stderr)}")
     names = sorted({name for name in done.stdout.split("\0") if name})
     # A tracked file deleted from disk is still listed; it counts as absent.
     return [root / name for name in names if (root / name).is_file()]
@@ -252,11 +251,5 @@ def _query(runner: Runner, argv: Sequence[str], cwd: Path) -> str:
     """Run a read-only query and return its stdout; a failed query is an environment error."""
     done = runner.run(argv, timeout_s=_QUERY_TIMEOUT_S, cwd=cwd)
     if done.status != 0:
-        raise RoundEnvError(f"{' '.join(argv)} failed (exit {done.status}): {_error_tail(done.stderr or done.stdout)}")
+        raise RoundEnvError(f"{' '.join(argv)} failed (exit {done.status}): {error_tail(done.stderr or done.stdout)}")
     return done.stdout
-
-
-def _error_tail(text: str) -> str:
-    """The last few non-empty lines of `text`, joined on one line."""
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return " | ".join(lines[-_ERROR_TAIL_LINES:])

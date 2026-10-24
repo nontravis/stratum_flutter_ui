@@ -10,7 +10,7 @@ from stratum_e2e.paths import E2E_ROOT
 from stratum_e2e.round.capture import save_device_log
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan
-from stratum_e2e.round.errors import RoundEnvError
+from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.integration_run import FileResult, env_files
 from stratum_e2e.round.linux_docker import flutter_version
 from stratum_e2e.round.runner import Runner
@@ -34,14 +34,25 @@ def _resolve_app(state: RoundState, backends: Backends, target: Target) -> None:
 
 
 def app_build(state: RoundState, backends: Backends, target: Target) -> Path:
-    """The e2e app build of the target's platform; the first target of a platform builds it for the rest."""
+    """The e2e app build of the target's platform; the first target of a platform builds it for the rest.
+
+    A build that fails on the code under test (`CompileFailure`) is kept and raised again for the platform's later
+    items, since the sources do not change within a round; a tool failure is not kept, so the next item builds again.
+    """
     key = (target.platform, target.wasm)
+    failure = state.compile_failures.get(key)
+    if failure is not None:
+        raise failure
     path = state.app_builds.get(key)
     if path is None:
         _resolve_app(state, backends, target)
         round_dir = state.open_round_dir(backends.now)
         log = round_dir.item_dir(target.name, _BUILD_DIR) / "build.log"
-        build = backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
+        try:
+            build = backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
+        except CompileFailure as failed:
+            state.compile_failures[key] = failed
+            raise
         state.recorder.build(target.name, build.argv, build.seconds, build.reused)
         path = state.app_builds[key] = build.path
     return path
@@ -65,8 +76,9 @@ def _run_once(
 ) -> dict[str, FileResult]:
     """Run `plan` once; a launched run is recorded as a build entry (pre-flight F7) and keeps its device log.
 
-    A Linux target builds its app in its own step before its first run of the round, and again after a build that
-    failed; the build is recorded as a build entry too.
+    A Linux target builds its app in its own step before its first run of the round, and again after a build or a
+    launch that failed: the container wipes its native build dir after any failed exit, so the next native build must
+    go through the step, where its failure is classed. The build is recorded as a build entry too.
     """
     target, record = round_target.target, round_target.record
     run_dir = state.open_round_dir(backends.now).item_dir(target.name, plan.key)
@@ -90,6 +102,8 @@ def _run_once(
     if outcome.build_argv:
         state.recorder.build(target.name, outcome.build_argv, outcome.build_seconds, reused=False)
         state.linux_built.add(target.name)
+    if outcome.exit_status not in (None, 0):
+        state.linux_built.discard(target.name)
     if outcome.argv:
         state.recorder.build(target.name, outcome.argv, outcome.seconds, reused=False)
         save_device_log(backends.runner, record, since, run_dir / DEVICE_LOG)

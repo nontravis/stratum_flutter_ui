@@ -42,7 +42,7 @@ from stratum_e2e.round.collect import (
     under_tests,
 )
 from stratum_e2e.round.entry import platform_files
-from stratum_e2e.round.errors import CatalogError, RoundEnvError
+from stratum_e2e.round.errors import CatalogError, CompileFailure, RoundEnvError
 from stratum_e2e.round.integration_run import FileResult
 from stratum_e2e.round.items import (
     CLASS_PROPERTY,
@@ -318,8 +318,8 @@ def pytest_runtest_protocol(item: pytest.Item, nextitem: pytest.Item | None) -> 
 def pytest_runtest_makereport(
     item: pytest.Item, call: pytest.CallInfo[None]
 ) -> Generator[None, pytest.TestReport, pytest.TestReport]:
-    """Class a failed phase `env` when it raised `RoundEnvError`, else `fail`; on an e2e item that ran, keep the device
-    log since setup began and, on failure, a screenshot."""
+    """Class a failed phase `env` when it raised `RoundEnvError`, else `fail` (a `CompileFailure` keeps its own
+    reason); on an e2e item that ran, keep the device log since setup began and, on failure, a screenshot."""
     report = yield
     state = item.config.stash.get(STATE_KEY, None)
     target = item_target(item)
@@ -332,7 +332,7 @@ def pytest_runtest_makereport(
         if isinstance(error, RoundEnvError):
             report.user_properties += [(CLASS_PROPERTY, "env"), (REASON_PROPERTY, error.reason)]
         else:
-            reason = first_line(call.excinfo.exconly())
+            reason = error.reason if isinstance(error, CompileFailure) else first_line(call.excinfo.exconly())
             report.user_properties += [(CLASS_PROPERTY, "fail"), (REASON_PROPERTY, reason)]
     elif report.failed:
         # A phase that failed with no exception, such as a strict unexpected pass (`[XPASS(strict)] <reason>`).

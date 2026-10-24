@@ -106,7 +106,7 @@ from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.app_build import AppBuild
 from stratum_e2e.round.boot import BootRecord
-from stratum_e2e.round.errors import RoundEnvError
+from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.integration_run import LOG_NAME, FileResult, RunOutcome
 from stratum_e2e.round.lane import host_memory_reasons
 from stratum_e2e.round.runner import Completed
@@ -218,6 +218,7 @@ def resolve(app_dir, package_root, flutter_version, runner, log):
 
 
 _build_failures = dict(SCENARIO.get("build_fail", {}))
+_compile_failures = dict(SCENARIO.get("compile_fail", {}))
 
 
 def build(app_dir, package_root, platform, wasm, runner, log):
@@ -225,6 +226,9 @@ def build(app_dir, package_root, platform, wasm, runner, log):
     if _build_failures.get(platform, 0):
         _build_failures[platform] -= 1
         raise RoundEnvError("flutter build failed (exit 1): Gradle daemon died")
+    if _compile_failures.get(platform, 0):
+        _compile_failures[platform] -= 1
+        raise CompileFailure("app build: lib/main.dart:5:3: Error: Method not found: 'runAp'.")
     path = ROOT / f"app-{platform}"
     path.mkdir(exist_ok=True)  # a web build is a folder the static server serves
     return AppBuild(path=path, argv=("flutter", "build", platform), seconds=2.0, reused=False)
@@ -253,7 +257,8 @@ def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_t
         cls = SCENARIO.get("outcomes", {}).get(file, "pass")
         reason = "" if cls == "pass" else f"{file} broke"
         files[file] = FileResult(cls, 1 if cls == "pass" else 0, 1, reason, (f"tag/{Path(file).stem}",))
-    return RunOutcome(argv, 1.5, files, build_argv, 4.0 if build_argv else 0.0)
+    status = 0 if all(result.cls == "pass" for result in files.values()) else 1
+    return RunOutcome(argv, 1.5, files, build_argv, 4.0 if build_argv else 0.0, exit_status=status)
 
 
 @pytest.fixture(scope="session")
@@ -889,6 +894,25 @@ def test_linux_build_that_failed_builds_again_on_the_rerun(
     assert _events(root, "run_plan ") == [
         "run_plan linux entry build", "run_plan linux entry build", "run_plan linux plain_name",
     ]
+
+
+def test_linux_builds_again_after_a_failed_launch(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, scenario={"outcomes": {FILE_A: "fail"}})
+    _round(pytester, "--target", "linux").assert_outcomes(passed=1, failed=1)
+    assert _events(root, "run_plan ") == ["run_plan linux entry build", "run_plan linux plain_name build"]
+
+
+def test_a_compile_failure_in_the_app_build_reads_fail_and_is_built_once(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    second_app = MAC_APP.replace("test_mac_app", "test_mac_app_again")
+    root = _make_tree(pytester, monkeypatch, MAC_APP + second_app, {"compile_fail": {"macos": 99}})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=2, errors=2)
+    assert _events(root, "build ") == ["build macos"]
+    cells = _cells(_summary(pytester))
+    reason = "app build: lib/main.dart:5:3: Error: Method not found: 'runAp'."
+    for test in ("test_e2e.py::test_mac_app", "test_e2e.py::test_mac_app_again"):
+        assert (cells[test]["mac"]["class"], cells[test]["mac"]["reason"]) == ("fail", reason)
 
 
 def test_integration_run_is_recorded_as_a_build_entry(

@@ -19,7 +19,7 @@ from stratum_e2e.round.app_build import (
     resolve_app_packages,
     source_digest,
 )
-from stratum_e2e.round.errors import RoundEnvError
+from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner, SubprocessRunner
 from unit.round_fakes import FakeRunner
 
@@ -480,6 +480,19 @@ def test_failed_build_is_env(tmp_path: Path) -> None:
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
     assert "Gradle task assembleDebug failed" in raised.value.reason
+    assert not (app / "build" / "e2e").exists()
+
+
+def test_failed_build_with_a_dart_error_is_a_compile_failure(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    dart = "lib/main.dart:1:13: Error: Expected a declaration, but got '}'.\n"
+    failed = Completed(("flutter",), 1, dart, "Gradle task assembleDebug failed\n", False)
+    runner = BuildingRunner([(("flutter", "build"), failed)], "android", False)
+
+    with pytest.raises(CompileFailure) as raised:
+        ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+    assert raised.value.reason == "app build: lib/main.dart:1:13: Error: Expected a declaration, but got '}'."
     assert not (app / "build" / "e2e").exists()
 
 

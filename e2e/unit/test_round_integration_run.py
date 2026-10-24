@@ -38,6 +38,7 @@ from stratum_e2e.round.runner import Completed
 from unit.round_fakes import FakeProcess, FakeRunner
 
 REPORTS = Path(__file__).parent / "fixtures" / "round" / "reports"
+BUILDS = Path(__file__).parent / "fixtures" / "round" / "builds"
 INTEGRATION_FIXTURE = Path(__file__).parent / "fixtures" / "round" / "integration_test"
 KEYBOARD = "common/keyboard_visibility_scope_test.dart"
 SMOKE = "smoke/semantics_id_test.dart"
@@ -732,6 +733,7 @@ def test_linux_sequence_checks_packages_builds_and_resets_before_its_launch(tmp_
         ("python3", "-I"), ("docker", "image"), ("docker", "volume"), ("docker", "rm"), ("docker", "run"),
     ]
     assert {result.cls for result in outcome.files.values()} == {"pass"}
+    assert outcome.exit_status == 0
     assert outcome.argv[:2] == ("docker", "run")
     assert f"{app.resolve().parent}:/host:ro" in outcome.argv
     assert "-w" in outcome.argv and outcome.argv[outcome.argv.index("-w") + 1] == "/work/test_app"
@@ -757,9 +759,9 @@ def test_linux_build_step_failure_is_env_and_runs_no_test(tmp_path: Path) -> Non
     outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app, item,
                        runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
 
-    assert outcome.files[KEYBOARD] == FileResult(
-        "env", 0, 1, "flutter build linux failed (exit 1): Build process failed.", ()
-    )
+    assert outcome.files[KEYBOARD].cls == "env"
+    assert outcome.files[KEYBOARD].reason.startswith("flutter build linux --debug failed (exit 1): CMake Error: ")
+    assert outcome.files[KEYBOARD].reason.endswith(" | Build process failed.")
     assert outcome.build_argv == ()
     launches = [call for call in runner.calls if call[:2] == ("docker", "run")]
     assert len(launches) == 1
@@ -778,8 +780,22 @@ def test_linux_build_step_that_times_out_is_env_and_removes_the_container(tmp_pa
                        tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
 
     assert outcome.files[KEYBOARD].cls == "env"
-    assert outcome.files[KEYBOARD].reason == "flutter build linux timed out after 60 s"
+    assert outcome.files[KEYBOARD].reason.startswith("flutter build linux --debug failed (timed out)")
     assert runner.calls[-1] == tuple(linux_docker.remove_stale_container_argv("linux"))
+
+
+def test_linux_build_step_with_a_dart_error_reads_fail_and_runs_no_test(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    dart = (BUILDS / "linux-dart-error.log").read_text(encoding="utf-8")
+    runner = RecordingRunner([*linux_prepared(), (("docker", "run"), done(1, dart))])
+
+    outcome = run_plan(plan_of("linux", [KEYBOARD, SMOKE]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
+                       tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
+
+    reason = "app build: ../lib/src/layout/column_layout.dart:18:30: Error: Expected ';' after this."
+    assert outcome.files == {file: FileResult("fail", 0, 1, reason, ()) for file in (KEYBOARD, SMOKE)}
+    assert (outcome.argv, outcome.build_argv, outcome.exit_status) == ((), (), None)
+    assert len([call for call in runner.calls if call[:2] == ("docker", "run")]) == 1
 
 
 def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path: Path) -> None:
@@ -801,6 +817,7 @@ def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path
                        runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
 
     assert outcome.files[KEYBOARD].cls == "fail"
+    assert outcome.exit_status == 1
     build, test = (call for call in runner.calls if call[:2] == ("docker", "run"))
     assert outcome.build_argv == build
     assert outcome.argv == test

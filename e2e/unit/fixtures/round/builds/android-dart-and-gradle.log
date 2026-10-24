@@ -1,0 +1,17 @@
+Running Gradle task 'assembleDebug'...
+../lib/src/components/common/style/widget_style.dart:41:12: Error: The getter 'colr' isn't defined for the type 'WidgetStyle'.
+ - 'WidgetStyle' is from 'package:stratum_ui/src/components/common/style/widget_style.dart' ('../lib/src/components/common/style/widget_style.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'colr'.
+    return colr;
+           ^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command '/opt/flutter/bin/flutter'' finished with non-zero exit value 1
+
+BUILD FAILED in 14s
+Error: Gradle task assembleDebug failed with exit code 1

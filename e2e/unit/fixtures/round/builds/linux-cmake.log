@@ -1,0 +1,4 @@
+Building Linux application...
+CMake Error: The current CMakeCache.txt directory /work/test_app/build/linux/arm64/debug/CMakeCache.txt is different than the directory /work/example/build/linux/arm64/debug where CMakeCache.txt was created. This may result in binaries being created in the wrong place. If you are not sure, reedit the CMakeCache.txt
+CMake Error: The source "/work/test_app/linux/CMakeLists.txt" does not match the source "/work/example/linux/CMakeLists.txt" used to generate cache.  Re-run cmake with a different source directory.
+Unable to generate build files

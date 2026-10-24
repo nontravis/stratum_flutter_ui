@@ -1,0 +1,9 @@
+Building macOS application...
+lib/main.dart:5:3: Error: Method not found: 'runAp'.
+  runAp(const App());
+  ^^^^^
+Target kernel_snapshot_program failed: Exception
+Command PhaseScriptExecution failed with a nonzero exit code
+** BUILD FAILED **
+
+Error: Build process failed

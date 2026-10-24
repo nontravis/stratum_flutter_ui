@@ -26,7 +26,8 @@ from stratum_e2e.round.android_traps import strip_drive_prefix
 from stratum_e2e.round.boot import Booter, BootRecord
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan, cleanup, write_run_file
-from stratum_e2e.round.errors import RoundEnvError
+from stratum_e2e.round.build_failure import build_failure
+from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 from stratum_e2e.round.wrap_repeat import wrap_text
 
@@ -89,6 +90,7 @@ class RunOutcome:
 
     `argv` is empty and `seconds` 0 when the run never launched (the device, a tool, or a pre-flight check stopped it).
     `build_argv` and `build_seconds` are a Linux run's own app build step, empty when the run had none or it failed.
+    `exit_status` is the launch's exit status, `None` when it never launched.
     """
 
     argv: tuple[str, ...]
@@ -96,6 +98,7 @@ class RunOutcome:
     files: dict[str, FileResult]
     build_argv: tuple[str, ...] = ()
     build_seconds: float = 0.0
+    exit_status: int | None = None
 
 
 @dataclass(frozen=True)
@@ -335,7 +338,8 @@ def run_plan(
     the app in its own container step before the tests (`_build_linux`). A container that timed out or was
     interrupted is removed. It writes the plan's entry right before the launch and `cleanup` removes it after,
     whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
-    A failed preparation or build, a missing command, or `classify_env` classes every file `env` with the reason.
+    A failed preparation or build, a missing command, or `classify_env` classes every file `env` with the reason; a
+    build step that fails on a Dart compiler error classes every file `fail` (`build_failure`).
     Raises `ValueError` for a plan no run covers (`run_argv`) or a repeat prefix with no block to wrap.
     """
     timeout_s = run_timeout_s(plan, per_file_timeout_s)
@@ -366,12 +370,15 @@ def run_plan(
             seconds = time.monotonic() - started
     except RoundEnvError as error:
         return RunOutcome((), 0.0, env_files(plan, error.reason))
+    except CompileFailure as failure:
+        return RunOutcome((), 0.0, _every_file(plan, "fail", failure.reason))
     finally:
         cleanup(app_dir / INTEGRATION_FOLDER)
     output = completed.stdout + completed.stderr
     log = strip_drive_prefix(output) if _drives(target) else output
     (item_dir / LOG_NAME).write_text(log, encoding="utf-8")
-    return RunOutcome(argv, seconds, _files_of(plan, target, argv, completed, log, item_dir), build_argv, build_seconds)
+    files = _files_of(plan, target, argv, completed, log, item_dir)
+    return RunOutcome(argv, seconds, files, build_argv, build_seconds, completed.status)
 
 
 def _launch(
@@ -401,9 +408,9 @@ def _build_linux(
     """Build the Linux app in its own container step and return its command and wall time.
 
     The tests' own launch builds again, but a native build failure (CMake, the toolchain) then reads as a test file
-    that failed to load. This step makes it a tool failure, as design section 9 has it for any failed host build, so a
-    load failure after a green build step keeps reading `fail`. The output goes to `<item_dir>/linux_build.log`.
-    Raises `RoundEnvError` when the build fails or times out.
+    that failed to load. This step classes it through `build_failure`, as the host builds are: a Dart compiler error
+    raises `CompileFailure`, any other failure or a timeout `RoundEnvError`. A load failure after a green build step
+    keeps reading `fail`. The output goes to `<item_dir>/linux_build.log`.
     """
     argv = tuple(
         linux_docker.docker_run_argv(
@@ -416,11 +423,8 @@ def _build_linux(
     seconds = time.monotonic() - started
     output = built.stdout + built.stderr
     (item_dir / LINUX_BUILD_LOG).write_text(output, encoding="utf-8")
-    if built.timed_out:
-        raise RoundEnvError(f"flutter build linux timed out after {timeout_s:.0f} s")
     if built.status != 0:
-        last = next((line.strip() for line in reversed(output.splitlines()) if line.strip()), "no output")
-        raise RoundEnvError(f"flutter build linux failed (exit {built.status}): {last}")
+        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, built)
     return argv, seconds
 
 
@@ -459,8 +463,12 @@ def _files_of(
 
 def env_files(plan: RunPlan, reason: str) -> dict[str, FileResult]:
     """Every file of `plan` classed `env`, with as many runs as a launched run would have had."""
+    return _every_file(plan, "env", reason)
+
+
+def _every_file(plan: RunPlan, cls: Literal["fail", "env"], reason: str) -> dict[str, FileResult]:
     return {
-        file: FileResult("env", 0, plan.repeat if file in plan.wrapped else 1, reason, ()) for file in plan.files
+        file: FileResult(cls, 0, plan.repeat if file in plan.wrapped else 1, reason, ()) for file in plan.files
     }
 
 

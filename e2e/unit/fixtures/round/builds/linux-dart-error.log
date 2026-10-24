@@ -1,0 +1,6 @@
+Building Linux application...
+../lib/src/layout/column_layout.dart:18:30: Error: Expected ';' after this.
+  final int gap = spacing.gap
+                             ^^^
+Target kernel_snapshot_program failed: Exception
+Build process failed
