@@ -188,7 +188,7 @@ def inner_command(files: Sequence[str], plain_name: str | None, sequence: bool) 
 
 
 def linux_pub_gate() -> str:
-    """The in-container script that runs `flutter pub get` unless the worktree's own `.dart_tool` is current.
+    """The in-container script that runs `flutter pub get` unless the target's `.dart_tool` volume is current.
 
     Current means: a package_config exists, every rootUri lies inside the container, and the lock hash equals the one
     stored beside it. Offline against the mounted host pub cache first, then online.
@@ -215,6 +215,12 @@ def container_script(inner: str) -> str:
 def build_volume(target: str) -> str:
     """The named volume holding the target's `build/` folder between rounds."""
     return f"dt-linux-build-{target}"
+
+
+def dart_tool_volume(target: str) -> str:
+    """The named volume holding the target's `.dart_tool` folder, so the container's package config of its own
+    paths never lands in the host checkout, where host builds and runs would read it."""
+    return f"dt-linux-dart-tool-{target}"
 
 
 def home_volume(target: str) -> str:
@@ -245,8 +251,10 @@ def docker_run_argv(
     """The `docker run` argv for one Linux run of the app at `repo_root/app_rel`.
 
     The repo mounts at `/work`, the host pub cache at `/root/.pub-cache`, `item_dir` at `/round` (where the report
-    leaves the container), and the target's build volume at `/work/<app_rel>/build`. A `sequence` also mounts the home
-    volume so its launches share app data. `target` names both volumes, the same name `linux_fresh_volume` removes.
+    leaves the container), the target's build volume at `/work/<app_rel>/build`, and its `.dart_tool` volume at
+    `/work/<app_rel>/.dart_tool`, so the container never writes the host's package state. A `sequence` also mounts the
+    home volume so its launches share app data. `target` names every volume; `linux_fresh_volume` removes the build
+    volume under that name.
     The run carries `ROUND_LABEL` so a stray container is findable.
 
     The caller holds the per-target lane lock, so at most one container named `container` runs; it runs
@@ -278,6 +286,8 @@ def docker_run_argv(
         *home_mount,
         "-v",
         f"{build_volume(target)}:{workdir / 'build'}",
+        "-v",
+        f"{dart_tool_volume(target)}:{workdir / '.dart_tool'}",
         "-v",
         f"{item_dir}:/round",
         "-w",

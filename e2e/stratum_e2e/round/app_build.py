@@ -120,9 +120,9 @@ def resolve_app_packages(app_dir: Path, package_root: Path, flutter_version: str
     checkout's, so a round resolves before its first host run. Current means a package config exists and
     `.dart_tool/.dt-lock-hash` holds the key of `_resolution_key`: the `pubspec.yaml`, `pubspec.lock`, and
     `pubspec_overrides.yaml` of the app and of `package_root` (the package it path-depends on), `flutter_version`, and
-    this folder. The Linux container writes a bare hash beside a config of its own paths, which therefore reads as
-    stale here. The online attempt writes `log`; the offline one writes `<stem>_offline<suffix>` beside it. A resolve
-    that fails both ways raises `RoundEnvError` naming both exits.
+    this folder. The Linux container resolves into a `.dart_tool` volume of its own (`linux_docker.dart_tool_volume`)
+    and never writes this one. The online attempt writes `log`; the offline one writes `<stem>_offline<suffix>` beside
+    it. A resolve that fails both ways raises `RoundEnvError` naming both exits.
     """
     key_file = app_dir / _LOCK_KEY
     key = _resolution_key(app_dir, package_root, flutter_version)

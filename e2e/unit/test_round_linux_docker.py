@@ -158,6 +158,14 @@ def test_docker_run_argv_mounts_repo_and_round_dir(monkeypatch: pytest.MonkeyPat
     assert argv[argv.index("stratum-e2e-linux:3.47.7-abcd1234") + 1 : -1] == ["bash", "-c"]
 
 
+def test_docker_run_argv_keeps_the_container_package_config_off_the_host_dart_tool() -> None:
+    argv = argv_for()
+
+    mounts = [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == "-v"]
+    assert "dt-linux-dart-tool-linux:/work/test_app/.dart_tool" in mounts
+    assert mounts.index("dt-linux-dart-tool-linux:/work/test_app/.dart_tool") > mounts.index("/repo:/work")
+
+
 def test_docker_run_argv_defaults_the_pub_cache_to_the_home_folder(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PUB_CACHE", raising=False)
 
