@@ -158,7 +158,14 @@ class AndroidBooter(Booter):
         taken = {port for port in map(_console_port, attached) if port is not None}
         reservation = reserve_port(*CONSOLE_PORTS, taken, self._port_dir)
         serial = f"{_SERIAL_PREFIX}{reservation.port}"
-        argv = [self._emulator, "-avd", avd, "-port", str(reservation.port), "-no-snapshot-load", *target.emulator_args]
+        # WORKAROUND: Android Emulator 37.2.12's virtio-snd deadlocks holding the QEMU big lock in CoreAudio
+        # and its hang detector kills the emulator (R3 e2e_talkback boot); remove when an emulator release
+        # fixes it.
+        audio_args = () if "-no-audio" in target.emulator_args else ("-no-audio",)
+        argv = [
+            self._emulator, "-avd", avd, "-port", str(reservation.port), "-no-snapshot-load",
+            *audio_args, *target.emulator_args,
+        ]
         record = BootRecord(target=target.name, platform=_PLATFORM, device_id=serial, reused=False, port=reservation)
         try:
             try:

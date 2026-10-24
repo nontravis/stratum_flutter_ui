@@ -5,6 +5,7 @@ from __future__ import annotations
 import socket
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -67,6 +68,96 @@ def test_start_binds_loopback_only(tmp_path: Path) -> None:
     argv = argv_file.read_text().split()
     assert argv[argv.index("--address") + 1] == "127.0.0.1"
     assert server.url.startswith("http://127.0.0.1:")
+
+
+def test_start_writes_output_to_the_log_and_names_it(tmp_path: Path) -> None:
+    log = tmp_path / "round" / "appium.log"
+    bin_path = tmp_path / "fake-appium"
+    bin_path.write_text('#!/bin/sh\necho "server line"\nsleep 30\n')
+    bin_path.chmod(0o755)
+    server = AppiumServer(
+        appium_bin=bin_path,
+        appium_home=tmp_path / "appium-home",
+        port=free_test_port(),
+        android_home=None,
+    )
+    with pytest.raises(AppiumStartError, match=f"port {server.port}.+log: {log}"):
+        server.start(timeout_s=1, log=log)
+    assert server.log_path == log
+    assert log.read_text().startswith("server line")
+
+
+def test_start_without_a_log_discards_output(tmp_path: Path) -> None:
+    bin_path = tmp_path / "fake-appium"
+    bin_path.write_text('#!/bin/sh\necho "server line"\nsleep 30\n')
+    bin_path.chmod(0o755)
+    server = AppiumServer(
+        appium_bin=bin_path,
+        appium_home=tmp_path / "appium-home",
+        port=free_test_port(),
+        android_home=None,
+    )
+    with pytest.raises(AppiumStartError) as caught:
+        server.start(timeout_s=1)
+    assert "log:" not in str(caught.value)
+    assert server.log_path is None
+
+
+def test_start_names_the_log_when_the_server_exits(tmp_path: Path) -> None:
+    log = tmp_path / "round" / "appium.log"
+    bin_path = tmp_path / "fake-appium"
+    bin_path.write_text('#!/bin/sh\necho "boom"\nexit 3\n')
+    bin_path.chmod(0o755)
+    server = AppiumServer(
+        appium_bin=bin_path,
+        appium_home=tmp_path / "appium-home",
+        port=free_test_port(),
+        android_home=None,
+    )
+    with pytest.raises(AppiumStartError, match=f"exited with code 3, log: {log}"):
+        server.start(timeout_s=5, log=log)
+    assert log.read_text() == "boom\n"
+
+
+def test_start_closes_the_log_handle_when_the_spawn_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handles: list[Any] = []
+
+    def failing_popen(*args: Any, **kwargs: Any) -> Any:
+        handles.append(kwargs["stdout"])
+        raise OSError("cannot exec")
+
+    monkeypatch.setattr("stratum_e2e.appium_server.subprocess.Popen", failing_popen)
+    server = AppiumServer(
+        appium_bin=tmp_path / "appium",
+        appium_home=tmp_path / "appium-home",
+        port=free_test_port(),
+        android_home=None,
+    )
+    with pytest.raises(OSError, match="cannot exec"):
+        server.start(log=tmp_path / "appium.log")
+    assert len(handles) == 1
+    assert handles[0].closed
+    assert server.poll() is None
+
+
+def test_poll_reports_none_until_started_and_the_code_after_death(tmp_path: Path) -> None:
+    bin_path = tmp_path / "fake-appium"
+    bin_path.write_text('#!/bin/sh\nexit 7\n')
+    bin_path.chmod(0o755)
+    server = AppiumServer(
+        appium_bin=bin_path,
+        appium_home=tmp_path / "appium-home",
+        port=free_test_port(),
+        android_home=None,
+    )
+    assert server.poll() is None
+    with pytest.raises(AppiumStartError):
+        server.start(timeout_s=5)
+    assert server.poll() == 7
+    server.stop()
+    assert server.poll() is None
 
 
 def free_test_port() -> int:

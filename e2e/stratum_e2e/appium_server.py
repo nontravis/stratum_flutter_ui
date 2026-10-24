@@ -38,6 +38,7 @@ class AppiumServer:
         self.port = port
         self.android_home = android_home
         self._process: subprocess.Popen[bytes] | None = None
+        self.log_path: Path | None = None
 
     @property
     def url(self) -> str:
@@ -52,39 +53,63 @@ class AppiumServer:
             merged["ANDROID_HOME"] = str(self.android_home)
         return merged
 
-    def start(self, timeout_s: float = 60) -> None:
+    def start(self, timeout_s: float = 60, log: Path | None = None) -> None:
         """Spawn the server on loopback only and block until /status answers.
 
-        Raises AppiumStartError naming the port when the server never answers
+        With `log`, the server's output goes there and `log_path` names it; without, it is discarded.
+        Raises AppiumStartError naming the port and the log when the server never answers
         within [timeout_s]; the process is stopped before raising.
         """
-        self._process = subprocess.Popen(
-            [
-                str(self.appium_bin),
-                "server",
-                "--address",
-                LOOPBACK_ADDRESS,
-                "--port",
-                str(self.port),
-            ],
-            env=self.env(),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-        )
+        self.stop()
+        if log is not None:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            self.log_path = log
+            sink = log.open("ab")
+        else:
+            self.log_path = None
+            sink = None
+        try:
+            self._process = subprocess.Popen(
+                [
+                    str(self.appium_bin),
+                    "server",
+                    "--address",
+                    LOOPBACK_ADDRESS,
+                    "--port",
+                    str(self.port),
+                ],
+                env=self.env(),
+                stdout=sink if sink is not None else subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+            )
+        finally:
+            if sink is not None:
+                sink.close()
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if self._process.poll() is not None:
                 raise AppiumStartError(
                     f"appium on port {self.port} exited with code {self._process.returncode}"
+                    + self._log_note()
                 )
             if self._status_ok():
                 return
             time.sleep(POLL_INTERVAL_S)
         self.stop()
         raise AppiumStartError(
-            f"appium on port {self.port} did not answer /status within {timeout_s:g}s"
+            f"appium on port {self.port} did not answer /status within {timeout_s:g}s" + self._log_note()
         )
+
+    def poll(self) -> int | None:
+        """The server's exit code when it has died, else None; None before the first start."""
+        if self._process is None:
+            return None
+        return self._process.poll()
+
+    def _log_note(self) -> str:
+        """The `log:` clause an error names, so a dead server's output is one path away."""
+        return f", log: {self.log_path}" if self.log_path is not None else ""
 
     def stop(self) -> None:
         """Terminate and reap the server; safe to call twice."""

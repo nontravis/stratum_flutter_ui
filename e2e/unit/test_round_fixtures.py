@@ -143,6 +143,8 @@ class FakeRunner:
             stdout = f"List of devices attached\n{SCENARIO['reused_serial']}\tdevice\n\n"
         elif call[-3:] == ("emu", "avd", "name"):
             stdout = f"{SCENARIO['real_android']}\r\nOK\r\n"
+        elif call[-1] == "get-state":
+            stdout = "error: device not found\n" if SCENARIO.get("device_lost") else "device\n"
         elif "ping" in call:
             stdout = "64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms\n"
         elif call[:3] == ("flutter", "--version", "--machine"):
@@ -297,14 +299,25 @@ def round_backends(request):
 
 
 _appium_failures = [SCENARIO.get("appium_fail", 0)]
+_appium_deaths = [SCENARIO.get("appium_die", 0)]
 
 
-def _start(self, timeout_s=60):
+def _start(self, timeout_s=60, log=None):
     """Stands in for the real start under the real `appium_server` getter; fails `appium_fail` times."""
     event("appium start")
+    self.log_path = log
+    self.port = 4723
     if _appium_failures[0]:
         _appium_failures[0] -= 1
         raise AppiumStartError(f"appium on port {self.port} never answered /status")
+
+
+def _poll(self):
+    """Stands in for the real poll: the server dies before the n-th driver item, `appium_die` times."""
+    if _appium_deaths[0]:
+        _appium_deaths[0] -= 1
+        return 1
+    return None
 
 
 def _stop(self):
@@ -312,6 +325,7 @@ def _stop(self):
 
 
 AppiumServer.start = _start
+AppiumServer.poll = _poll
 AppiumServer.stop = _stop
 
 
@@ -1067,6 +1081,97 @@ def test_appium_start_failure_once_is_retried_and_spares_the_next_target(
     cells = _cells(_summary(pytester))
     assert cells["test_e2e.py::test_mac_driver_a"]["mac"]["class"] == "pass"
     assert cells["test_e2e.py::test_android_driver"]["pixel_8"]["class"] == "pass"
+
+
+def test_a_failed_android_item_on_a_lost_device_reads_env(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken = """\
+@pytest.mark.android
+def test_android_broken(round_target, driver):
+    raise AssertionError("widget bug")
+"""
+    root = _make_tree(pytester, monkeypatch, broken, {"device_lost": True})
+    result = _round(pytester, "--target", "pixel_8")
+    result.assert_outcomes(passed=2, failed=1)
+    cell = _cells(_summary(pytester))["test_e2e.py::test_android_broken"]["pixel_8"]
+    assert cell["class"] == "env"
+    assert cell["reason"] == "device lost (adb get-state: error: device not found)"
+
+
+def test_a_failed_android_item_on_a_live_device_stays_fail(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken = """\
+@pytest.mark.android
+def test_android_broken(round_target, driver):
+    raise AssertionError("widget bug")
+"""
+    root = _make_tree(pytester, monkeypatch, broken)
+    result = _round(pytester, "--target", "pixel_8")
+    result.assert_outcomes(passed=2, failed=1)
+    cell = _cells(_summary(pytester))["test_e2e.py::test_android_broken"]["pixel_8"]
+    assert (cell["class"], cell["reason"]) == ("fail", "AssertionError: widget bug")
+
+
+def test_a_dead_appium_restarts_once_then_reads_env_with_the_log(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A server that dies is restarted once; its second death reads `env` naming the round's appium.log.
+
+    The round's one retry of the `env` run then passes, as for any `env`, so the cell reads the retried pass;
+    the first run's log holds the `died again` reason with the log path.
+    """
+    third_driver = """\
+
+@pytest.mark.macos
+def test_mac_driver_c(driver):
+    event("item mac driver_c")
+"""
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS + third_driver, {"appium_die": 2})
+    result = _round(pytester, "--target", "mac")
+    result.assert_outcomes(passed=6)
+    assert _events(root, "appium start") == ["appium start"] * 3
+    item_log = next(
+        path for path in (_round_dirs(pytester)[-1] / "mac").rglob("pytest.log")
+        if "driver_c" in str(path) or "driver%5Fc" in str(path)
+    )
+    first_run = item_log.read_text().split("== run 2")[0]
+    assert "env: appium server did not start: appium on port 4723 died again, log:" in first_run
+    assert "appium.log" in first_run.rsplit("log:", 1)[-1]
+
+
+def test_a_session_whose_appium_died_twice_starts_no_third_server(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After the second death every later `get()` of the session raises `died again` at once, with no start."""
+    getter = """\
+@pytest.mark.macos
+def test_getter_gives_up(round_target, appium_server):
+    from stratum_e2e.appium_server import AppiumStartError
+
+    appium_server()
+    appium_server()
+    for call in ("second death", "after it"):
+        with pytest.raises(AppiumStartError, match="died again"):
+            appium_server()
+        event(f"raised {call}")
+"""
+    root = _make_tree(pytester, monkeypatch, getter, {"appium_die": 2})
+    result = _round(pytester, "--target", "mac")
+    result.assert_outcomes(passed=3)
+    assert _events(root, "appium start") == ["appium start", "appium start"]
+    assert _events(root, "raised ") == ["raised second death", "raised after it"]
+
+
+def test_a_dead_appium_restarts_once_and_the_round_recovers(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"appium_die": 1})
+    result = _round(pytester, "--target", "mac")
+    result.assert_outcomes(passed=5)
+    assert _events(root, "appium start") == ["appium start", "appium start"]
+    assert _cells(_summary(pytester))["test_e2e.py::test_mac_driver_a"]["mac"]["class"] == "pass"
 
 
 def test_each_target_installs_even_on_a_serial_an_earlier_target_used(

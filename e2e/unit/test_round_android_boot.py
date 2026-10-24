@@ -288,7 +288,9 @@ def test_cold_boot_argv_and_record(tmp_path: Path, avd_home: Path, clock: FakeCl
     runner = EmulatorRunner(_cold_boot())
     record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
 
-    spawn = (EMULATOR, "-avd", AVD, "-port", "5556", "-no-snapshot-load", "-gpu", "host", "-memory", "4096")
+    spawn = (
+        EMULATOR, "-avd", AVD, "-port", "5556", "-no-snapshot-load", "-no-audio", "-gpu", "host", "-memory", "4096",
+    )
     assert [call for call in runner.calls if call[0] == EMULATOR] == [spawn]
     assert runner.calls.index(spawn) < runner.calls.index(_on(SERIAL, "get-state"))
     assert (record.target, record.platform, record.device_id) == ("pixel_8", "android", SERIAL)
@@ -298,6 +300,25 @@ def test_cold_boot_argv_and_record(tmp_path: Path, avd_home: Path, clock: FakeCl
     assert record.port.port == 5556
     assert record.settings_applied is True
     record.port.release()
+
+
+def test_cold_boot_carries_no_audio_once_even_when_the_target_lists_it(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    target = Target(
+        name="pixel_8",
+        platform="android",
+        alone=True,
+        avd=AVD,
+        build_mode="profile",
+        emulator_args=("-no-audio", "-gpu", "host"),
+    )
+    runner = EmulatorRunner(_cold_boot())
+    _booter(runner, avd_home, clock).boot(target, tmp_path / "emulator.log")
+
+    spawn = [call for call in runner.calls if call[0] == EMULATOR][0]
+    assert spawn.count("-no-audio") == 1
+    assert spawn[spawn.index("-no-audio") + 1 :] == ("-gpu", "host")
 
 
 def test_running_avd_is_reused_after_rtt_and_gets_no_settings(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:

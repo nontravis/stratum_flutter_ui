@@ -55,6 +55,7 @@ from stratum_e2e.round.items import (
     record_item,
     retryable,
 )
+from stratum_e2e.round.probe import lost_device_reason
 from stratum_e2e.round.results import Recorder
 from stratum_e2e.round.runs import app_build, run_with_retry
 from stratum_e2e.round.state import (
@@ -131,6 +132,18 @@ def pytest_unconfigure(config: pytest.Config) -> None:
 
 def _interrupt(signum: int, frame: FrameType | None) -> NoReturn:
     raise KeyboardInterrupt(f"signal {signum}")
+
+
+def _lost_or_fail(state: RoundState, target: Target, call: pytest.CallInfo[None]) -> tuple[str, str]:
+    """A failed phase's class and reason: `env` naming the probe result when the target's device reads lost, else
+    `fail` with the error's first line."""
+    reason = first_line(call.excinfo.exconly()) if call.excinfo is not None else ""
+    brought_up = state.live.get(target.name)
+    if brought_up is not None and state.backends is not None:
+        probe = lost_device_reason(state.backends.runner, brought_up.record)
+        if probe is not None:
+            return "env", f"device lost ({probe})"
+    return "fail", reason
 
 
 @pytest.fixture(scope="session")
@@ -338,7 +351,8 @@ def pytest_runtest_makereport(
                 (CLASS_PROPERTY, "build"), (REASON_PROPERTY, error.reason), (LOG_PROPERTY, state.relative(error.log)),
             ]
         else:
-            report.user_properties += [(CLASS_PROPERTY, "fail"), (REASON_PROPERTY, first_line(call.excinfo.exconly()))]
+            reason = _lost_or_fail(state, target, call)
+            report.user_properties += [(CLASS_PROPERTY, reason[0]), (REASON_PROPERTY, reason[1])]
     elif report.failed:
         # A phase that failed with no exception, such as a strict unexpected pass (`[XPASS(strict)] <reason>`).
         report.user_properties += [(CLASS_PROPERTY, "fail"), (REASON_PROPERTY, first_line(report.longreprtext))]
