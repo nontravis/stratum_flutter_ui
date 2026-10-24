@@ -65,20 +65,27 @@ def _build_once_more_on_failure(state: RoundState, backends: Backends, target: T
     try:
         return backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
     except BuildFailure as failed:
-        state.recorder.build(target.name, failed.argv, failed.seconds, reused=False)
+        state.recorder.build(target.name, failed.argv, failed.seconds, reused=False, ok=False)
     try:
         return backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
     except BuildFailure as failed:
-        state.recorder.build(target.name, failed.argv, failed.seconds, reused=False)
+        state.recorder.build(target.name, failed.argv, failed.seconds, reused=False, ok=False)
         raise
 
 
 def run_with_retry(
     state: RoundState, backends: Backends, round_target: RoundTarget, plan: RunPlan
 ) -> dict[str, FileResult]:
+    """Run `plan` until its files hold no `env`, each `env` run recorded in the retry ledger until it blocks the
+    target. A run whose every file reads `build` runs once more, plainly and with no ledger record; that second
+    result sticks (design section 10)."""
     name = round_target.target.name
+    rebuilt = False
     while not state.ledger.blocked(name):
         files = _run_once(state, backends, round_target, plan)
+        if not rebuilt and _built_nothing(files):
+            rebuilt = True
+            continue
         if all(result.cls != "env" for result in files.values()):
             return files
         if state.ledger.record_env(name, plan.key) == "block":
@@ -115,15 +122,22 @@ def _run_once(
         build_first=target.platform == "linux" and target.name not in state.linux_built,
     )
     if outcome.build_argv:
-        state.recorder.build(target.name, outcome.build_argv, outcome.build_seconds, reused=False)
+        state.recorder.build(target.name, outcome.build_argv, outcome.build_seconds, reused=False,
+                             ok=not outcome.build_failed)
         if not outcome.build_failed:
             state.linux_built.add(target.name)
     if outcome.exit_status not in (None, 0):
         state.linux_built.discard(target.name)
     if outcome.argv:
-        state.recorder.build(target.name, outcome.argv, outcome.seconds, reused=False)
+        state.recorder.build(target.name, outcome.argv, outcome.seconds, reused=False,
+                             ok=not _built_nothing(outcome.files))
         save_device_log(backends.runner, record, since, run_dir / DEVICE_LOG)
     return outcome.files
+
+
+def _built_nothing(files: dict[str, FileResult]) -> bool:
+    """Whether a run's every file reads `build`: the app was not built, or none of its tests started."""
+    return all(result.cls == "build" for result in files.values())
 
 
 def _flutter_version(state: RoundState, runner: Runner) -> str:

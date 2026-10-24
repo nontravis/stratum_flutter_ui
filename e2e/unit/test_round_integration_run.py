@@ -669,6 +669,35 @@ def test_an_ios_run_that_cannot_start_reads_build_only_when_its_build_failed(
     assert (outcome.files[KEYBOARD].cls, outcome.files[KEYBOARD].reason) == (cls, reason)
 
 
+def test_a_mac_run_whose_build_left_no_executable_reads_build(tmp_path: Path) -> None:
+    # desktop_device.dart:120 prints it after the build, then integration_test_device.dart:67 cannot start the app.
+    app = app_with_tests(tmp_path)
+    output = "Unable to find executable to run\nUnable to start the app on the device.\n"
+    runner = RecordingRunner([(("flutter", "test"), done(1, output))])
+
+    outcome = run_plan(plan_of("macos", [KEYBOARD]), MAC, record_of(MAC, "mac"), FakeBooter(), app,
+                       tmp_path / "item", runner, 60.0, tmp_path / "ports")
+
+    assert outcome.files[KEYBOARD] == FileResult("build", 0, 1, "Unable to find executable to run", ())
+
+
+def test_a_drive_run_whose_app_never_started_after_its_build_is_env(tmp_path: Path) -> None:
+    # drive_service.dart:198: every launch attempt of a built app failed.
+    app = app_with_tests(tmp_path)
+    output = ("Application failed to start on attempt: 2\n"
+              "Application failed to start. Will not run test. Quitting.\n")
+    runner = RecordingRunner([(("flutter", "drive"), done(1, output))])
+
+    outcome = run_plan(plan_of("android", [KEYBOARD], build_mode="profile"), PIXEL_8, record_of(PIXEL_8, "emulator-5556"),
+                       FakeBooter(), app, tmp_path / "item", runner, 60.0, tmp_path / "ports")
+
+    assert outcome.files[KEYBOARD] == FileResult("env", 0, 1, "Application failed to start. Will not run test.", ())
+
+
+def test_a_drive_launch_that_worked_on_its_second_attempt_is_no_env() -> None:
+    assert classify_env("Application failed to start on attempt: 2\n00:05 +1: All tests passed!\n", 0, False) is None
+
+
 def test_chromedriver_that_never_answers_is_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(integration_run, "port_accepts", lambda port: False)
     monkeypatch.setattr(integration_run, "CHROMEDRIVER_WAIT_S", 0.0)

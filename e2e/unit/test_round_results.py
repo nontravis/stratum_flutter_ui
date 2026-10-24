@@ -202,13 +202,17 @@ def test_summary_md_escapes_a_pipe_in_a_test_name(tmp_path: Path) -> None:
 
 def test_summary_json_holds_builds_and_wall_time(tmp_path: Path) -> None:
     rec = _recorder()
+    rec.build("mac", ["flutter", "build", "macos", "--debug"], 3.5, reused=False, ok=False)
     rec.build("mac", ["flutter", "build", "macos", "--debug"], 41.5, reused=False)
     rec.add("mac", "smoke/a_test.dart", "integration", ["us01"], _cell("pass", 1, 1, "", "mac/a/flutter.log"))
     data = json.loads((_write(tmp_path, rec).path / "summary.json").read_text(encoding="utf-8"))
     assert data["round"] == "20261023T120000Z"
     assert (data["mode"], data["repeat"], data["wall_seconds"]) == ("full", 10, 12.5)
     assert data["builds"] == [
-        {"target": "mac", "command": ["flutter", "build", "macos", "--debug"], "seconds": 41.5, "reused": False}
+        {"target": "mac", "command": ["flutter", "build", "macos", "--debug"], "seconds": 3.5, "reused": False,
+         "ok": False},
+        {"target": "mac", "command": ["flutter", "build", "macos", "--debug"], "seconds": 41.5, "reused": False,
+         "ok": True},
     ]
     assert data["rows"] == [
         {

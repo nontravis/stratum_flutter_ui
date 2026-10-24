@@ -38,18 +38,22 @@ RESPONSE_NAME = "integration_response_data.json"
 LOG_NAME = "flutter.log"
 LINUX_BUILD_LOG = "linux_build.log"
 
-# flutter_tools prints one of these when the app build inside `flutter test` failed before any launch: an iOS
-# simulator's build step (`ios/simulators.dart:575`, `:582`, printed by `:473`), which then reports "Unable to start the
-# app on the device." (`test/integration_test_device.dart:67`). The run reads `build`, never the `env` of that line.
+# flutter_tools prints one of these when the app build inside `flutter test` failed or left no app before any launch:
+# an iOS simulator's build step (`ios/simulators.dart:575`, `:582`, printed by `:473`) or a desktop build with no
+# executable (`desktop_device.dart:120`). It then reports "Unable to start the app on the device."
+# (`test/integration_test_device.dart:67`). The run reads `build`, never the `env` of that line.
 BUILD_PHASE_SIGNS = (
     "Could not build the application for the simulator.",
     "Could not find the built application bundle at",
+    "Unable to find executable to run",
 )
 
 # A log line holding one of these never ran a test, so the run is `env`, never `fail` (`scripts/lib/run.sh:31`).
 # `DT_WATCHER:` is left out: the round's own timeout replaces the bash watcher that wrote it.
 ENV_SIGNS = (
     "Unable to start the app on the device",
+    # `flutter drive` after every launch attempt of a built app failed (`drive/drive_service.dart:198`).
+    "Application failed to start. Will not run test.",
     "device offline",
     "ADB exited with exit code",
     "touch up failed, pointer may be held down",

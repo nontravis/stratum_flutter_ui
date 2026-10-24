@@ -143,6 +143,7 @@ class _Build:
     command: tuple[str, ...]
     seconds: float
     reused: bool
+    ok: bool
 
 
 class Recorder:
@@ -169,10 +170,11 @@ class Recorder:
         self._require_target(target)
         self._teardown_failures.setdefault(target, []).append(failure)
 
-    def build(self, target: str, argv: Sequence[str], seconds: float, reused: bool) -> None:
-        """Record one app build or integration run command and how long it took."""
+    def build(self, target: str, argv: Sequence[str], seconds: float, reused: bool, ok: bool = True) -> None:
+        """Record one app build or integration run command, how long it took, and whether it built the app (`ok`
+        false for a failed build, or a run none of whose files started)."""
         self._require_target(target)
-        self._builds.append(_Build(target, tuple(argv), seconds, reused))
+        self._builds.append(_Build(target, tuple(argv), seconds, reused, ok))
 
     def add(self, target: str, test: str, kind: ItemKind, stories: Sequence[str], cell: Cell) -> None:
         """Record one test's result on one target; a second call for the same cell replaces it."""
@@ -243,7 +245,7 @@ class Recorder:
                 for t in self._targets.values()
             ],
             "builds": [
-                {"target": b.target, "command": list(b.command), "seconds": b.seconds, "reused": b.reused}
+                {"target": b.target, "command": list(b.command), "seconds": b.seconds, "reused": b.reused, "ok": b.ok}
                 for b in self._builds
             ],
             "rows": [
