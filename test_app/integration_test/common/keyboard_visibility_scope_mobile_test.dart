@@ -31,10 +31,11 @@ import 'package:stratum_ui/stratum_ui.dart';
 
 import 'support/app_lifecycle.dart';
 import 'support/host_platform.dart';
+import 'support/keyboard_settle.dart';
 import 'support/pump_until.dart';
 
-/// How long [_proveE02] waits for the OS keyboard to settle open, then
-/// closed: one bound for both waits, so a slow IME fails naming the OS
+/// How long one half of E02 bounds the OS keyboard from its request: the
+/// inset wait and the settle loop share it, so a slow IME fails naming the OS
 /// keyboard, never the scope (edges review Minor #4).
 const _keyboardSettleTimeout = Duration(seconds: 10);
 
@@ -42,7 +43,8 @@ const _keyboardSettleTimeout = Duration(seconds: 10);
 /// inset itself has already arrived or cleared (fix-5 item 2.3): short,
 /// because this bound measures the scope reacting to an inset Flutter
 /// already delivered, never fresh IME latency, which `_keyboardSettleTimeout`
-/// covers instead.
+/// covers instead. The settle loop's own per-pass bound is
+/// `support/keyboard_settle.dart`'s [scopeAfterOsEventBound].
 const _scopeAfterOsEventBound = Duration(seconds: 2);
 
 /// How long [_warmUpKeyboard] waits for the OS keyboard to open or close
@@ -163,7 +165,7 @@ Future<void> _warmUpKeyboard(WidgetTester tester, List<bool> builds) async {
   final opened = await pumpUntil(
     tester,
     () => tester.view.viewInsets.bottom > 0,
-    timeout: _warmUpTimeout,
+    budget: _warmUpTimeout,
   );
   debugPrint(
     'KV-DIAG warm-up open ms='
@@ -183,7 +185,7 @@ Future<void> _warmUpKeyboard(WidgetTester tester, List<bool> builds) async {
   final closed = await pumpUntil(
     tester,
     () => tester.view.viewInsets.bottom == 0,
-    timeout: _warmUpTimeout,
+    budget: _warmUpTimeout,
   );
   debugPrint(
     'KV-DIAG warm-up close ms='
@@ -241,34 +243,9 @@ bool _everyBuildFlips(bool before, List<bool> window) {
   return true;
 }
 
-/// Waits until the scope has built [expected] as the plugin's last report and
-/// no build is pending, so a half of E02 ends on the OS's final state and a
-/// "hidden" report one frame behind its event never crosses the split between
-/// the open and the close half.
-///
-/// Never fails on its own: both waits are bounded by
-/// [_scopeAfterOsEventBound], and [_expectScopeFollowedOs] names what it saw.
-Future<void> _settleScope(
-  WidgetTester tester,
-  List<bool> builds,
-  List<bool> osEvents, {
-  required bool expected,
-}) async {
-  await pumpUntil(
-    tester,
-    () =>
-        osEvents.isNotEmpty &&
-        osEvents.last == expected &&
-        builds.last == expected,
-    timeout: _scopeAfterOsEventBound,
-  );
-  await tester.pump();
-  await pumpUntil(
-    tester,
-    () => !tester.binding.hasScheduledFrame,
-    timeout: _scopeAfterOsEventBound,
-  );
-}
+// Each half settles through `support/keyboard_settle.dart`'s
+// `settleKeyboardScope` (host proof: `test/integration_support/
+// keyboard_settle_test.dart`), so an interim OS report never ends it.
 
 /// Asserts the scope followed the OS's own reports across one half (open or
 /// close) of E02: [window] holds the builds of that half, [osEvents] the
@@ -361,6 +338,7 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
 
   final showRequestedAt = DateTime.now();
   _keyboardRequestedAt = showRequestedAt;
+  final showRequestStopwatch = Stopwatch()..start();
   await _requestShowKeyboard(tester);
 
   var insetOpenLogged = false;
@@ -374,7 +352,7 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
       );
     }
     return hasInset;
-  }, timeout: _keyboardSettleTimeout);
+  }, budget: _keyboardSettleTimeout);
   expect(
     insetOpened,
     isTrue,
@@ -386,7 +364,7 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
   final opened = await pumpUntil(
     tester,
     () => builds.length > beforeOpen && builds.last,
-    timeout: _scopeAfterOsEventBound,
+    budget: _scopeAfterOsEventBound,
   );
   expect(
     opened,
@@ -395,7 +373,14 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
         'the scope did not read open within '
         '${_scopeAfterOsEventBound.inSeconds}s of the OS inset arriving',
   );
-  await _settleScope(tester, builds, osEvents, expected: true);
+  await settleKeyboardScope(
+    tester,
+    builds,
+    osEvents,
+    expected: true,
+    stopwatch: showRequestStopwatch,
+    budget: _keyboardSettleTimeout,
+  );
   final beforeClose = builds.length;
   final osEventsBeforeClose = osEvents.length;
   _expectScopeFollowedOs(
@@ -408,6 +393,7 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
 
   final closeRequestedAt = DateTime.now();
   _keyboardRequestedAt = closeRequestedAt;
+  final closeRequestStopwatch = Stopwatch()..start();
   FocusManager.instance.primaryFocus?.unfocus();
 
   var insetClosedLogged = false;
@@ -421,7 +407,7 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
       );
     }
     return noInset;
-  }, timeout: _keyboardSettleTimeout);
+  }, budget: _keyboardSettleTimeout);
   expect(
     insetClosed,
     isTrue,
@@ -433,7 +419,7 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
   final closed = await pumpUntil(
     tester,
     () => builds.length > beforeClose && !builds.last,
-    timeout: _scopeAfterOsEventBound,
+    budget: _scopeAfterOsEventBound,
   );
   expect(
     closed,
@@ -442,7 +428,14 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
         'the scope did not read closed within '
         '${_scopeAfterOsEventBound.inSeconds}s of the OS inset clearing',
   );
-  await _settleScope(tester, builds, osEvents, expected: false);
+  await settleKeyboardScope(
+    tester,
+    builds,
+    osEvents,
+    expected: false,
+    stopwatch: closeRequestStopwatch,
+    budget: _keyboardSettleTimeout,
+  );
   _expectScopeFollowedOs(
     half: 'close',
     before: true,

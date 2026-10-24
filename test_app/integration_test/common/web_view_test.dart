@@ -223,7 +223,7 @@ void main() {
       final started = await pumpUntil(
         tester,
         () => recorder.starts.isNotEmpty || recorder.errors.isNotEmpty,
-        timeout: const Duration(seconds: 45),
+        budget: const Duration(seconds: 45),
         interval: const Duration(milliseconds: 16),
       );
       if (started && spinner.evaluate().isEmpty) {
@@ -234,7 +234,7 @@ void main() {
           await pumpUntil(
             tester,
             () => recorder.starts.isEmpty || recorder.finishes.isNotEmpty,
-            timeout: const Duration(seconds: 45),
+            budget: const Duration(seconds: 45),
           );
       await _checkpoint(binding, tester, 'a_url');
       expect(

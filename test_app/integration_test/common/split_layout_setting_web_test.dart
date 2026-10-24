@@ -178,7 +178,7 @@ void main() {
       final reachedDone = await pumpUntil(
         tester,
         () => latestState is StratumSplashDone<void>,
-        timeout: const Duration(seconds: 10),
+        budget: const Duration(seconds: 10),
       );
       expect(
         reachedDone,
@@ -198,7 +198,7 @@ void main() {
       final reported = await pumpUntil(
         tester,
         () => reports.isNotEmpty,
-        timeout: const Duration(seconds: 10),
+        budget: const Duration(seconds: 10),
       );
       expect(
         reported,

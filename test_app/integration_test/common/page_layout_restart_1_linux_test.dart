@@ -94,7 +94,7 @@ void main() {
         final loaded = await pumpUntil(
           tester,
           () => leftPane.evaluate().isNotEmpty,
-          timeout: const Duration(seconds: 10),
+          budget: const Duration(seconds: 10),
         );
         expect(
           loaded,
@@ -122,7 +122,7 @@ void main() {
         final landed = await pumpUntil(
           tester,
           () => find.text('stored left width: 300').evaluate().isNotEmpty,
-          timeout: const Duration(seconds: 10),
+          budget: const Duration(seconds: 10),
         );
         expect(
           landed,

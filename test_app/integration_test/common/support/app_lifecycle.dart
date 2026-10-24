@@ -70,7 +70,7 @@ Future<void> waitForResumed(
   final resumed = await pumpUntil(
     tester,
     () => currentState() == AppLifecycleState.resumed,
-    timeout: timeout,
+    budget: timeout,
   );
   if (!resumed) {
     fail('the app window never gained focus: lifecycleState=${currentState()}');
