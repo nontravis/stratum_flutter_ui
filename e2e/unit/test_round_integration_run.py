@@ -16,7 +16,7 @@ from stratum_e2e.round import integration_run, linux_docker
 from stratum_e2e.round.android_host import reserve_port
 from stratum_e2e.round.boot import BootRecord
 from stratum_e2e.round.catalog import Target
-from stratum_e2e.round.entry import ROUND_FOLDER, RunPlan
+from stratum_e2e.round.entry import ENTRY_PREFIX, RunPlan
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.integration_run import (
     CHROME_APP,
@@ -46,7 +46,7 @@ WEB_VIEW = "common/web_view_test.dart"
 RESTART_1 = "common/page_layout_restart_1_linux_test.dart"
 RESTART_2 = "common/page_layout_restart_2_linux_test.dart"
 REPEAT_PREFIX = "co01_02/us03/s1"
-ENTRY_FILE = Path("integration_test/.round/x_test.dart")
+ENTRY_FILE = Path(f"integration_test/{ENTRY_PREFIX}x_test.dart")
 ITEM = Path("/round/item")
 
 PIXEL_2 = Target(name="pixel_2", platform="android", build_mode="debug")
@@ -573,13 +573,13 @@ def test_run_plan_returns_the_outcome_with_argv_and_seconds(tmp_path: Path) -> N
     launch = runner.launch()
     assert outcome.argv == launch["argv"]
     assert outcome.argv[:2] == ("flutter", "test")
-    assert outcome.argv[2].startswith(f"integration_test/{ROUND_FOLDER}/macos_none-0000abcd")
+    assert outcome.argv[2].startswith(f"integration_test/{ENTRY_PREFIX}macos_none-0000abcd")
     assert launch["cwd"] == app
     assert outcome.seconds >= 0
     assert set(outcome.files) == {KEYBOARD, SMOKE}
     assert outcome.files[KEYBOARD].cls == "fail"
     assert booter.readied == ["mac"]
-    assert not (app / "integration_test" / ROUND_FOLDER).exists()
+    assert not list((app / "integration_test").glob(f"{ENTRY_PREFIX}*"))
 
 
 def test_run_timeout_scales_with_the_files_in_the_plan(tmp_path: Path) -> None:
@@ -814,7 +814,7 @@ def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path
     app = linux_app(tmp_path)
     item = tmp_path / "item"
     item.mkdir()
-    entry = "/work/test_app/integration_test/.round/linux_none-0000abcd_test.dart"
+    entry = f"/work/test_app/integration_test/{ENTRY_PREFIX}linux_none-0000abcd_test.dart"
     report = suite_report({entry: [(f"loading {entry}", "error")]})
     runner = RecordingRunner(
         [

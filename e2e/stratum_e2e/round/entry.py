@@ -8,7 +8,6 @@ plan's files (`write_run_file`) right before running it, since two plans may sha
 from __future__ import annotations
 
 import hashlib
-import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -18,7 +17,9 @@ from typing import Literal
 from stratum_e2e.round.catalog import RunSequence, Target
 from stratum_e2e.round.wrap_repeat import dart_string, sibling_path, wrap_file
 
-ROUND_FOLDER = ".round"
+# An entry sits in `integration_test/` itself, beside the files it imports: a web run roots `org-dartlang-app:///` at
+# the entry's own folder (flutter_tools `resident_web_runner.dart`), so an import that climbs above it never resolves.
+ENTRY_PREFIX = "dt_round_"
 _WRAPPED_PREFIX = ".dt_"
 _LINUX_ONLY_SUFFIX = "_linux_test.dart"
 _TEST_SUFFIX = "_test.dart"
@@ -96,12 +97,13 @@ class RunPlan:
 def platform_files(integration_dir: Path, platform: str) -> list[str]:
     """Returns the sorted paths, relative to `integration_dir`, of the `_test.dart` files `platform` runs.
 
-    A `*_linux_test.dart` file counts on `linux` only; the round folder and wrapped siblings never count.
+    A `*_linux_test.dart` file counts on `linux` only; a round entry and a wrapped sibling never count.
     """
     found: list[str] = []
     for path in integration_dir.rglob(f"*{_TEST_SUFFIX}"):
         relative = path.relative_to(integration_dir)
-        if any(part.startswith(".") for part in relative.parts) or not path.is_file():
+        hidden = any(part.startswith(".") for part in relative.parts)
+        if hidden or relative.name.startswith(ENTRY_PREFIX) or not path.is_file():
             continue
         if relative.name.endswith(_LINUX_ONLY_SUFFIX) and platform != "linux":
             continue
@@ -137,7 +139,7 @@ def plan_runs(
 def entry_source(plan: RunPlan) -> str:
     """Returns the Dart text of `plan`'s entry: each file as a group named by its path, with a per-file result map."""
     imports = "\n".join(
-        f"import '../{_import_path(plan, relative)}' as f{index};" for index, relative in enumerate(plan.files)
+        f"import '{_import_path(plan, relative)}' as f{index};" for index, relative in enumerate(plan.files)
     )
     groups = "\n".join(
         _GROUP_TEMPLATE.format(path=dart_string(relative), index=index) for index, relative in enumerate(plan.files)
@@ -146,7 +148,8 @@ def entry_source(plan: RunPlan) -> str:
 
 
 def write_run_file(plan: RunPlan, integration_dir: Path) -> Path:
-    """Writes `plan`'s wrapped siblings and its entry under `integration_dir`, and returns the entry's path.
+    """Writes `plan`'s wrapped siblings and its entry (`<ENTRY_PREFIX><platform>_<key>_test.dart` in
+    `integration_dir` itself) under `integration_dir`, and returns the entry's path.
 
     Raises `ValueError` for a sequence: its files run directly, one launch each, never through an entry.
     """
@@ -154,18 +157,16 @@ def write_run_file(plan: RunPlan, integration_dir: Path) -> Path:
         raise ValueError(f"a sequence runs its files directly and has no entry file: {', '.join(plan.files)}")
     for relative, prefixes in plan.wrapped.items():
         wrap_file(integration_dir / relative, prefixes, plan.repeat)
-    entry = integration_dir / ROUND_FOLDER / f"{plan.platform}_{plan.key}{_TEST_SUFFIX}"
-    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry = integration_dir / f"{ENTRY_PREFIX}{plan.platform}_{plan.key}{_TEST_SUFFIX}"
     entry.write_text(entry_source(plan), encoding="utf-8")
     return entry
 
 
 def cleanup(integration_dir: Path) -> None:
-    """Removes the round folder and every wrapped sibling under `integration_dir`."""
-    shutil.rmtree(integration_dir / ROUND_FOLDER, ignore_errors=True)
-    for sibling in integration_dir.rglob(f"{_WRAPPED_PREFIX}*"):
-        if sibling.is_file():
-            sibling.unlink()
+    """Removes every round entry and wrapped sibling under `integration_dir`."""
+    for generated in (*integration_dir.glob(f"{ENTRY_PREFIX}*"), *integration_dir.rglob(f"{_WRAPPED_PREFIX}*")):
+        if generated.is_file():
+            generated.unlink()
 
 
 def _target_plans(

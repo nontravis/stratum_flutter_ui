@@ -10,6 +10,7 @@ import pytest
 
 from stratum_e2e.round.catalog import RunSequence, Target
 from stratum_e2e.round.entry import (
+    ENTRY_PREFIX,
     RunPlan,
     cleanup,
     entry_source,
@@ -57,17 +58,16 @@ def test_platform_files_skip_linux_only_off_linux() -> None:
     assert {RESTART_1, RESTART_2, SYSTEM_STYLE_LINUX} <= set(linux)
 
 
-def test_platform_files_never_list_the_round_folder_or_a_wrapped_sibling(tmp_path: Path) -> None:
+def test_platform_files_never_list_a_round_entry_or_a_wrapped_sibling(tmp_path: Path) -> None:
     folder = tmp_path / "integration_test"
     shutil.copytree(FIXTURE, folder)
-    (folder / ".round").mkdir()
-    (folder / ".round" / "android_none-12345678_test.dart").write_text("void main() {}\n", encoding="utf-8")
+    (folder / f"{ENTRY_PREFIX}android_none-12345678_test.dart").write_text("void main() {}\n", encoding="utf-8")
     (folder / "common" / ".dt_web_view_test_x10_test.dart").write_text("void main() {}\n", encoding="utf-8")
 
     files = platform_files(folder, "linux")
 
     assert len(files) == 9
-    assert not any(".round" in f or ".dt_" in f for f in files)
+    assert not any(ENTRY_PREFIX in f or ".dt_" in f for f in files)
 
 
 def test_android_full_makes_three_entries() -> None:
@@ -120,7 +120,7 @@ def test_fast_runs_the_block_unwrapped() -> None:
     (pixel_8_entry,) = plans["pixel_8"]
     assert pixel_8_entry.wrapped == {}
     assert WEB_VIEW in pixel_8_entry.files
-    assert f"import '../{WEB_VIEW}' as f" in entry_source(pixel_8_entry)
+    assert f"import '{WEB_VIEW}' as f" in entry_source(pixel_8_entry)
     assert plans["small_phone"][0] is pixel_8_entry
 
 
@@ -133,8 +133,8 @@ def test_repeat_flag_sets_the_wrap_count(tmp_path: Path) -> None:
 
     assert (folder / "common" / ".dt_web_view_test_x20.dart").is_file()
     source = entry_source(pixel_8_entry)
-    assert "import '../common/.dt_web_view_test_x20.dart' as f" in source
-    assert f"import '../{WEB_VIEW}'" not in source
+    assert "import 'common/.dt_web_view_test_x20.dart' as f" in source
+    assert f"import '{WEB_VIEW}'" not in source
     assert path.is_file()
 
 
@@ -257,7 +257,7 @@ def test_a_wrapped_file_is_grouped_by_its_original_path() -> None:
     source = entry_source(plan)
 
     assert "group('common/web_view_test.dart'" in source
-    assert "'../common/.dt_web_view_test_x10.dart'" in source
+    assert "import 'common/.dt_web_view_test_x10.dart'" in source
 
 
 def test_entry_records_results_for_drive() -> None:
@@ -305,7 +305,7 @@ def test_a_path_is_escaped_in_the_group_name() -> None:
     assert "group('odd/it\\'s_\\$x_test.dart'" in source
 
 
-def test_write_run_file_names_the_entry_by_platform_and_key(tmp_path: Path) -> None:
+def test_write_run_file_puts_the_entry_beside_the_files_it_imports(tmp_path: Path) -> None:
     folder = tmp_path / "integration_test"
     shutil.copytree(FIXTURE, folder)
     (plan,) = plan_runs("android", [Target(name="p", platform="android", build_mode="debug")],
@@ -313,7 +313,8 @@ def test_write_run_file_names_the_entry_by_platform_and_key(tmp_path: Path) -> N
 
     path = write_run_file(plan, folder)
 
-    assert path == folder / ".round" / f"android_{plan.key}_test.dart"
+    # A web run roots `org-dartlang-app:///` at the entry's own folder, so an import may never climb above it.
+    assert path == folder / f"{ENTRY_PREFIX}android_{plan.key}_test.dart"
     assert path.read_text(encoding="utf-8") == entry_source(plan)
 
 
@@ -326,7 +327,7 @@ def test_a_sequence_has_no_entry_file(tmp_path: Path) -> None:
         write_run_file(alone, tmp_path)
 
 
-def test_cleanup_removes_round_folder_and_siblings(tmp_path: Path) -> None:
+def test_cleanup_removes_the_entry_and_siblings(tmp_path: Path) -> None:
     folder = tmp_path / "integration_test"
     shutil.copytree(FIXTURE, folder)
     (pixel_8_entry,) = _plans(10)["pixel_8"]
@@ -337,7 +338,7 @@ def test_cleanup_removes_round_folder_and_siblings(tmp_path: Path) -> None:
 
     cleanup(folder)
 
-    assert not (folder / ".round").exists()
+    assert not entry.exists()
     assert not sibling.exists()
     assert sorted(path.relative_to(folder).as_posix() for path in folder.rglob("*.dart")) == sorted(
         platform_files(folder, "linux"),

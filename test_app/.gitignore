@@ -48,5 +48,5 @@ app.*.map.json
 .widget_preview/
 
 # e2e round: generated entry files and wrapped repeat siblings
-integration_test/.round/
+integration_test/dt_round_*
 integration_test/**/.dt_*
