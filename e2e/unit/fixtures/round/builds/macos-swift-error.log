@@ -1,0 +1,10 @@
+Building macOS application...
+/Users/dev/NTD OS/stratum_ui/darwin/stratum_ui/Sources/stratum_ui/StratumUiPlugin.swift:18:9: error: cannot find 'radius' in scope
+        radius.probe()
+        ^~~~~~
+** BUILD FAILED **
+
+The following build commands failed:
+	SwiftCompile normal arm64 Compiling\ StratumUiPlugin.swift (in target 'stratum_ui' from project 'stratum_ui')
+(1 failure)
+Error: Build process failed

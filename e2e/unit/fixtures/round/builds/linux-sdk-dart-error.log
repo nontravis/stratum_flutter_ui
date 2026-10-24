@@ -1,0 +1,7 @@
+Building Linux application...
+ERROR: ../../opt/flutter/packages/flutter/lib/src/widgets/framework.dart:5874:12: Error: The method 'debugFillDiagnostics' isn't defined for the type 'Element'.
+ERROR:  - 'Element' is from 'package:flutter/src/widgets/framework.dart' ('../../opt/flutter/packages/flutter/lib/src/widgets/framework.dart').
+ERROR:     return debugFillDiagnostics();
+ERROR:            ^^^^^^^^^^^^^^^^^^^^
+ERROR: Target kernel_snapshot_program failed: Exception
+Build process failed

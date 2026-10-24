@@ -496,6 +496,16 @@ def test_failed_build_with_a_dart_error_is_a_compile_failure(tmp_path: Path) -> 
     assert not (app / "build" / "e2e").exists()
 
 
+def test_failed_build_with_a_dart_error_outside_the_package_is_env(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    sdk = tmp_path / "flutter" / "packages" / "flutter" / "lib" / "src" / "widgets" / "framework.dart"
+    failed = Completed(("flutter",), 1, f"{sdk}:12:3: Error: Expected ';' after this.\n", "", False)
+    runner = BuildingRunner([(("flutter", "build"), failed)], "android", False)
+
+    with pytest.raises(RoundEnvError, match=r"flutter build apk --debug"):
+        ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
+
+
 def test_failed_rebuild_drops_the_stale_copy(tmp_path: Path) -> None:
     app, package = make_tree(tmp_path)
     failed = Completed(("flutter",), 1, "", "boom\n", False)

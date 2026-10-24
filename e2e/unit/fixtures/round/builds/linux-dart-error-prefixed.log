@@ -1,0 +1,6 @@
+Building Linux application...                                   
+ERROR: lib/main.dart:13:23: Error: A value of type 'String' can't be assigned to a variable of type 'int'.
+ERROR:   final int n2Probe = 'n2';
+ERROR:                       ^
+ERROR: Target kernel_snapshot_program failed: Exception
+Build process failed

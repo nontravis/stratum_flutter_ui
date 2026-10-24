@@ -798,6 +798,18 @@ def test_linux_build_step_with_a_dart_error_reads_fail_and_runs_no_test(tmp_path
     assert len([call for call in runner.calls if call[:2] == ("docker", "run")]) == 1
 
 
+def test_linux_build_step_reads_a_container_path_in_the_work_root_as_the_repository(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    clang = "/work/test_app/linux/runner/my_application.cc:12:3: error: use of undeclared identifier 'gtk'\n"
+    runner = RecordingRunner([*linux_prepared(), (("docker", "run"), done(1, clang + "Build process failed\n"))])
+
+    outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
+                       tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
+
+    assert outcome.files[KEYBOARD].cls == "fail"
+    assert outcome.files[KEYBOARD].reason == f"app build: {clang.strip()}"
+
+
 def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path: Path) -> None:
     app = linux_app(tmp_path)
     item = tmp_path / "item"

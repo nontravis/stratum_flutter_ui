@@ -26,7 +26,7 @@ from stratum_e2e.round.android_traps import strip_drive_prefix
 from stratum_e2e.round.boot import Booter, BootRecord
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan, cleanup, write_run_file
-from stratum_e2e.round.build_failure import build_failure
+from stratum_e2e.round.build_failure import BuildSite, build_failure
 from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 from stratum_e2e.round.wrap_repeat import wrap_text
@@ -339,7 +339,7 @@ def run_plan(
     interrupted is removed. It writes the plan's entry right before the launch and `cleanup` removes it after,
     whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
     A failed preparation or build, a missing command, or `classify_env` classes every file `env` with the reason; a
-    build step that fails on a Dart compiler error classes every file `fail` (`build_failure`).
+    build step that fails on a compiler error in the repo's own source classes every file `fail` (`build_failure`).
     Raises `ValueError` for a plan no run covers (`run_argv`) or a repeat prefix with no block to wrap.
     """
     timeout_s = run_timeout_s(plan, per_file_timeout_s)
@@ -408,9 +408,10 @@ def _build_linux(
     """Build the Linux app in its own container step and return its command and wall time.
 
     The tests' own launch builds again, but a native build failure (CMake, the toolchain) then reads as a test file
-    that failed to load. This step classes it through `build_failure`, as the host builds are: a Dart compiler error
-    raises `CompileFailure`, any other failure or a timeout `RoundEnvError`. A load failure after a green build step
-    keeps reading `fail`. The output goes to `<item_dir>/linux_build.log`.
+    that failed to load. This step classes it through `build_failure`, as the host builds are: a compiler error in the
+    repo's own source, a container path under `linux_docker.WORK_ROOT` read as the same path under `linux.repo_root`,
+    raises `CompileFailure`; any other failure or a timeout raises `RoundEnvError`. A load failure after a green build
+    step keeps reading `fail`. The output goes to `<item_dir>/linux_build.log`.
     """
     argv = tuple(
         linux_docker.docker_run_argv(
@@ -424,7 +425,8 @@ def _build_linux(
     output = built.stdout + built.stderr
     (item_dir / LINUX_BUILD_LOG).write_text(output, encoding="utf-8")
     if built.status != 0:
-        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, built)
+        site = BuildSite(linux.repo_root, linux_docker.WORK_ROOT / linux.app_rel, mount=linux_docker.WORK_ROOT)
+        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, built, site)
     return argv, seconds
 
 

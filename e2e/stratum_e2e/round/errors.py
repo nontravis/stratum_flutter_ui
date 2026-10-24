@@ -17,7 +17,7 @@ class RoundEnvError(RuntimeError):
 
 class CompileFailure(Exception):
     """The code under test does not compile in an app build: a widget failure, so the round reads `fail` with
-    `reason` (`app build: <the first Dart compiler error>`), never `env`."""
+    `reason` (`app build: <location> <message>` of the first compiler error in the repo's own source), never `env`."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)

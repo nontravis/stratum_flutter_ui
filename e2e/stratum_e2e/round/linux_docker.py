@@ -52,6 +52,8 @@ SYNC_EXCLUDES = (
 SYNC_FAILED_SIGN = "dt: source sync failed"
 # The inner command of a Linux run's own app build step, before its tests (`integration_run`).
 LINUX_BUILD_COMMAND = "flutter build linux --debug"
+# Where the container sees the target's work copy of the repo.
+WORK_ROOT = PurePosixPath("/work")
 
 _BUILD_TIMEOUT_S = 3600.0
 _REPORT_PATH = "/round/report.json"
@@ -302,7 +304,7 @@ def docker_run_argv(
     app = PurePosixPath(app_rel)
     if app.is_absolute() or ".." in app.parts:
         raise ValueError(f"app_rel must stay inside the repo, got {app_rel!r}")
-    workdir = PurePosixPath("/work") / app
+    workdir = WORK_ROOT / app
     home_mount = ["-v", f"{home_volume(target)}:/root/.local/share"] if sequence else []
     return [
         "docker",
@@ -316,7 +318,7 @@ def docker_run_argv(
         "-v",
         f"{repo_root}:/host:ro",
         "-v",
-        f"{source_volume(target)}:/work",
+        f"{source_volume(target)}:{WORK_ROOT}",
         "-v",
         f"{host_pub_cache(os.environ, Path.home())}:/root/.pub-cache",
         *home_mount,

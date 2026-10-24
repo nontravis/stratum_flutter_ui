@@ -17,10 +17,10 @@ import shutil
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Final
 
-from stratum_e2e.round.build_failure import build_failure, error_tail
+from stratum_e2e.round.build_failure import BuildSite, build_failure, error_tail
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 
@@ -180,9 +180,10 @@ def ensure_app_build(
 ) -> AppBuild:
     """Return the app build for `platform`, building it only when its sources changed since the last copy.
 
-    A reused build reports `seconds` 0.0. A build that fails on a Dart compiler error raises `CompileFailure`
-    (`build_failure`); any other failed build, one that leaves no artifact, or a failed git or toolchain query raises
-    `RoundEnvError`. A failed build leaves no copy behind, so a later call never reuses a half build.
+    A reused build reports `seconds` 0.0. A build that fails on a compiler error in `package_root`'s own source raises
+    `CompileFailure` (`build_failure`); any other failed build, one that leaves no artifact, or a failed git or
+    toolchain query raises `RoundEnvError`. A failed build leaves no copy behind, so a later call never reuses a half
+    build.
     """
     argv = tuple(build_argv(platform, wasm))
     digest = source_digest(app_dir, package_root, platform, argv, runner)
@@ -198,7 +199,7 @@ def ensure_app_build(
     started = time.monotonic()
     done = runner.run(argv, timeout_s=_BUILD_TIMEOUT_S, cwd=app_dir, log=log)
     if done.status != 0:
-        raise build_failure(" ".join(argv), done)
+        raise build_failure(" ".join(argv), done, BuildSite(package_root, PurePosixPath(app_dir)))
     if not output.exists():
         raise RoundEnvError(f"{' '.join(argv)} produced no {output.relative_to(app_dir).as_posix()}")
 
