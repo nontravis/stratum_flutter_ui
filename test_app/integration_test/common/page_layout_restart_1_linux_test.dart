@@ -9,12 +9,13 @@
 // width, sets 300 px through the fixture's own button, and waits for that
 // write to land in the real store before ending.
 // `page_layout_restart_2_linux_test.dart` starts the app again and checks the
-// first frame already shows 300 px. Both files are one sequence, app data
-// kept between them, run in the Linux container the e2e round owns:
+// first frame already shows 300 px. Both files are one sequence: one
+// `flutter test` per file, in this order, app data kept between them (one
+// desktop `flutter test` run cannot launch a second file,
+// flutter/flutter#101031). Run in the Linux container the e2e round owns:
 //
-//   flutter test --no-uninstall \
-//     integration_test/common/page_layout_restart_1_linux_test.dart \
-//     integration_test/common/page_layout_restart_2_linux_test.dart -d linux
+//   flutter test integration_test/common/page_layout_restart_1_linux_test.dart -d linux
+//   flutter test integration_test/common/page_layout_restart_2_linux_test.dart -d linux
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';

@@ -10,12 +10,12 @@
 // `page_layout_restart_1_linux_test.dart` is launch 1, and must run
 // immediately before this file in the same lane, app data kept between them;
 // alone this file fails naming that. Resets the Stratum settings at the end,
-// so the next round starts clean. Runs in the Linux container the e2e
-// round owns:
+// so the next round starts clean. Each file is its own `flutter test` run (one
+// desktop run cannot launch a second file, flutter/flutter#101031), in the
+// Linux container the e2e round owns:
 //
-//   flutter test --no-uninstall \
-//     integration_test/common/page_layout_restart_1_linux_test.dart \
-//     integration_test/common/page_layout_restart_2_linux_test.dart -d linux
+//   flutter test integration_test/common/page_layout_restart_1_linux_test.dart -d linux
+//   flutter test integration_test/common/page_layout_restart_2_linux_test.dart -d linux
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';

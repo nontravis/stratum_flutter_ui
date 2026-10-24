@@ -55,8 +55,11 @@ LINUX_BUILD_COMMAND = "flutter build linux --debug"
 # Where the container sees the target's work copy of the repo.
 WORK_ROOT = PurePosixPath("/work")
 
+# The per-test report a run writes into the item dir, which the container sees at `/round`.
+REPORT_NAME = "report.json"
+
 _BUILD_TIMEOUT_S = 3600.0
-_REPORT_PATH = "/round/report.json"
+_ROUND_MOUNT = PurePosixPath("/round")
 
 # pkg-config module -> Debian dev package. A module outside it is reported `unknown module` and never checked.
 LINUX_MODULE_PACKAGES: Mapping[str, str] = {
@@ -194,7 +197,7 @@ def ensure_image(runner: Runner, target: Target, flutter_version: str) -> str:
     return tag
 
 
-def inner_command(files: Sequence[str], plain_name: str | None, sequence: bool) -> str:
+def inner_command(files: Sequence[str], plain_name: str | None, report_name: str = REPORT_NAME) -> str:
     """The `flutter test` line the container runs under xvfb; the per-test report lands in the mounted `/round`.
 
     Raises `ValueError` for no files: `flutter test` with none would run the whole `test/` folder.
@@ -205,12 +208,10 @@ def inner_command(files: Sequence[str], plain_name: str | None, sequence: bool) 
         "xvfb-run flutter test",
         *(shlex.quote(name) for name in files),
         "-d linux --no-pub --reporter expanded",
-        f"--file-reporter json:{_REPORT_PATH}",
+        f"--file-reporter {shlex.quote(f'json:{_ROUND_MOUNT / report_name}')}",
     ]
     if plain_name is not None:
         parts.append(f"--plain-name {shlex.quote(plain_name)}")
-    if sequence:
-        parts.append("--no-uninstall")
     return " ".join(parts)
 
 
@@ -290,8 +291,8 @@ def docker_run_argv(
     `flutter pub get`, the build, and `flutter test` run, so the container never writes the host tree. Each app
     folder keeps its own `build/` and `.dart_tool/` at its own path in that volume. The host pub cache mounts at
     `/root/.pub-cache`, and `item_dir` at `/round`, the one mount a run's results leave through (the report). A
-    `sequence` also mounts the home volume so its launches share app data. `target` names every volume.
-    The run carries `ROUND_LABEL` so a stray container is findable.
+    `sequence` also mounts the home volume so the separate runs of its files share app data. `target` names every
+    volume. The run carries `ROUND_LABEL` so a stray container is findable.
 
     The caller holds the per-target lane lock, so at most one container named `container` runs; it runs
     `remove_stale_container_argv(target)` first when a killed round may have left one, and passes

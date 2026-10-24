@@ -12,7 +12,7 @@ from stratum_e2e.round.capture import save_device_log
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan
 from stratum_e2e.round.errors import BuildFailure, RoundEnvError
-from stratum_e2e.round.integration_run import FileResult, env_files
+from stratum_e2e.round.integration_run import FileResult, Launch, env_files
 from stratum_e2e.round.linux_docker import flutter_version
 from stratum_e2e.round.runner import Runner
 from stratum_e2e.round.state import BLOCKED, DEVICE_LOG, Backends, RoundState, RoundTarget
@@ -100,7 +100,8 @@ def _run_once(
 
     A Linux target builds its app in its own step before its first run of the round, and again after a build or a
     launch that failed: the container wipes its native build dir after any failed exit, so the next native build must
-    go through the step, where its failure is classed. The build is recorded as a build entry too.
+    go through the step, where its failure is classed. The build is recorded as a build entry too. A run of several
+    launches (a Linux sequence) records one build entry per launch, each with its own command and seconds.
     """
     target, record = round_target.target, round_target.record
     run_dir = state.open_round_dir(backends.now).item_dir(target.name, plan.key)
@@ -129,8 +130,8 @@ def _run_once(
     if outcome.exit_status not in (None, 0):
         state.linux_built.discard(target.name)
     if outcome.argv:
-        state.recorder.build(target.name, outcome.argv, outcome.seconds, reused=False,
-                             ok=not _built_nothing(outcome.files))
+        for launch in outcome.launches or (Launch(outcome.argv, outcome.seconds, not _built_nothing(outcome.files)),):
+            state.recorder.build(target.name, launch.argv, launch.seconds, reused=False, ok=launch.ok)
         save_device_log(backends.runner, record, since, run_dir / DEVICE_LOG)
     return outcome.files
 

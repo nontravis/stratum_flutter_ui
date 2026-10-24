@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import shutil
 import subprocess
@@ -243,21 +244,22 @@ def test_run_argv_per_platform() -> None:
     linux = plan_of("linux", [KEYBOARD])
     assert run_argv(linux, LINUX, [ENTRY_FILE], "linux", ITEM, None, linux=image) == linux_docker.docker_run_argv(
         image.tag, Path("/repo"), "test_app", ITEM,
-        linux_docker.inner_command([ENTRY_FILE.as_posix()], None, sequence=False),
+        linux_docker.inner_command([ENTRY_FILE.as_posix()], None),
         linux_docker.container_name("linux"), False, "linux",
     )
 
 
-def test_run_argv_passes_a_sequence_its_files_and_keeps_the_app() -> None:
+def test_run_argv_runs_a_linux_sequence_file_with_its_report_and_the_shared_home() -> None:
     sequence = plan_of("linux", [RESTART_1, RESTART_2], kind="sequence")
-    files = [Path("integration_test", RESTART_1), Path("integration_test", RESTART_2)]
+    second = Path("integration_test", RESTART_2)
     image = LinuxRun(tag="t", repo_root=Path("/repo"), app_rel="test_app")
 
-    argv = run_argv(sequence, LINUX, files, "linux", ITEM, None, linux=image)
+    argv = run_argv(sequence, LINUX, [second], "linux", ITEM, None, linux=image, report_name="report.2.json")
 
     assert argv[-1] == linux_docker.container_script(
-        linux_docker.inner_command([path.as_posix() for path in files], None, sequence=True)
+        linux_docker.inner_command([second.as_posix()], None, "report.2.json")
     )
+    assert "--no-uninstall" not in argv[-1]
     home = argv.index(f"{linux_docker.home_volume('linux')}:/root/.local/share")
     assert argv[home - 1] == "-v"
     mac_sequence = run_argv(plan_of("macos", [KEYBOARD, SMOKE], kind="sequence"), MAC,
@@ -902,38 +904,160 @@ def linux_app(tmp_path: Path) -> Path:
     return app
 
 
-def test_linux_sequence_checks_packages_builds_and_resets_before_its_launch(tmp_path: Path) -> None:
+class PerLaunchRunner(RecordingRunner):
+    """A RecordingRunner that writes the next entry of `per_launch` after each launch, so a sequence's runs leave
+    one report each."""
+
+    def __init__(self, script: Sequence[Entry], per_launch: Sequence[Mapping[Path, str]]) -> None:
+        super().__init__(script)
+        self._per_launch = list(per_launch)
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout_s: float | None = None,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        log: Path | None = None,
+    ) -> Completed:
+        answer = super().run(argv, timeout_s=timeout_s, cwd=cwd, env=env, log=log)
+        if tuple(argv[:2]) == ("docker", "run") and self._per_launch:
+            for path, text in self._per_launch.pop(0).items():
+                path.write_text(text, encoding="utf-8")
+        return answer
+
+
+def sequence_report(file: str, name: str, result: str = "success") -> str:
+    return suite_report({f"/work/test_app/integration_test/{file}": [(f"fo10/us01/s2: {name}", result)]})
+
+
+def sequence_prepared() -> list[Entry]:
+    return [
+        (("python3", "-I", "-c"), done(0, "module flutter_secure_storage_linux libsecret-1\n")),
+        (("docker", "image", "inspect"), done(0)),
+        (("docker", "volume", "rm", "-f"), done(0)),
+        (("docker", "rm", "-f"), done(0)),
+    ]
+
+
+def run_sequence(
+    tmp_path: Path, launches: Sequence[Completed], reports: Sequence[Mapping[str, str]]
+) -> tuple[integration_run.RunOutcome, PerLaunchRunner, Path, Path]:
+    """Run the restart pair on Linux; launch `n` answers `launches[n]` and leaves the reports of `reports[n]`."""
     app = linux_app(tmp_path)
     item = tmp_path / "item"
     item.mkdir()
-    report = suite_report({
-        f"/work/test_app/integration_test/{RESTART_1}": [("fo10/us01/s2: launch 1 stores", "success")],
-        f"/work/test_app/integration_test/{RESTART_2}": [("fo10/us01/s2: launch 2 restarts", "success")],
-    })
-    runner = RecordingRunner(
-        [
-            (("python3", "-I", "-c"), done(0, "module flutter_secure_storage_linux libsecret-1\n")),
-            (("docker", "image", "inspect"), done(0)),
-            (("docker", "volume", "rm", "-f"), done(0)),
-            (("docker", "rm", "-f"), done(0)),
-            (("docker", "run"), done(0)),
-        ],
-        {item / "report.json": report},
+    runner = PerLaunchRunner(
+        [*sequence_prepared(), *((("docker", "run"), answer) for answer in launches)],
+        [{item / name: text for name, text in launch.items()} for launch in reports],
     )
+    outcome = run_plan(plan_of("linux", [RESTART_1, RESTART_2], kind="sequence"), LINUX, record_of(LINUX, "linux"),
+                       FakeBooter(), app, item, runner, 60.0, tmp_path / "ports", flutter_version="3.47.7")
+    return outcome, runner, app, item
+
+
+def test_linux_sequence_runs_one_flutter_test_per_file_sharing_the_home_volume(tmp_path: Path) -> None:
+    outcome, runner, app, item = run_sequence(
+        tmp_path,
+        [done(0, "launch 1 output"), done(0, "launch 2 output")],
+        [{"report.1.json": sequence_report(RESTART_1, "launch 1 stores")},
+         {"report.2.json": sequence_report(RESTART_2, "launch 2 restarts")}],
+    )
+
+    assert [call[:2] for call in runner.calls] == [
+        ("python3", "-I"), ("docker", "image"), ("docker", "volume"), ("docker", "rm"), ("docker", "run"),
+        ("docker", "run"),
+    ]
+    first, second = (call for call in runner.calls if call[:2] == ("docker", "run"))
+    assert f"integration_test/{RESTART_1}" in first[-1] and f"integration_test/{RESTART_2}" not in first[-1]
+    assert f"integration_test/{RESTART_2}" in second[-1] and f"integration_test/{RESTART_1}" not in second[-1]
+    assert "json:/round/report.1.json" in first[-1] and "json:/round/report.2.json" in second[-1]
+    home = f"{linux_docker.home_volume('linux')}:/root/.local/share"
+    assert home in first and home in second
+    assert all("--no-uninstall" not in call[-1] for call in (first, second))
+    assert f"{app.resolve().parent}:/host:ro" in outcome.argv
+    assert outcome.argv == second and outcome.exit_status == 0
+    assert [launch.argv for launch in outcome.launches] == [first, second]
+    assert all(launch.ok for launch in outcome.launches)
+    assert sum(launch.seconds for launch in outcome.launches) == pytest.approx(outcome.seconds)
+    assert outcome.files[RESTART_1] == FileResult("pass", 1, 1, "", ("fo10/us01/s2",), "flutter.1.log")
+    assert outcome.files[RESTART_2] == FileResult("pass", 1, 1, "", ("fo10/us01/s2",), "flutter.2.log")
+    assert (item / "flutter.1.log").read_text(encoding="utf-8") == "launch 1 output"
+    assert (item / "flutter.2.log").read_text(encoding="utf-8") == "launch 2 output"
+
+
+def test_linux_sequence_judges_each_file_from_its_own_report(tmp_path: Path) -> None:
+    outcome, _, _, _ = run_sequence(
+        tmp_path,
+        [done(0), done(1)],
+        [{"report.1.json": sequence_report(RESTART_1, "launch 1 stores")},
+         {"report.2.json": sequence_report(RESTART_2, "launch 2 restarts", "failure")}],
+    )
+
+    assert outcome.files[RESTART_1].cls == "pass"
+    assert outcome.files[RESTART_2].cls == "fail"
+    assert outcome.files[RESTART_2].reason == "failed: fo10/us01/s2: launch 2 restarts"
+    assert outcome.files[RESTART_2].log == "flutter.2.log"
+    assert outcome.exit_status == 1
+
+
+def test_linux_sequence_file_that_cannot_launch_reads_env_for_that_file_only(tmp_path: Path) -> None:
+    outcome, _, _, _ = run_sequence(
+        tmp_path,
+        [done(0), done(1, "Unable to start the app on the device.\n")],
+        [{"report.1.json": sequence_report(RESTART_1, "launch 1 stores")}],
+    )
+
+    assert outcome.files[RESTART_1].cls == "pass"
+    assert outcome.files[RESTART_2].cls == "env"
+    assert outcome.files[RESTART_2].reason == "Unable to start the app on the device"
+
+
+@pytest.mark.parametrize(
+    ("first_launch", "first_report", "cls"),
+    [
+        (done(1), sequence_report(RESTART_1, "launch 1 stores", "failure"), "fail"),
+        (done(1, "device offline\n"), "", "env"),
+    ],
+)
+def test_linux_sequence_skips_the_files_after_one_that_did_not_pass(
+    tmp_path: Path, first_launch: Completed, first_report: str, cls: str
+) -> None:
+    outcome, runner, _, _ = run_sequence(
+        tmp_path, [first_launch], [{"report.1.json": first_report}] if first_report else []
+    )
+
+    launches = [call for call in runner.calls if call[:2] == ("docker", "run")]
+    assert len(launches) == 1 and f"integration_test/{RESTART_1}" in launches[0][-1]
+    assert outcome.files[RESTART_1].cls == cls
+    assert outcome.files[RESTART_2] == FileResult(
+        cls, 0, 1, f"not run: {RESTART_1} did not pass ({cls})", (), "flutter.1.log"
+    )
+    assert outcome.exit_status == 1
+
+
+def test_linux_sequence_never_reads_a_report_an_earlier_run_left(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    item = tmp_path / "item"
+    item.mkdir()
+    (item / "report.1.json").write_text(sequence_report(RESTART_1, "launch 1 stores"), encoding="utf-8")
+    runner = RecordingRunner([*sequence_prepared(), (("docker", "run"), done(0))])
 
     outcome = run_plan(plan_of("linux", [RESTART_1, RESTART_2], kind="sequence"), LINUX, record_of(LINUX, "linux"),
                        FakeBooter(), app, item, runner, 60.0, tmp_path / "ports", flutter_version="3.47.7")
 
-    assert [call[:2] for call in runner.calls] == [
-        ("python3", "-I"), ("docker", "image"), ("docker", "volume"), ("docker", "rm"), ("docker", "run"),
-    ]
-    assert {result.cls for result in outcome.files.values()} == {"pass"}
-    assert outcome.exit_status == 0
-    assert outcome.argv[:2] == ("docker", "run")
-    assert f"{app.resolve().parent}:/host:ro" in outcome.argv
-    assert "-w" in outcome.argv and outcome.argv[outcome.argv.index("-w") + 1] == "/work/test_app"
-    assert "--no-uninstall" in outcome.argv[-1]
-    assert f"integration_test/{RESTART_1} integration_test/{RESTART_2}" in outcome.argv[-1]
+    assert (outcome.files[RESTART_1].cls, outcome.files[RESTART_1].reason) == ("build", "no test started")
+    assert not (item / "report.1.json").exists()
+
+
+def test_linux_sequence_split_carries_its_workaround_comment() -> None:
+    source = inspect.getsource(integration_run._run_linux_sequence)
+
+    assert (
+        "WORKAROUND: flutter/flutter#101031 (one desktop log reader per flutter test run); remove when\n"
+        "    # flutter/flutter#101031 is closed and the Flutter version floor in the lane includes it"
+    ) in source
 
 
 def linux_prepared() -> list[Entry]:

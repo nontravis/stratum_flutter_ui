@@ -106,7 +106,7 @@ def test_failed_build_is_an_env_error() -> None:
 
 
 def test_inner_command_runs_xvfb_flutter_test() -> None:
-    command = inner_command(["common/a_linux_test.dart"], None, False)
+    command = inner_command(["common/a_linux_test.dart"], None)
 
     assert command == (
         "xvfb-run flutter test common/a_linux_test.dart -d linux --no-pub --reporter expanded "
@@ -115,21 +115,17 @@ def test_inner_command_runs_xvfb_flutter_test() -> None:
 
 
 def test_inner_command_quotes_plain_name() -> None:
-    command = inner_command(["a_test.dart"], "group B, native only", False)
+    command = inner_command(["a_test.dart"], "group B, native only")
 
     assert command.endswith("--plain-name 'group B, native only'")
     assert "--no-uninstall" not in command
 
 
-def test_sequence_inner_command_keeps_the_app() -> None:
-    command = inner_command(
-        ["page_layout_restart_1_linux_test.dart", "page_layout_restart_2_linux_test.dart"], None, True
-    )
+def test_inner_command_writes_the_report_it_is_given() -> None:
+    command = inner_command(["a_linux_test.dart"], None, "report.2.json")
 
-    assert command.endswith("--no-uninstall")
-    assert command.index("page_layout_restart_1_linux_test.dart") < command.index(
-        "page_layout_restart_2_linux_test.dart"
-    )
+    assert command.endswith("--file-reporter json:/round/report.2.json")
+    assert "--no-uninstall" not in command
 
 
 def argv_for(*, sequence: bool = False, inner: str = "echo hi") -> list[str]:
@@ -367,7 +363,7 @@ def test_dockerfile_moved_under_e2e() -> None:
 
 def test_inner_command_without_files_is_refused() -> None:
     with pytest.raises(ValueError, match="at least one test file"):
-        inner_command([], None, False)
+        inner_command([], None)
 
 
 @pytest.mark.parametrize("field", ["repo_root", "item_dir"])

@@ -9,6 +9,7 @@ command goes through a `Runner`, so a unit test swaps in `unit/round_fakes.py::F
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import os
 import re
@@ -33,9 +34,12 @@ from stratum_e2e.round.wrap_repeat import wrap_text
 
 DRIVER = "test_driver/integration_test.dart"
 INTEGRATION_FOLDER = "integration_test"
-REPORT_NAME = "report.json"
+REPORT_NAME = linux_docker.REPORT_NAME
 RESPONSE_NAME = "integration_response_data.json"
 LOG_NAME = "flutter.log"
+# A Linux sequence's file number `n` writes its own report and log (`_run_linux_sequence`).
+SEQUENCE_REPORT = "report.{}.json"
+SEQUENCE_LOG = "flutter.{}.log"
 LINUX_BUILD_LOG = "linux_build.log"
 
 # flutter_tools prints one of these when the app build inside `flutter test` failed or left no app before any launch:
@@ -103,12 +107,24 @@ class FileResult:
 
 
 @dataclass(frozen=True)
+class Launch:
+    """One launched command of a run: its argv, wall time, and whether it ran the app (`ok` false when none of its
+    tests started, a `build` result)."""
+
+    argv: tuple[str, ...]
+    seconds: float
+    ok: bool
+
+
+@dataclass(frozen=True)
 class RunOutcome:
     """One run of a plan: the command it ran, its wall time, and one result per file.
 
     `argv` is empty and `seconds` 0 when the run never launched (the device, a tool, or a pre-flight check stopped it).
     `build_argv` and `build_seconds` are a Linux run's own app build step, empty when the run had none; `build_failed`
     says that step failed. `exit_status` is the launch's exit status, `None` when it never launched.
+    A run of several launches (a Linux sequence) lists each in `launches`; its `argv` is then the last launch's
+    command and `seconds` the sum of all, so a reader of the commands uses `launches`.
     """
 
     argv: tuple[str, ...]
@@ -118,6 +134,7 @@ class RunOutcome:
     build_seconds: float = 0.0
     exit_status: int | None = None
     build_failed: bool = False
+    launches: tuple[Launch, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -177,11 +194,13 @@ def run_argv(
     driver_port: int | None,
     *,
     linux: LinuxRun | None = None,
+    report_name: str = REPORT_NAME,
 ) -> list[str]:
     """The command of design section 9's run table that runs `run_files` for `plan` on `target`.
 
     `run_files` are relative to the app folder: the plan's entry file, or a sequence's own files in order (a sequence
     has no entry). `driver_port` is the chromedriver port of a web run; `linux` is the image of a Linux run.
+    `report_name` is the per-test report's file in `item_dir`, one per launch when a sequence runs a file at a time.
     Raises `ValueError` for what no row covers: an unknown platform or Android build mode, `--plain-name` or more than
     one file on `flutter drive`, a web run with no driver port, a Linux run with no `LinuxRun`.
     """
@@ -192,7 +211,7 @@ def run_argv(
         if linux is None:
             raise ValueError(f"a linux run needs its LinuxRun (image tag, repo root, app folder): {target.name}")
         sequence = plan.kind == "sequence"
-        inner = linux_docker.inner_command(files, plan.plain_name, sequence)
+        inner = linux_docker.inner_command(files, plan.plain_name, report_name)
         container = linux_docker.container_name(target.name)
         return linux_docker.docker_run_argv(
             linux.tag, linux.repo_root, linux.app_rel, item_dir, inner, container, sequence, target.name
@@ -218,7 +237,7 @@ def run_argv(
     device = "macos" if target.platform == "macos" else device_id
     argv = [
         "flutter", "test", *files, "-d", device, "--no-pub", "--reporter", "expanded",
-        "--file-reporter", f"json:{item_dir / REPORT_NAME}",
+        "--file-reporter", f"json:{item_dir / report_name}",
     ]
     if plan.plain_name is not None:
         argv += ["--plain-name", plan.plain_name]
@@ -365,7 +384,8 @@ def run_plan(
     Readies the device (`booter.before_file`), then the platform: a web run checks Chrome (a readable version, and
     `CHROME_WASMGC_FLOOR` for `wasm`), then holds a chromedriver on a port reserved in `port_dir` for the run; a Linux
     run checks the plugin packages, then builds or reuses the image (from `flutter_version`, read here when the caller
-    has none), resets a sequence's home volume, and removes a stale container. With `build_first`, a Linux run builds
+    has none), resets a sequence's home volume, and removes a stale container. A Linux sequence runs one container run
+    per file (`_run_linux_sequence`); every other plan is one launch. With `build_first`, a Linux run builds
     the app in its own container step before the tests (`_build_linux`). A container that timed out or was
     interrupted is removed. It writes the plan's entry right before the launch and `cleanup` removes it after,
     whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
@@ -377,7 +397,7 @@ def run_plan(
     timeout_s = run_timeout_s(plan, per_file_timeout_s)
     item_dir = item_dir.absolute()
     item_dir.mkdir(parents=True, exist_ok=True)
-    for stale in (REPORT_NAME, RESPONSE_NAME):
+    for stale in (REPORT_NAME, RESPONSE_NAME, *(path.name for path in item_dir.glob(SEQUENCE_REPORT.format("*")))):
         (item_dir / stale).unlink(missing_ok=True)
     try:
         with contextlib.ExitStack() as stack:
@@ -394,6 +414,11 @@ def run_plan(
                 if build_first:
                     build_argv, build_seconds = _build_linux(runner, linux, target, app_dir, item_dir,
                                                              per_file_timeout_s)
+            if linux is not None and plan.kind == "sequence":
+                sequence = _run_linux_sequence(
+                    plan, target, linux, record.device_id, app_dir, item_dir, runner, per_file_timeout_s
+                )
+                return dataclasses.replace(sequence, build_argv=build_argv, build_seconds=build_seconds)
             argv = tuple(run_argv(plan, target, _run_files(plan, app_dir), record.device_id, item_dir, driver_port,
                                   linux=linux))
             env = {"FLUTTER_TEST_OUTPUTS_DIR": str(item_dir)} if _drives(target) else None
@@ -412,6 +437,57 @@ def run_plan(
     (item_dir / LOG_NAME).write_text(log, encoding="utf-8")
     files = _files_of(plan, target, argv, completed, log, item_dir)
     return RunOutcome(argv, seconds, files, build_argv, build_seconds, completed.status)
+
+
+def _run_linux_sequence(
+    plan: RunPlan,
+    target: Target,
+    linux: LinuxRun,
+    device_id: str,
+    app_dir: Path,
+    item_dir: Path,
+    runner: Runner,
+    per_file_timeout_s: float,
+) -> RunOutcome:
+    """Run each file of a Linux sequence as its own `flutter test` container run, in order, and judge each from its own
+    report (`report.<n>.json`) and log (`flutter.<n>.log`).
+
+    The runs share the target's home volume, so launch 1's stored state reaches launch 2. A file whose run did not
+    pass stops the sequence: each later file reads the failed file's class, a reason naming it, and its log. The
+    outcome lists every launch in `launches`; `argv` is the last launch's command, `seconds` the sum of all runs,
+    and `exit_status` the first non-zero exit, else 0 (`None` when no run launched).
+    """
+    # WORKAROUND: flutter/flutter#101031 (one desktop log reader per flutter test run); remove when
+    # flutter/flutter#101031 is closed and the Flutter version floor in the lane includes it
+    files: dict[str, FileResult] = {}
+    argv: tuple[str, ...] = ()
+    seconds = 0.0
+    launches: list[Launch] = []
+    status: int | None = None
+    stopped_by: tuple[str, FileResult] | None = None
+    for number, file in enumerate(plan.files, start=1):
+        if stopped_by is not None:
+            earlier, failed = stopped_by
+            reason = f"not run: {earlier} did not pass ({failed.cls})"
+            files[file] = FileResult(failed.cls, 0, 1, reason, (), failed.log)
+            continue
+        log_name = SEQUENCE_LOG.format(number)
+        report_name = SEQUENCE_REPORT.format(number)
+        argv = tuple(run_argv(plan, target, [Path(INTEGRATION_FOLDER, file)], device_id, item_dir, None, linux=linux,
+                              report_name=report_name))
+        started = time.monotonic()
+        completed = _launch(runner, argv, per_file_timeout_s, app_dir, None, target, linux)
+        elapsed = time.monotonic() - started
+        seconds += elapsed
+        status = completed.status if status in (None, 0) else status
+        output = completed.stdout + completed.stderr
+        (item_dir / log_name).write_text(output, encoding="utf-8")
+        judged = _files_of(plan, target, argv, completed, output, item_dir, report_name)[file]
+        files[file] = dataclasses.replace(judged, log=log_name)
+        launches.append(Launch(argv, elapsed, judged.cls != "build"))
+        if judged.cls != "pass":
+            stopped_by = (file, files[file])
+    return RunOutcome(argv, seconds, files, exit_status=status, launches=tuple(launches))
 
 
 def _launch(
@@ -477,7 +553,13 @@ def _run_files(plan: RunPlan, app_dir: Path) -> list[Path]:
 
 
 def _files_of(
-    plan: RunPlan, target: Target, argv: Sequence[str], completed: Completed, log: str, item_dir: Path
+    plan: RunPlan,
+    target: Target,
+    argv: Sequence[str],
+    completed: Completed,
+    log: str,
+    item_dir: Path,
+    report_name: str = REPORT_NAME,
 ) -> dict[str, FileResult]:
     if completed.status == _NOT_FOUND_STATUS and not completed.stdout:
         return env_files(plan, f"{argv[0]} not found")
@@ -495,7 +577,7 @@ def _files_of(
         if data is None:
             return _every_file(plan, "fail", _NO_ROUND_MAP)
         return read_drive_response(data, plan, log=log)
-    report = item_dir / REPORT_NAME
+    report = item_dir / report_name
     lines = report.read_text(encoding="utf-8", errors="replace").splitlines() if report.is_file() else []
     return read_test_report(lines, plan, log=log)
 
