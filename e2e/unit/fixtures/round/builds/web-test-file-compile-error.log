@@ -1,0 +1,10 @@
+Launching integration_test/dt_round_web_none-920e14c3_test.dart on Web Server in debug mode...
+Waiting for connection from debug service on Web Server...         13.9s
+org-dartlang-app:///smoke/semantics_id_test.dart:21:5: Error: Expected ';' after this.
+    await tester.pumpAndSettle()
+    ^^^^^
+org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:39:8: Error: Method not found: 'main'.
+    f0.main();
+       ^^^^
+Failed to compile application.
+Application exited before the test started. Check web driver logs for possible application-side errors.

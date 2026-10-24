@@ -26,7 +26,7 @@ from stratum_e2e.round.android_traps import strip_drive_prefix
 from stratum_e2e.round.boot import Booter, BootRecord
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan, cleanup, write_run_file
-from stratum_e2e.round.build_failure import BuildSite, build_failure
+from stratum_e2e.round.build_failure import BuildSite, build_failure, tool_compile_error
 from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
 from stratum_e2e.round.wrap_repeat import wrap_text
@@ -339,7 +339,9 @@ def run_plan(
     interrupted is removed. It writes the plan's entry right before the launch and `cleanup` removes it after,
     whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
     A failed preparation or build, a missing command, or `classify_env` classes every file `env` with the reason; a
-    build step that fails on a compiler error in the repo's own source classes every file `fail` (`build_failure`).
+    build step that fails on a compiler error in the repo's own source classes every file `fail` (`build_failure`). A
+    run whose compiler errors all point outside that source, such as into the round's entry, classes every file `env`
+    with `compile: <the first error>` (`tool_compile_error`).
     Raises `ValueError` for a plan no run covers (`run_argv`) or a repeat prefix with no block to wrap.
     """
     timeout_s = run_timeout_s(plan, per_file_timeout_s)
@@ -377,7 +379,7 @@ def run_plan(
     output = completed.stdout + completed.stderr
     log = strip_drive_prefix(output) if _drives(target) else output
     (item_dir / LOG_NAME).write_text(log, encoding="utf-8")
-    files = _files_of(plan, target, argv, completed, log, item_dir)
+    files = _files_of(plan, target, argv, completed, log, item_dir, _compile_site(app_dir, linux))
     return RunOutcome(argv, seconds, files, build_argv, build_seconds, completed.status)
 
 
@@ -425,8 +427,7 @@ def _build_linux(
     output = built.stdout + built.stderr
     (item_dir / LINUX_BUILD_LOG).write_text(output, encoding="utf-8")
     if built.status != 0:
-        site = BuildSite(linux.repo_root, linux_docker.WORK_ROOT / linux.app_rel, mount=linux_docker.WORK_ROOT)
-        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, built, site)
+        raise build_failure(linux_docker.LINUX_BUILD_COMMAND, built, _compile_site(app_dir, linux))
     return argv, seconds
 
 
@@ -446,14 +447,27 @@ def _run_files(plan: RunPlan, app_dir: Path) -> list[Path]:
     return [write_run_file(plan, app_dir / INTEGRATION_FOLDER).relative_to(app_dir)]
 
 
+def _compile_site(app_dir: Path, linux: LinuxRun | None) -> BuildSite:
+    """Where a run's compiler sees the repo: a Linux container through `linux_docker.WORK_ROOT`; a host run from
+    `app_dir`, whose parent is the repo, with a web run's `org-dartlang-app:///` rooted at the entry's folder."""
+    if linux is not None:
+        return BuildSite(linux.repo_root, linux_docker.WORK_ROOT / linux.app_rel, mount=linux_docker.WORK_ROOT)
+    app = app_dir.absolute()
+    return BuildSite(app.parent, PurePosixPath(app), app_uri_root=PurePosixPath(app / INTEGRATION_FOLDER))
+
+
 def _files_of(
-    plan: RunPlan, target: Target, argv: Sequence[str], completed: Completed, log: str, item_dir: Path
+    plan: RunPlan, target: Target, argv: Sequence[str], completed: Completed, log: str, item_dir: Path,
+    site: BuildSite,
 ) -> dict[str, FileResult]:
     if completed.status == _NOT_FOUND_STATUS and not completed.stdout:
         return env_files(plan, f"{argv[0]} not found")
     reason = classify_env(log, completed.status, completed.timed_out)
     if reason is not None:
         return env_files(plan, reason)
+    tool_error = tool_compile_error(log, site)
+    if tool_error is not None:
+        return env_files(plan, f"compile: {tool_error}")
     if _drives(target):
         response = item_dir / RESPONSE_NAME
         data = _json_object(response.read_text(encoding="utf-8", errors="replace")) if response.is_file() else None

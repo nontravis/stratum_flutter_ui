@@ -1,6 +1,6 @@
-"""Class a failed app build (design section 10) by where its compiler error points: an error in this repository's own
-source reads `fail`; anything else (CMake, Gradle, Xcode, the toolchain, a dependency, a timeout) is a tool failure and
-reads `env`."""
+"""Class a failed app build or test run (design section 10) by where its compiler errors point: an error in this
+repository's own source reads `fail`; anything else (CMake, Gradle, Xcode, the toolchain, a dependency, the round's own
+entry file, a timeout) is a tool failure and reads `env`."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Final
 from urllib.parse import unquote
 
+from stratum_e2e.round.entry import ENTRY_PREFIX
 from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed
 
@@ -19,13 +20,16 @@ _TAIL_LINES: Final = 3
 
 # Folders a tool writes inside the repository: Flutter's build output, generated Dart, and platform tooling (engine
 # copies, and plugin links this host cannot follow for a container build), and CocoaPods' pod sources. A file in one is
-# not source.
+# not source, and neither is an entry file the round writes (`ENTRY_PREFIX`).
 _TOOL_TREES: Final = frozenset({"build", ".dart_tool", "ephemeral", "Pods"})
+# A web debug run names a file under `BuildSite.app_uri_root` by this scheme.
+_APP_SCHEME: Final = "org-dartlang-app:///"
 
 # A log prefix ahead of a diagnostic ends in `: ` (`ERROR: ` from the Linux tool backend, `error: ` from the Xcode
-# one); the lazy `??` tries none first. A printed path holds no colon, so the `:<line>:<column>` after it is plain.
+# one); the lazy `??` tries none first. A printed path holds no colon past its `org-dartlang-app://` scheme, so the
+# `:<line>:<column>` after it is plain.
 _PREFIX: Final = r"^(?:.*?: )??[ \t]*"
-_PATH: Final = r"[^\s:][^:\n]*?"
+_PATH: Final = r"(?:org-dartlang-app://)?[^\s:][^:\n]*?"
 
 
 @dataclass(frozen=True)
@@ -57,20 +61,28 @@ _SHAPES: Final = (
 
 @dataclass(frozen=True)
 class BuildSite:
-    """Where an app build ran, so a path its compiler printed traces back to a file on this host.
+    """Where an app build or test run ran, so a path its compiler printed traces back to a file on this host.
 
     `repo_root` is the repository on this host. `cwd` is the folder the build ran in as the build saw it: a relative
     path resolves against it. A container build sees `repo_root` mounted at `mount`; a build on this host has none.
+    `app_uri_root` is the folder a web debug run's `org-dartlang-app:///` names, the entry's own folder; `None` where no
+    such name can appear.
     """
 
     repo_root: Path
     cwd: PurePosixPath
     mount: PurePosixPath | None = None
+    app_uri_root: PurePosixPath | None = None
 
     def owns(self, printed: str) -> bool:
         """Whether `printed`, a path as the build printed it, is this repository's own source: once mapped to this
-        host and its symlinks followed, a file inside `repo_root` and outside every `_TOOL_TREES` folder. A container
-        path outside `mount` (the image's SDK, the mounted pub cache) never is."""
+        host and its symlinks followed, a file inside `repo_root`, outside every `_TOOL_TREES` folder, and not a
+        round entry. A container path outside `mount` (the image's SDK, the mounted pub cache) never is, and neither is an
+        `org-dartlang-app:///` name with no `app_uri_root` to trace it to."""
+        if printed.startswith(_APP_SCHEME):
+            if self.app_uri_root is None:
+                return False
+            printed = str(self.app_uri_root / printed.removeprefix(_APP_SCHEME))
         seen = PurePosixPath(posixpath.normpath(posixpath.join(self.cwd, printed)))
         if self.mount is None:
             host = Path(seen)
@@ -80,7 +92,11 @@ class BuildSite:
             return False
         root = Path(os.path.realpath(self.repo_root))
         real = Path(os.path.realpath(host))
-        return real.is_relative_to(root) and _TOOL_TREES.isdisjoint(real.relative_to(root).parts)
+        return (
+            real.is_relative_to(root)
+            and _TOOL_TREES.isdisjoint(real.relative_to(root).parts)
+            and not real.name.startswith(ENTRY_PREFIX)
+        )
 
 
 def build_failure(command: str, completed: Completed, site: BuildSite) -> CompileFailure | RoundEnvError:
@@ -91,22 +107,35 @@ def build_failure(command: str, completed: Completed, site: BuildSite) -> Compil
     timeout, it is `RoundEnvError` naming the exit and the last lines of the output (stderr when there is any).
     """
     if not completed.timed_out:
-        error = _first_owned_error(f"{completed.stdout}\n{completed.stderr}", site)
-        if error is not None:
-            return CompileFailure(f"app build: {error}")
+        owned = [error for error, own in _located_errors(f"{completed.stdout}\n{completed.stderr}", site) if own]
+        if owned:
+            return CompileFailure(f"app build: {owned[0]}")
     how = "timed out" if completed.timed_out else f"exit {completed.status}"
     return RoundEnvError(f"{command} failed ({how}): {error_tail(completed.stderr or completed.stdout)}")
 
 
-def _first_owned_error(output: str, site: BuildSite) -> str | None:
-    """`<location> <message>` of the earliest located compiler error in `output` that `site` owns, or None."""
-    owned = [
-        (match.start(), f"{match['location'].strip()} {match['message'].strip()}")
+def tool_compile_error(output: str, site: BuildSite) -> str | None:
+    """`<location> <message>` of the first located compiler error in a run's `output` when every one points outside
+    `site`'s own source, such as into the round's entry: a tool cause, so the run reads `env`. `None` when there is no
+    such error, or when one is the code's own and the run keeps reading `fail`."""
+    errors = _located_errors(output, site)
+    if not errors or any(own for _, own in errors):
+        return None
+    return errors[0][0]
+
+
+def _located_errors(output: str, site: BuildSite) -> list[tuple[str, bool]]:
+    """Each located compiler error in `output`, earliest first: `<location> <message>`, and whether `site` owns it."""
+    found = sorted(
+        (
+            match.start(),
+            f"{match['location'].strip()} {match['message'].strip()}",
+            site.owns(unquote(match["path"]) if shape.percent_encoded else match["path"]),
+        )
         for shape in _SHAPES
         for match in shape.pattern.finditer(output)
-        if site.owns(unquote(match["path"]) if shape.percent_encoded else match["path"])
-    ]
-    return min(owned)[1] if owned else None
+    )
+    return [(error, own) for _, error, own in found]
 
 
 def error_tail(text: str) -> str:

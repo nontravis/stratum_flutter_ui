@@ -1,0 +1,11 @@
+Launching integration_test/dt_round_web_none-920e14c3_test.dart on Web Server in debug mode...
+Waiting for connection from debug service on Web Server...      
+Waiting for connection from debug service on Web Server...         14.5s
+org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:6:8: Error: Error when reading 'org-dartlang-app:///smoke/semantics_id_test.dart': File not found
+import '../smoke/semantics_id_test.dart' as f0;
+       ^
+org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:39:8: Error: Method not found: 'main'.
+    f0.main();
+       ^^^^
+Failed to compile application.
+Application exited before the test started. Check web driver logs for possible application-side errors.

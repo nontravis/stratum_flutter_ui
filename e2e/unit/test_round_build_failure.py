@@ -7,7 +7,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from stratum_e2e.round.build_failure import BuildSite, build_failure
+from stratum_e2e.round.build_failure import BuildSite, build_failure, tool_compile_error
 from stratum_e2e.round.errors import CompileFailure, RoundEnvError
 from stratum_e2e.round.runner import Completed
 
@@ -17,6 +17,7 @@ BUILDS = Path(__file__).parent / "fixtures" / "round" / "builds"
 REPO = Path("/Users/dev/NTD OS/stratum_ui")
 HOST = BuildSite(REPO, PurePosixPath(REPO / "test_app"))
 CONTAINER = BuildSite(REPO, PurePosixPath("/work/test_app"), mount=PurePosixPath("/work"))
+WEB = BuildSite(REPO, PurePosixPath(REPO / "test_app"), app_uri_root=PurePosixPath(REPO / "test_app/integration_test"))
 
 
 def failed(log: str, *, status: int = 1, stderr: str = "", timed_out: bool = False) -> Completed:
@@ -186,3 +187,43 @@ def test_a_dart_error_mentioned_in_prose_is_not_a_diagnostic() -> None:
     text = "Note: see lib/main.dart for details. Error: Gradle task assembleDebug failed with exit code 1\n"
 
     assert isinstance(build_failure("flutter build apk --debug", output(text), HOST), RoundEnvError)
+
+
+def test_an_app_uri_resolves_under_the_folder_a_web_run_roots_it_at() -> None:
+    text = "org-dartlang-app:///smoke/semantics_id_test.dart:21:5: Error: Expected ';' after this.\n"
+
+    assert isinstance(build_failure("flutter drive", output(text), WEB), CompileFailure)
+    assert isinstance(build_failure("flutter drive", output(text), HOST), RoundEnvError)
+
+
+def test_a_compile_error_in_the_round_entry_is_a_tool_cause() -> None:
+    log = (BUILDS / "web-entry-compile-error.log").read_text(encoding="utf-8")
+
+    assert tool_compile_error(log, WEB) == (
+        "org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:6:8: Error: Error when reading "
+        "'org-dartlang-app:///smoke/semantics_id_test.dart': File not found"
+    )
+
+
+def test_a_compile_error_in_a_test_file_the_entry_imports_is_no_tool_cause() -> None:
+    log = (BUILDS / "web-test-file-compile-error.log").read_text(encoding="utf-8")
+
+    assert tool_compile_error(log, WEB) is None
+
+
+@pytest.mark.parametrize(
+    ("log", "site", "expected"),
+    [
+        (
+            "linux-sdk-dart-error.log", CONTAINER,
+            "../../opt/flutter/packages/flutter/lib/src/widgets/framework.dart:5874:12: Error: The method "
+            "'debugFillDiagnostics' isn't defined for the type 'Element'.",
+        ),
+        ("linux-dart-error-prefixed.log", CONTAINER, None),
+        ("linux-cmake.log", HOST, None),
+    ],
+)
+def test_only_a_run_whose_compile_errors_all_point_outside_its_source_has_a_tool_cause(
+    log: str, site: BuildSite, expected: str | None
+) -> None:
+    assert tool_compile_error((BUILDS / log).read_text(encoding="utf-8"), site) == expected

@@ -621,6 +621,31 @@ def test_chromedriver_port_comes_from_the_port_dir(tmp_path: Path, monkeypatch: 
     assert runner.launch()["env"] == {"FLUTTER_TEST_OUTPUTS_DIR": str(item)}
 
 
+@pytest.mark.parametrize(
+    ("log", "cls", "reason"),
+    [
+        (
+            "web-entry-compile-error.log", "env",
+            "compile: org-dartlang-app:///dt_round_web_none-920e14c3_test.dart:6:8: Error: Error when reading "
+            "'org-dartlang-app:///smoke/semantics_id_test.dart': File not found",
+        ),
+        ("web-test-file-compile-error.log", "fail", "no report entry"),
+    ],
+)
+def test_a_web_run_that_fails_to_compile_reads_env_only_for_an_error_in_the_round_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: str, cls: str, reason: str
+) -> None:
+    monkeypatch.setattr(integration_run, "port_accepts", lambda port: True)
+    app = app_with_tests(tmp_path)
+    output = (BUILDS / log).read_text(encoding="utf-8")
+    runner = RecordingRunner([chrome_answer(), (("flutter", "drive"), done(1, output))])
+
+    outcome = run_plan(plan_of("web", [SMOKE]), CHROME, record_of(CHROME, "chrome"), FakeBooter(), app,
+                       tmp_path / "item", runner, 60.0, tmp_path / "ports")
+
+    assert (outcome.files[SMOKE].cls, outcome.files[SMOKE].reason) == (cls, reason)
+
+
 def test_chromedriver_that_never_answers_is_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(integration_run, "port_accepts", lambda port: False)
     monkeypatch.setattr(integration_run, "CHROMEDRIVER_WAIT_S", 0.0)
