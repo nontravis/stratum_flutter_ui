@@ -255,6 +255,9 @@ def _target(name: str, table: _Table, integration_dir: Path | None) -> Target:
     build_mode = table.opt_str("build_mode")
     if build_mode is not None and build_mode not in _BUILD_MODES:
         raise CatalogError(f"{table.where}.build_mode '{build_mode}' is not one of {', '.join(_BUILD_MODES)}")
+    # The booter of the platform boots by this key; a target without it would fail every item at bring-up.
+    avd = table.str_("avd") if platform == "android" else table.opt_str("avd")
+    device = table.str_("device") if platform == "ios" else table.opt_str("device")
 
     plain_name_table = table.table("plain_name")
     plain_name = {key: plain_name_table.str_(key) for key in plain_name_table.keys()}
@@ -267,10 +270,10 @@ def _target(name: str, table: _Table, integration_dir: Path | None) -> Target:
         name=name,
         platform=platform,
         alone=table.bool_("alone", False),
-        avd=table.opt_str("avd"),
+        avd=avd,
         build_mode=build_mode,
         emulator_args=table.strs("emulator_args"),
-        device=table.opt_str("device"),
+        device=device,
         runtime=table.opt_str("runtime"),
         browser=table.opt_str("browser"),
         wasm=table.bool_("wasm", False),

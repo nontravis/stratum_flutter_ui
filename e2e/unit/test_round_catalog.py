@@ -245,6 +245,40 @@ def _integration_dir(tmp_path: Path, *files: str) -> Path:
     return root
 
 
+def test_base_catalog_loads(tmp_path: Path) -> None:
+    assert list(load_catalog(_write(tmp_path)).targets) == ["pixel_2"]
+
+
+@pytest.mark.parametrize(
+    ("extra", "match"),
+    [
+        ("nope = 1", r"targets\.pixel_2 has unknown key 'nope'"),
+        ('\n[targets.x]\nplatform = "amiga"', r"targets\.x\.platform 'amiga' is not one of"),
+        ('\n[targets.x]\nplatform = 3', r"targets\.x\.platform must be a non-empty string"),
+        ('\n[targets.x]\nplatform = "android"\navd = "A"\nbuild_mode = "fast"', r"build_mode 'fast'"),
+        ('\n[targets.x]\nplatform = "android"', r"targets\.x\.avd must be a non-empty string"),
+        ('\n[targets.x]\nplatform = "ios"', r"targets\.x\.device must be a non-empty string"),
+        ('wasm = "yes"', r"targets\.pixel_2\.wasm must be true or false"),
+        ('emulator_args = "-gpu host"', r"targets\.pixel_2\.emulator_args must be a list of strings"),
+        (
+            '\n[targets.w]\nplatform = "windows"\ncatalog_only = true\n\n[modes.full]\ntargets = ["w"]\nrepeat = 1',
+            r"modes\.full\.targets names catalog-only target 'w'",
+        ),
+        ('\n[modes.full]\ntargets = ["nope"]\nrepeat = 1', r"modes\.full\.targets names unknown target 'nope'"),
+        ('\n[modes.full]\ntargets = ["pixel_2"]\nrepeat = 0', r"modes\.full\.repeat must be at least 1"),
+        ('\n[modes.full]\ntargets = ["pixel_2"]\nrepeat = "10"', r"modes\.full\.repeat must be an integer"),
+    ],
+    ids=[
+        "unknown-key", "bad-platform", "platform-not-a-string", "bad-build-mode", "android-without-avd",
+        "ios-without-device", "bool-as-string", "list-as-string", "catalog-only-in-a-mode", "unknown-target-in-a-mode",
+        "mode-repeat-below-one", "mode-repeat-as-string",
+    ],
+)
+def test_loader_rejects_a_bad_catalog_naming_the_table_and_key(tmp_path: Path, extra: str, match: str) -> None:
+    with pytest.raises(CatalogError, match=match):
+        load_catalog(_write(tmp_path, extra=extra))
+
+
 def test_plain_name_feature_loads_for_an_existing_file(tmp_path: Path) -> None:
     path = _write(tmp_path, extra='[targets.pixel_2.plain_name]\n"common/web_view_test.dart" = "group B, native only"')
     integration = _integration_dir(tmp_path, "common/web_view_test.dart")
