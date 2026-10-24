@@ -3,7 +3,7 @@
 // a Dart test because no e2e leg drives a Linux window (ruling Q1). Every
 // other platform reports a skip, never a pass: the e2e test covers it there.
 // The runner prints the skip reason on a group (`_skipReason`).
-// Runs in the Linux container the `flutter-device-test` skill owns:
+// Runs in the Linux container the e2e round owns:
 //
 //   flutter test integration_test/themes/system_style_linux_test.dart -d linux
 import 'package:flutter_test/flutter_test.dart';

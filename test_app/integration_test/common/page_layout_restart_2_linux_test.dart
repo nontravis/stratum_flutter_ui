@@ -10,8 +10,8 @@
 // `page_layout_restart_1_linux_test.dart` is launch 1, and must run
 // immediately before this file in the same lane, app data kept between them;
 // alone this file fails naming that. Resets the Stratum settings at the end,
-// so the next round starts clean. Runs in the Linux container the
-// `flutter-device-test` skill owns:
+// so the next round starts clean. Runs in the Linux container the e2e
+// round owns:
 //
 //   flutter test --no-uninstall \
 //     integration_test/common/page_layout_restart_1_linux_test.dart \

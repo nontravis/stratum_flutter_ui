@@ -34,6 +34,7 @@ analyzer:
     - build/**
     - tmp/**
     - android/**
+    - "e2e/unit/fixtures/**"
 
 linter:
   # The lint rules applied to this project can be customized in the

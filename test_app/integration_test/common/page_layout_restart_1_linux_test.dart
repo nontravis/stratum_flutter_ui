@@ -10,8 +10,7 @@
 // write to land in the real store before ending.
 // `page_layout_restart_2_linux_test.dart` starts the app again and checks the
 // first frame already shows 300 px. Both files are one sequence, app data
-// kept between them, run in the Linux container the `flutter-device-test`
-// skill owns:
+// kept between them, run in the Linux container the e2e round owns:
 //
 //   flutter test --no-uninstall \
 //     integration_test/common/page_layout_restart_1_linux_test.dart \

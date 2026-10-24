@@ -1,5 +1,4 @@
 // Fixture for the entry unit tests: read as text, never compiled.
-// ignore_for_file: undefined_function, undefined_identifier
 void main() {
   testWidgets('co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app '
       'trade messages both ways', (WidgetTester tester) async {

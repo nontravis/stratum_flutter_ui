@@ -1,12 +1,12 @@
 # The device round catalog: apps, targets, modes, run sequences, and lane limits (design section 7).
 # `stratum_e2e.round.catalog` loads it. A comment that holds an owner ruling or a cause stays beside its value.
 #
-# Per-file features (a `plain_name` or `repeat` table on a target) key a file under `test_app/integration_test/`;
-# they are absent until the files exist (feat/test-foundation). Shape:
+# Per-file features (a `plain_name` or `repeat` table on a target) key a file under `test_app/integration_test/`.
+# Shape:
 #   [targets.pixel_2.plain_name]
 #   "common/web_view_test.dart" = "group B, native only"
 #   [targets.pixel_8.repeat]
-#   "common/web_view_test.dart" = ["f01/us08/s3"]   # block prefixes; a comma separates prefixes inside the block
+#   "common/web_view_test.dart" = ["co01_02/us03/s1"]   # block prefixes; a comma separates prefixes inside the block
 
 [apps.test_app]
 folder = "test_app"
@@ -27,11 +27,17 @@ alone = true
 build_mode = "profile"                                  # owner ruling 2026-10-17 (RC1 option A): AOT timing, flutter drive
 emulator_args = ["-gpu", "host", "-memory", "4096"]     # owner ruling 2026-10-18: API 36 forces software GLES on 2G RAM, never settles under host load
 
+[targets.pixel_8.repeat]
+"common/web_view_test.dart" = ["co01_02/us03/s1"]
+
 [targets.pixel_2]
 platform = "android"
 avd = "Pixel_2_API_28"                                 # API 28: the engine ignores SystemUiMode.edgeToEdge below API 29
 alone = true
 build_mode = "debug"                                    # plain_name needs flutter test; flutter drive has no test-name filter
+
+[targets.pixel_2.plain_name]
+"common/web_view_test.dart" = "group B, native only"
 
 [targets.small_phone]
 platform = "android"
@@ -87,14 +93,12 @@ catalog_only = true                                     # unverified: never in a
 integration = false
 e2e = false
 
-# The sequence waits for its two files: feat/test-foundation owns and lands common/page_layout_restart_1_linux_test.dart
-# and common/page_layout_restart_2_linux_test.dart. Until then a Linux or full round would stop at configure. Shape:
-#   [sequences.fo10_cold_restart]
-#   target = "linux"
-#   files = [                                             # FO-10 US-01 s2: launch 1 stores, launch 2 restarts (owner ruling 2026-10-21)
-#     "common/page_layout_restart_1_linux_test.dart",
-#     "common/page_layout_restart_2_linux_test.dart",
-#   ]
+[sequences.fo10_cold_restart]
+target = "linux"
+files = [                                               # FO-10 US-01 s2: launch 1 stores, launch 2 restarts (owner ruling 2026-10-21)
+  "common/page_layout_restart_1_linux_test.dart",
+  "common/page_layout_restart_2_linux_test.dart",
+]
 
 [modes.fast]
 targets = ["mac"]
