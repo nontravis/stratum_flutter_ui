@@ -300,6 +300,22 @@ def test_interrupt_during_bootstatus_shuts_down_once_and_reraises() -> None:
     assert runner.calls.count(("xcrun", "simctl", "shutdown", udid)) == 1
 
 
+def test_interrupt_during_simctl_boot_shuts_down_and_reraises() -> None:
+    udid = _pair().udid
+    boot_argv = ("xcrun", "simctl", "boot", udid)
+    script = [
+        _listing(_fixture()),
+        *_pin_script(udid),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
+    ]
+    runner = TimedRunner(script, FakeClock(), interrupt=(boot_argv, KeyboardInterrupt()))
+
+    with pytest.raises(KeyboardInterrupt):
+        IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
+
+    assert runner.calls.count(("xcrun", "simctl", "shutdown", udid)) == 1
+
+
 def test_interrupt_after_a_lost_boot_race_leaves_the_simulator_running() -> None:
     udid = _pair().udid
     status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")

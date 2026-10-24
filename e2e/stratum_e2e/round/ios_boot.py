@@ -123,7 +123,8 @@ class IosBooter(Booter):
         """Reuse a `Booted` simulator as found, else pin the keyboard key, boot it, and wait for `bootstatus`.
 
         `log` is unused: `simctl` keeps its own logs. One deadline of `boot_timeout_minutes` covers `simctl boot`
-        and `bootstatus`. Once `simctl boot` has succeeded, any failure or interrupt shuts the simulator down.
+        and `bootstatus`. An interrupt or timeout of `simctl boot`, and once it has succeeded any failure or interrupt,
+        shuts the simulator down.
         """
         pair = self._pair(target)
         if pair.state == _BOOTED:
@@ -131,7 +132,12 @@ class IosBooter(Booter):
         self._pin_hardware_keyboard(pair.udid)
         limit = self._lane.boot_timeout_minutes * 60
         deadline = self._monotonic() + limit
-        started = self._simctl("boot", pair.udid, timeout_s=limit)
+        try:
+            started = self._simctl("boot", pair.udid, timeout_s=limit)
+        except BaseException:
+            # A killed `simctl` client can leave the simulator booting, as on the timeout path below.
+            self._end_quietly(pair.udid)
+            raise
         # Another session booting the same simulator since the listing is a reuse, not a failure.
         reused = _ALREADY_BOOTED in started.stderr + started.stdout
         if started.status != 0 and not reused:
