@@ -154,10 +154,6 @@ class _Table:
     def table(self, key: str) -> _Table:
         return _Table(self._raw.get(key, {}), f"{self.where}.{key}")
 
-    def children(self) -> Iterator[_Table]:
-        for key, value in self._raw.items():
-            yield _Table(value, f"{self.where}.{key}")
-
     def keys(self) -> Iterator[str]:
         return iter(self._raw)
 
