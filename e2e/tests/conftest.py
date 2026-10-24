@@ -3,7 +3,8 @@
 Living here keeps unit/ runnable under any --platform and without a device. In a device round
 (`--target` or `--mode`) every fixture here depends on `round_target`, so it re-creates per target,
 and the round plugin (`stratum_e2e.round.plugin`) supplies the app and the low-level options; an
-Appium server, install, or session failure raises `RoundEnvError`, so the round classes it `env`.
+Appium server, install, or session failure, or a Chrome launch or page failure, raises `RoundEnvError`, so the round
+classes it `env`.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ from appium.options.android import UiAutomator2Options
 from appium.options.common import AppiumOptions
 from appium.options.ios import XCUITestOptions
 from appium.options.mac import Mac2Options
-from playwright.sync_api import Browser, sync_playwright
+from playwright.sync_api import Browser, Playwright, sync_playwright
+from playwright.sync_api import Error as PlaywrightError
 from selenium.common.exceptions import WebDriverException
 from urllib3.exceptions import HTTPError
 
@@ -136,14 +138,36 @@ def static_server(round_app: Path, _static_servers: _StaticServers) -> StaticSer
 
 
 @pytest.fixture(scope="session")
-def browser() -> Iterator[Browser]:
-    """The Chrome the web leg drives, headless, for the session; always closed afterwards."""
-    with sync_playwright() as playwright:
-        chrome = playwright.chromium.launch(channel="chrome", headless=True)
-        try:
-            yield chrome
-        finally:
-            chrome.close()
+def browser(request: pytest.FixtureRequest) -> Iterator[Callable[[], Browser]]:
+    """Return the getter of the headless Chrome the web leg drives; it launches on the first call and closes at
+    session end.
+
+    A failed launch raises `RoundEnvError`. In a device round the failure is not kept, so the round's re-run of an
+    item launches again; outside a round every later call raises it at once.
+    """
+    in_round = request.config.stash.get(ROUND_KEY, None) is not None
+    started: list[Playwright] = []
+    launched: list[Browser] = []
+    failure: list[RoundEnvError] = []
+    with contextlib.ExitStack() as stack:
+
+        def get() -> Browser:
+            if failure:
+                raise failure[0]
+            if not launched:
+                try:
+                    if not started:
+                        started.append(stack.enter_context(sync_playwright()))
+                    launched.append(started[0].chromium.launch(channel="chrome", headless=True))
+                except PlaywrightError as error:
+                    env = RoundEnvError(f"chrome launch failed: {_first_line(str(error))}")
+                    if not in_round:
+                        failure.append(env)
+                    raise env from error
+                stack.callback(launched[0].close)
+            return launched[0]
+
+        yield get
 
 
 @pytest.fixture
@@ -155,9 +179,13 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
     closed afterwards.
     """
     if platform == "web":
-        browser = request.getfixturevalue("browser")
+        launch: Callable[[], Browser] = request.getfixturevalue("browser")
+        chrome = launch()
         server = request.getfixturevalue("static_server")
-        page = browser.new_page(base_url=server.url)
+        try:
+            page = chrome.new_page(base_url=server.url)
+        except PlaywrightError as error:
+            raise RoundEnvError(f"chrome page failed: {_first_line(str(error))}") from error
         try:
             yield page
         finally:

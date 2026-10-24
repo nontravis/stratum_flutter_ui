@@ -85,6 +85,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import appium.webdriver
+import playwright.sync_api
 import pytest
 import tools.e2e_avd
 from selenium.common.exceptions import WebDriverException
@@ -214,7 +215,9 @@ def build(app_dir, package_root, platform, wasm, runner, log):
     if _build_failures.get(platform, 0):
         _build_failures[platform] -= 1
         raise RoundEnvError("flutter build failed (exit 1): Gradle daemon died")
-    return AppBuild(path=ROOT / f"app-{platform}", argv=("flutter", "build", platform), seconds=2.0, reused=False)
+    path = ROOT / f"app-{platform}"
+    path.mkdir(exist_ok=True)  # a web build is a folder the static server serves
+    return AppBuild(path=path, argv=("flutter", "build", platform), seconds=2.0, reused=False)
 
 
 _plan_env = dict(SCENARIO.get("plan_env", {}))
@@ -350,6 +353,53 @@ def _check(serial):
 
 
 tools.e2e_avd.check = _check
+
+_launch_failures = [SCENARIO.get("chrome_launch_fail", 0)]
+_page_failures = [SCENARIO.get("chrome_page_fail", 0)]
+
+
+class _Page:
+    def close(self):
+        event("page close")
+
+
+class _Chrome:
+    def new_page(self, base_url=None):
+        event("page")
+        if _page_failures[0]:
+            _page_failures[0] -= 1
+            raise playwright.sync_api.Error("Target page, context or browser has been closed")
+        return _Page()
+
+    def close(self):
+        event("chrome close")
+
+
+class _Chromium:
+    def launch(self, channel=None, headless=None):
+        event("chrome launch")
+        if _launch_failures[0]:
+            _launch_failures[0] -= 1
+            raise playwright.sync_api.Error(
+                "BrowserType.launch: Chromium distribution 'chrome' is not found\nRun npx playwright install chrome"
+            )
+        return _Chrome()
+
+
+class _Playwright:
+    """Stands in for `sync_playwright()`: its Chromium launches `_Chrome`, failing `chrome_launch_fail` times."""
+
+    chromium = _Chromium()
+
+    def __enter__(self):
+        event("playwright start")
+        return self
+
+    def __exit__(self, *exc_info):
+        event("playwright stop")
+
+
+playwright.sync_api.sync_playwright = _Playwright
 '''
 
 INTEGRATION_FILES = {FILE_A: "void main() {}\n", FILE_B: "void main() {}\n"}
@@ -865,6 +915,60 @@ def test_appium_server_failure_is_env(pytester: pytest.Pytester, monkeypatch: py
     result.assert_outcomes(passed=2, errors=3)
     cells = _cells(_summary(pytester))
     assert cells["test_e2e.py::test_mac_driver_a"]["mac"]["reason"].startswith("appium server")
+
+
+WEB_DRIVER = """\
+@pytest.mark.web
+def test_web_driver_a(driver):
+    event("item chrome web_driver_a")
+
+
+@pytest.mark.web
+def test_web_driver_b(driver):
+    event("item chrome web_driver_b")
+"""
+
+CHROME_MISSING = "chrome launch failed: BrowserType.launch: Chromium distribution 'chrome' is not found"
+
+
+def test_chrome_launch_failure_is_env_and_the_rerun_launches_again(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER, {"chrome_launch_fail": 1})
+    result = _round(pytester, "--target", "chrome")
+    result.assert_outcomes(passed=4)
+    assert _events(root, "chrome launch") == ["chrome launch", "chrome launch"]
+    assert _cells(_summary(pytester))["test_e2e.py::test_web_driver_a"]["chrome"]["class"] == "pass"
+
+
+def test_chrome_launch_failure_that_stays_reads_env(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    _make_tree(pytester, monkeypatch, WEB_DRIVER, {"chrome_launch_fail": 99})
+    result = _round(pytester, "--target", "chrome")
+    result.assert_outcomes(passed=2, errors=2)
+    cells = _cells(_summary(pytester))
+    first = cells["test_e2e.py::test_web_driver_a"]["chrome"]
+    assert (first["class"], first["reason"]) == ("env", CHROME_MISSING)
+    assert cells["test_e2e.py::test_web_driver_b"]["chrome"]["class"] == "env"
+
+
+def test_chrome_page_failure_is_env(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER, {"chrome_page_fail": 1})
+    result = _round(pytester, "--target", "chrome")
+    result.assert_outcomes(passed=4)
+    assert [line for line in _events(root) if line == "page"] == ["page"] * 3
+    assert _events(root, "chrome launch") == ["chrome launch"]
+
+
+def test_legacy_chrome_launch_failure_is_kept_for_the_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER, {"chrome_launch_fail": 99})
+    build = pytester.path / "web_build"
+    build.mkdir()
+    result = _round(pytester, "--platform", "web", "--device", "chrome", "--app", str(build), "--app-id", "x")
+    result.assert_outcomes(skipped=1, errors=2)  # the integration item has no platform marker
+    assert _events(root, "chrome launch") == ["chrome launch"]
+    assert CHROME_MISSING in result.stdout.str()
 
 
 TALKBACK_TESTS = """\
