@@ -28,6 +28,7 @@ from stratum_e2e.round.catalog import Target
 from stratum_e2e.round.entry import RunPlan, cleanup, write_run_file
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
+from stratum_e2e.round.wrap_repeat import wrap_text
 
 DRIVER = "test_driver/integration_test.dart"
 INTEGRATION_FOLDER = "integration_test"
@@ -117,6 +118,27 @@ def run_timeout_s(plan: RunPlan, per_file_timeout_s: float) -> float:
         raise ValueError(f"per_file_timeout_s must be positive, got {per_file_timeout_s}")
     extra_runs = max(plan.repeat - 1, 0) * len(plan.wrapped)
     return per_file_timeout_s * (len(plan.files) + extra_runs)
+
+
+def check_runnable(plan: RunPlan, target: Target, integration_dir: Path) -> None:
+    """Raise `ValueError` for what `run_plan` would refuse mid-round, so a round refuses it before it starts.
+
+    That is a `--plain-name` or a sequence on a `flutter drive` target (one file per launch, no `--plain-name`), and a
+    wrapped file whose repeat prefix names no block `wrap_repeat` can wrap.
+    """
+    if _drives(target):
+        if plan.plain_name is not None:
+            raise ValueError(
+                f"{target.name} runs flutter drive, which takes no --plain-name: {', '.join(plan.files)} "
+                f"marks plain_name {plan.plain_name!r}"
+            )
+        if plan.kind == "sequence":
+            raise ValueError(f"{target.name} runs flutter drive, one file per launch: sequence {plan.sequence} cannot")
+    for relative, prefixes in plan.wrapped.items():
+        try:
+            wrap_text((integration_dir / relative).read_text(encoding="utf-8"), prefixes, plan.repeat)
+        except ValueError as error:
+            raise ValueError(f"{target.name} repeat of {relative}: {error}") from error
 
 
 def run_argv(

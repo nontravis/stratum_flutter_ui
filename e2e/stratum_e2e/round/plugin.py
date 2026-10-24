@@ -46,7 +46,7 @@ from stratum_e2e.round.catalog import (
 )
 from stratum_e2e.round.entry import RunPlan, plan_runs, platform_files
 from stratum_e2e.round.errors import CatalogError, RoundEnvError
-from stratum_e2e.round.integration_run import LOG_NAME, FileResult, RunOutcome, run_plan
+from stratum_e2e.round.integration_run import LOG_NAME, FileResult, RunOutcome, check_runnable, run_plan
 from stratum_e2e.round.ios_boot import HostBooter, IosBooter
 from stratum_e2e.round.lane import (
     LaneBusy,
@@ -869,7 +869,8 @@ def _reject_cross_platform_overrides(config: pytest.Config, round_plan: RoundPla
 def _plan_integration(catalog: Catalog, round_plan: RoundPlan, integration_dir: Path) -> dict[str, list[RunPlan]]:
     """Plan the integration runs of every target that takes them, one `plan_runs` call per platform.
 
-    A target that marks a file its platform does not run is the catalog's error, so it reads as a usage error.
+    A target that marks a file its platform does not run, or a run `check_runnable` refuses, is the catalog's error,
+    so it reads as a usage error before any target boots.
     """
     runs: dict[str, list[RunPlan]] = {}
     for platform in dict.fromkeys(target.platform for target in round_plan.targets):
@@ -877,9 +878,13 @@ def _plan_integration(catalog: Catalog, round_plan: RoundPlan, integration_dir: 
         if targets:
             files = platform_files(integration_dir, platform)
             try:
-                runs |= plan_runs(platform, targets, files, list(catalog.sequences.values()), round_plan.repeat)
+                planned = plan_runs(platform, targets, files, list(catalog.sequences.values()), round_plan.repeat)
+                for target in targets:
+                    for plan in planned[target.name]:
+                        check_runnable(plan, target, integration_dir)
             except ValueError as error:
                 raise CatalogError(str(error)) from error
+            runs |= planned
     return runs
 
 

@@ -338,6 +338,34 @@ def test_target_marking_a_file_its_platform_does_not_run_is_a_usage_error(
     assert not (root.parent / "rounds").exists()
 
 
+def test_plain_name_on_a_flutter_drive_target_is_a_usage_error(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch)
+    catalog = TARGETS_TOML.replace(
+        "[targets.pixel_8.repeat]", f'[targets.pixel_8.plain_name]\n"{SMOKE}" = "group A"\n\n[targets.pixel_8.repeat]'
+    )
+    (root / "targets.toml").write_text(catalog)
+    result = _collect(pytester, "--target", "pixel_8")
+    assert result.ret == 4
+    error = result.stderr.str()
+    assert "pixel_8" in error
+    assert "--plain-name" in error
+    assert not (root.parent / "rounds").exists()
+
+
+def test_repeat_prefix_naming_no_block_is_a_usage_error(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch)
+    (root / "targets.toml").write_text(TARGETS_TOML.replace('["co01_02/us03/s1"]', '["co99/us99/s9"]'))
+    result = _collect(pytester, "--target", "pixel_8", "--repeat", "3")  # a repeat of 1 wraps nothing
+    assert result.ret == 4
+    error = result.stderr.str()
+    assert "co99/us99/s9" in error
+    assert WEB_VIEW in error
+
+
 def test_override_spanning_platforms_fails(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
     _make_tree(pytester, monkeypatch)
     result = _collect(pytester, "--target", "pixel_8,mac", "--app", "/x.app")

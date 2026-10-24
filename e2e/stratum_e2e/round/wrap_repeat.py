@@ -128,19 +128,27 @@ def sibling_path(source: Path, n: int, tag: str | None = None) -> Path:
     return source.with_name(f".dt_{stem}{middle}_x{n}.dart")
 
 
+def wrap_text(text: str, prefixes: Sequence[str], n: int) -> str:
+    """Returns `text` with the block of every prefix in `prefixes` wrapped in an `n`-run loop, in order.
+
+    Raises `ValueError` when `n` is below 1, `prefixes` is empty, or a prefix names no well-formed block.
+    """
+    if n < 1:
+        raise ValueError(f"n must be at least 1, got {n}")
+    if not prefixes:
+        raise ValueError("the prefix list is empty")
+    for prefix in prefixes:
+        text = wrap(text, prefix, n)
+    return text
+
+
 def wrap_file(source: Path, prefixes: Sequence[str], n: int, tag: str | None = None) -> Path:
     """Writes the wrapped sibling of `source` and returns its path.
 
     Raises `ValueError` before writing anything when `n` is below 1, `prefixes` is empty, or a prefix names no
     well-formed block.
     """
-    if n < 1:
-        raise ValueError(f"n must be at least 1, got {n}")
-    if not prefixes:
-        raise ValueError("the prefix list is empty")
-    text = source.read_text(encoding="utf-8")
-    for prefix in prefixes:
-        text = wrap(text, prefix, n)
+    text = wrap_text(source.read_text(encoding="utf-8"), prefixes, n)
     out = sibling_path(source, n, tag)
     out.write_text(text, encoding="utf-8")
     return out

@@ -24,6 +24,7 @@ from stratum_e2e.round.integration_run import (
     ENV_SIGNS,
     FileResult,
     LinuxRun,
+    check_runnable,
     classify_env,
     read_drive_response,
     read_test_report,
@@ -72,6 +73,7 @@ def plan_of(
     wrapped: Mapping[str, tuple[str, ...]] | None = None,
     repeat: int = 1,
     plain_name: str | None = None,
+    sequence: str | None = None,
 ) -> RunPlan:
     return RunPlan(
         key=f"{build_mode or 'none'}-0000abcd",
@@ -82,6 +84,7 @@ def plan_of(
         wrapped=MappingProxyType(dict(wrapped or {})),
         repeat=repeat,
         plain_name=plain_name,
+        sequence=sequence,
     )
 
 
@@ -274,6 +277,45 @@ def test_run_argv_refuses_what_no_row_covers() -> None:
 
 
 # The split pass rule (design section 9, pre-flight F13).
+
+
+@pytest.mark.parametrize("target", [PIXEL_8, CHROME], ids=lambda target: target.name)
+def test_check_runnable_refuses_a_plain_name_on_a_drive_target(target: Target) -> None:
+    plan = plan_of(target.platform, [WEB_VIEW], kind="plain_name", plain_name="group B, native only")
+    with pytest.raises(ValueError, match=f"{target.name}.*--plain-name"):
+        check_runnable(plan, target, INTEGRATION_FIXTURE)
+
+
+def test_check_runnable_refuses_a_sequence_on_a_drive_target() -> None:
+    plan = plan_of("web", [KEYBOARD, SMOKE], kind="sequence", sequence="s")
+    with pytest.raises(ValueError, match="chrome.*sequence s"):
+        check_runnable(plan, CHROME, INTEGRATION_FIXTURE)
+
+
+@pytest.mark.parametrize("target", [PIXEL_2, MAC], ids=lambda target: target.name)
+def test_check_runnable_takes_a_plain_name_on_a_flutter_test_target(target: Target) -> None:
+    plan = plan_of(target.platform, [WEB_VIEW], kind="plain_name", plain_name="group B, native only")
+    check_runnable(plan, target, INTEGRATION_FIXTURE)
+
+
+def test_check_runnable_takes_a_wrapped_block_it_can_wrap() -> None:
+    plan = plan_of("android", [WEB_VIEW], build_mode="profile", wrapped={WEB_VIEW: (REPEAT_PREFIX,)}, repeat=10)
+    check_runnable(plan, PIXEL_8, INTEGRATION_FIXTURE)
+
+
+def test_check_runnable_refuses_a_wrapped_prefix_naming_no_block() -> None:
+    plan = plan_of("android", [WEB_VIEW], build_mode="profile", wrapped={WEB_VIEW: ("co99/us99/s9",)}, repeat=10)
+    with pytest.raises(ValueError, match=f"pixel_8.*{WEB_VIEW}.*co99/us99/s9"):
+        check_runnable(plan, PIXEL_8, INTEGRATION_FIXTURE)
+
+
+def test_check_runnable_refuses_a_malformed_wrapped_block(tmp_path: Path) -> None:
+    broken = tmp_path / "common" / "broken_test.dart"
+    broken.parent.mkdir(parents=True)
+    broken.write_text("void main() {\n  testWidgets('co01/us01/s1: opens', (tester) async {\n", encoding="utf-8")
+    plan = plan_of("macos", ["common/broken_test.dart"], wrapped={"common/broken_test.dart": ("co01/us01/s1",)})
+    with pytest.raises(ValueError, match="unbalanced braces"):
+        check_runnable(plan, MAC, tmp_path)
 
 
 def test_file_passes_when_every_declared_test_passed_whatever_the_exit(tmp_path: Path) -> None:
