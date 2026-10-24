@@ -3,8 +3,8 @@
 Living here keeps unit/ runnable under any --platform and without a device. In a device round
 (`--target` or `--mode`) every fixture here depends on `round_target`, so it re-creates per target,
 and the round plugin (`stratum_e2e.round.plugin`) supplies the app and the low-level options; an
-Appium server, install, or session failure, or a Chrome launch or page failure, raises `RoundEnvError`, so the round
-classes it `env`.
+Appium server, install, or session failure, a Chrome launch or page failure, or a TalkBack or uhid keyboard setup
+failure raises `RoundEnvError`, so the round classes it `env`.
 """
 
 from __future__ import annotations
@@ -29,7 +29,14 @@ from selenium.common.exceptions import WebDriverException
 from urllib3.exceptions import HTTPError
 
 from stratum_e2e.android.session import android_capabilities, install_apk
-from stratum_e2e.android.talkback import AVD_NAME, TalkBackLog, TalkBackSession, avd_name
+from stratum_e2e.android.talkback import (
+    AVD_NAME,
+    TalkBackLog,
+    TalkBackSession,
+    TalkBackSilent,
+    TalkBackStuck,
+    avd_name,
+)
 from stratum_e2e.android.uhid_keyboard import UhidKeyboard
 from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.ios.session import WDA_DERIVED_DATA, install_app, ios_capabilities
@@ -246,10 +253,13 @@ def _first_line(text: str) -> str:
 
 @pytest.fixture
 def talkback(request: pytest.FixtureRequest) -> Iterator[TalkBackLog]:
-    """TalkBack freshly restarted on --device for the test, its settings restored afterwards."""
+    """TalkBack freshly restarted on --device for the test, its settings restored afterwards.
+
+    A restart that fails (`TalkBackStuck`, `TalkBackSilent`, adb) raises `RoundEnvError`.
+    """
     serial = _required_option(request.config, "device")
-    with TalkBackSession(serial) as log:
-        yield log
+    with contextlib.ExitStack() as stack:
+        yield _set_up(stack, TalkBackSession(serial), f"talkback setup on {serial}")
 
 
 @pytest.fixture
@@ -261,10 +271,18 @@ def voiceover(driver: Any) -> Iterator[VoiceOver]:
 
 @pytest.fixture
 def keyboard(request: pytest.FixtureRequest) -> Iterator[UhidKeyboard]:
-    """A registered uhid USB keyboard on --device, closed afterwards."""
+    """A registered uhid USB keyboard on --device, closed afterwards; a failed registration raises `RoundEnvError`."""
     serial = _required_option(request.config, "device")
-    with UhidKeyboard(serial) as registered:
-        yield registered
+    with contextlib.ExitStack() as stack:
+        yield _set_up(stack, UhidKeyboard(serial), f"uhid keyboard setup on {serial}")
+
+
+def _set_up[T](stack: contextlib.ExitStack, tool: contextlib.AbstractContextManager[T], what: str) -> T:
+    """Enter a device tool into `stack`; a failure raises `RoundEnvError`, since no widget has been touched yet."""
+    try:
+        return stack.enter_context(tool)
+    except (TalkBackStuck, TalkBackSilent, subprocess.SubprocessError, OSError) as error:
+        raise RoundEnvError(f"{what} failed: {_first_line(str(error))}") from error
 
 
 @pytest.hookimpl(tryfirst=True)

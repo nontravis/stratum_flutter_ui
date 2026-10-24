@@ -91,6 +91,8 @@ import tools.e2e_avd
 from selenium.common.exceptions import WebDriverException
 
 import stratum_e2e.android.session as android_session
+import stratum_e2e.android.talkback as talkback
+import stratum_e2e.android.uhid_keyboard as uhid_keyboard
 import stratum_e2e.round.plugin as plugin
 from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
@@ -407,6 +409,33 @@ class _Playwright:
 
 
 playwright.sync_api.sync_playwright = _Playwright
+
+_talkback_failures = [SCENARIO.get("talkback_stuck", 0)]
+_keyboard_failures = [SCENARIO.get("uhid_fail", 0)]
+
+
+def _talkback_enter(self):
+    """Stands in for turning TalkBack on; stays bound (TalkBackStuck) the first `talkback_stuck` times."""
+    event("talkback on")
+    if _talkback_failures[0]:
+        _talkback_failures[0] -= 1
+        raise talkback.TalkBackStuck("TalkBack still bound 10 s after the off switch")
+    return talkback.TalkBackLog(self._serial)
+
+
+def _keyboard_enter(self):
+    """Stands in for registering the uhid keyboard; adb fails the first `uhid_fail` times."""
+    event("keyboard on")
+    if _keyboard_failures[0]:
+        _keyboard_failures[0] -= 1
+        raise subprocess.CalledProcessError(1, ["adb", "shell", "hid", "-"], stderr="error: device offline")
+    return self
+
+
+talkback.TalkBackSession.__enter__ = _talkback_enter
+talkback.TalkBackSession.__exit__ = lambda self, *exc_info: event("talkback off")
+uhid_keyboard.UhidKeyboard.__enter__ = _keyboard_enter
+uhid_keyboard.UhidKeyboard.__exit__ = lambda self, *exc_info: event("keyboard off")
 '''
 
 INTEGRATION_FILES = {FILE_A: "void main() {}\n", FILE_B: "void main() {}\n"}
@@ -1014,6 +1043,41 @@ def test_talkback_avd_check_failure_is_env(pytester: pytest.Pytester, monkeypatc
     _write_scenario(root, {"avd_check": 0})
     _round(pytester, "--target", "e2e_talkback").assert_outcomes(passed=1)
     assert _events(root, "check ", "item ") == ["check dev-e2e_talkback", "item e2e_talkback test_talkback_a"]
+
+
+TALKBACK_FIXTURE = """\
+@pytest.mark.android
+@pytest.mark.talkback_avd
+def test_talkback_speaks(talkback):
+    event("item talkback_speaks")
+"""
+
+KEYBOARD_FIXTURE = """\
+@pytest.mark.android
+def test_keyboard_types(keyboard):
+    event("item keyboard_types")
+"""
+
+
+def test_talkback_setup_failure_is_env_and_retried(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, TALKBACK_FIXTURE, {"talkback_stuck": 1})
+    _round(pytester, "--target", "e2e_talkback").assert_outcomes(passed=1)
+    assert _events(root, "talkback on", "item ") == ["talkback on", "talkback on", "item talkback_speaks"]
+
+    _write_scenario(root, {"talkback_stuck": 99})
+    _round(pytester, "--target", "e2e_talkback").assert_outcomes(errors=1)
+    cell = _cells(_summary(pytester))["test_e2e.py::test_talkback_speaks"]["e2e_talkback"]
+    expected = "talkback setup on dev-e2e_talkback failed: TalkBack still bound 10 s after the off switch"
+    assert (cell["class"], cell["reason"]) == ("env", expected)
+
+
+def test_uhid_keyboard_setup_failure_is_env(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, KEYBOARD_FIXTURE, {"uhid_fail": 99})
+    _round(pytester, "--target", "tablet").assert_outcomes(passed=2, errors=1)
+    assert _events(root, "keyboard on") == ["keyboard on", "keyboard on"]
+    cell = _cells(_summary(pytester))["test_e2e.py::test_keyboard_types"]["tablet"]
+    assert cell["class"] == "env"
+    assert cell["reason"].startswith("uhid keyboard setup on dev-tablet failed: Command '['adb', 'shell', 'hid', '-']'")
 
 
 def test_round_option_leaves_unit_items_unparametrized_and_in_order(
