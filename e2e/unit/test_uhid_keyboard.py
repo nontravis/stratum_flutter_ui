@@ -31,8 +31,9 @@ SERIAL = "emulator-5554"
 class FakeStdin:
     """Stdin pipe that records every written line and the order of close."""
 
-    def __init__(self, events: list[str]) -> None:
+    def __init__(self, events: list[str], broken: bool) -> None:
         self._events = events
+        self._broken = broken
         self.lines: list[str] = []
         self.closed = False
 
@@ -43,18 +44,22 @@ class FakeStdin:
 
     def flush(self) -> None:
         self._events.append("flush")
+        if self._broken:
+            raise BrokenPipeError(32, "Broken pipe")
 
     def close(self) -> None:
         self.closed = True
         self._events.append("close")
+        if self._broken:
+            raise BrokenPipeError(32, "Broken pipe")  # closing flushes the line the dead pipe refused
 
 
 class FakeProcess:
     """Popen stand-in: records argv, stdin lines, wait and kill."""
 
-    def __init__(self, argv: list[str], events: list[str], hang_on_wait: bool) -> None:
+    def __init__(self, argv: list[str], events: list[str], hang_on_wait: bool, broken: bool) -> None:
         self.argv = argv
-        self.stdin = FakeStdin(events)
+        self.stdin = FakeStdin(events, broken)
         self.killed = False
         self._hang_on_wait = hang_on_wait
 
@@ -75,6 +80,7 @@ class FakeHid:
         self.sleeps: list[float] = []
         self.events: list[str] = []
         self.hang_on_wait = False
+        self.broken_pipe = False
 
     @property
     def process(self) -> FakeProcess:
@@ -91,7 +97,7 @@ def fake_hid(monkeypatch: pytest.MonkeyPatch) -> FakeHid:
     hid = FakeHid()
 
     def popen(argv: list[str], **_: object) -> FakeProcess:
-        process = FakeProcess(argv, hid.events, hid.hang_on_wait)
+        process = FakeProcess(argv, hid.events, hid.hang_on_wait, hid.broken_pipe)
         hid.processes.append(process)
         return process
 
@@ -165,6 +171,18 @@ def test_exit_kills_a_process_that_will_not_stop(fake_hid: FakeHid) -> None:
         pass
 
     assert fake_hid.process.killed
+
+
+def test_enter_ends_the_hid_shell_when_the_register_write_fails(fake_hid: FakeHid) -> None:
+    fake_hid.broken_pipe = True
+    keyboard = UhidKeyboard(SERIAL)
+
+    with pytest.raises(BrokenPipeError):
+        keyboard.__enter__()
+
+    assert fake_hid.process.killed
+    with pytest.raises(RuntimeError, match="inside its `with` context"):
+        keyboard.press(KEY_TAB)
 
 
 def test_exit_still_closes_when_the_body_raises(fake_hid: FakeHid) -> None:

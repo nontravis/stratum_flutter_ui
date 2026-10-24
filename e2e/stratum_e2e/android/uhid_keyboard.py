@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import subprocess
 import time
@@ -69,13 +70,19 @@ class UhidKeyboard:
         self._process: subprocess.Popen[str] | None = None
 
     def __enter__(self) -> UhidKeyboard:
+        """Start the hid shell and register the keyboard; a failed registration ends the shell, then re-raises."""
         self._process = subprocess.Popen(
             ["adb", "-s", self._serial, "shell", "hid", "-"],
             stdin=subprocess.PIPE,
             text=True,
         )
-        self._send(register_line())
-        time.sleep(REGISTER_SETTLE_S)
+        try:
+            self._send(register_line())
+            time.sleep(REGISTER_SETTLE_S)
+        except BaseException:
+            process, self._process = self._process, None
+            _end(process)
+            raise
         return self
 
     def __exit__(
@@ -120,3 +127,13 @@ class UhidKeyboard:
         if self._process is None or self._process.stdin is None:
             raise RuntimeError("UhidKeyboard is used inside its `with` context only")
         return self._process.stdin
+
+
+def _end(process: subprocess.Popen[str]) -> None:
+    """Kill `process` and reap it, closing its stdin; a pipe that already broke is no reason to leave it running."""
+    process.kill()
+    if process.stdin is not None:
+        with contextlib.suppress(OSError):
+            process.stdin.close()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=CLOSE_TIMEOUT_S)
