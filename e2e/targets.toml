@@ -87,12 +87,14 @@ catalog_only = true                                     # unverified: never in a
 integration = false
 e2e = false
 
-[sequences.fo10_cold_restart]
-target = "linux"
-files = [                                               # FO-10 US-01 s2: launch 1 stores, launch 2 restarts (owner ruling 2026-10-21)
-  "common/page_layout_restart_1_linux_test.dart",
-  "common/page_layout_restart_2_linux_test.dart",
-]
+# The sequence waits for its two files: feat/test-foundation owns and lands common/page_layout_restart_1_linux_test.dart
+# and common/page_layout_restart_2_linux_test.dart. Until then a Linux or full round would stop at configure. Shape:
+#   [sequences.fo10_cold_restart]
+#   target = "linux"
+#   files = [                                             # FO-10 US-01 s2: launch 1 stores, launch 2 restarts (owner ruling 2026-10-21)
+#     "common/page_layout_restart_1_linux_test.dart",
+#     "common/page_layout_restart_2_linux_test.dart",
+#   ]
 
 [modes.fast]
 targets = ["mac"]

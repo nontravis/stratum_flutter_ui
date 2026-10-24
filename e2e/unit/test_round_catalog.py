@@ -122,13 +122,8 @@ def test_app_ids(catalog: Catalog) -> None:
     assert test_app.perf is None
 
 
-def test_sequence_of_the_real_catalog(catalog: Catalog) -> None:
-    sequence = catalog.sequences["fo10_cold_restart"]
-    assert sequence.target == "linux"
-    assert sequence.files == (
-        "common/page_layout_restart_1_linux_test.dart",
-        "common/page_layout_restart_2_linux_test.dart",
-    )
+def test_real_catalog_names_only_files_the_test_app_has() -> None:
+    load_catalog(TARGETS_TOML, TARGETS_TOML.parents[1] / "test_app" / "integration_test")
 
 
 def test_unknown_target_fails_naming_it(catalog: Catalog) -> None:
