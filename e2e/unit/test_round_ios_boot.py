@@ -17,9 +17,8 @@ from stratum_e2e.round.runner import Completed
 from unit.round_fakes import FakeRunner
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "round" / "simctl_list.json"
-HOME = Path("/Users/tester")
-PLIST = str(HOME / "Library/Preferences/com.apple.iphonesimulator.plist")
-PLISTBUDDY = "/usr/libexec/PlistBuddy"
+DOMAIN = "com.apple.keyboard.preferences"
+KEY = "AutomaticMinimizationEnabled"
 RUNTIME_PREFIX = "com.apple.CoreSimulator.SimRuntime.iOS-"
 IPHONE = Target(name="iphone", platform="ios", device="iPhone 17", e2e=False)
 IPHONE_E2E = Target(name="iphone_e2e", platform="ios", device="iPhone Duo", runtime="iOS 27.1", integration=False)
@@ -33,7 +32,14 @@ LANE = LaneConfig(
 )
 
 Entry = tuple[tuple[str, ...], Completed]
+
 _ALREADY_BOOTED_TEXT = "Unable to boot device in current state: Booted"
+
+
+@pytest.fixture(autouse=True)
+def _in_temp_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run each test in an empty folder, so the relative `boot.log` the booter appends to never lands in the repo."""
+    monkeypatch.chdir(tmp_path)
 
 
 class FakeClock:
@@ -123,18 +129,30 @@ def _pair() -> IosPair:
     return resolve_pair(_fixture(), "iPhone 17", None)
 
 
-def _pin_script(udid: str) -> list[Entry]:
-    key = f":DevicePreferences:{udid}:ConnectHardwareKeyboard"
+def _spawn(udid: str, verb: str, *args: str) -> tuple[str, ...]:
+    return ("xcrun", "simctl", "spawn", udid, "defaults", verb, DOMAIN, KEY, *args)
+
+
+def _pin_script(udid: str, read_back: str = "0\n") -> list[Entry]:
+    """The device pin that follows a successful boot: the write, then the read-back."""
     return [
-        (("defaults", "write", "com.apple.iphonesimulator", "ConnectHardwareKeyboard", "-bool", "false"), _done()),
-        ((PLISTBUDDY, "-c", f"Print :DevicePreferences:{udid}", PLIST), _done()),
-        ((PLISTBUDDY, "-c", f"Set {key} false", PLIST), _done()),
+        (_spawn(udid, "write", "-bool", "false"), _done()),
+        (_spawn(udid, "read"), _done(read_back)),
+    ]
+
+
+def _boot_script(udid: str, *, fixture: Mapping[str, object] | None = None) -> list[Entry]:
+    return [
+        _listing(fixture or _fixture()),
+        (("xcrun", "simctl", "boot", udid), _done()),
+        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        *_pin_script(udid),
     ]
 
 
 def _booter(script: list[Entry]) -> tuple[IosBooter, FakeRunner]:
     runner = FakeRunner(script)
-    return IosBooter(runner, LANE, HOME), runner
+    return IosBooter(runner, LANE), runner
 
 
 def test_iphone_17_resolves_to_ios_27_0() -> None:
@@ -202,10 +220,10 @@ def test_malformed_listing_fails_naming_the_pair() -> None:
         resolve_pair({"runtimes": "nope", "devices": []}, "iPhone 17", None)
 
 
-def test_booted_simulator_is_reused_without_pin_or_shutdown() -> None:
+def test_booted_simulator_is_reused_pinned_and_left_running() -> None:
     udid = _pair().udid
     booted = _with_state(_fixture(), udid, "Booted")
-    booter, runner = _booter([_listing(booted), _listing(booted)])
+    booter, runner = _booter([_listing(booted), _listing(booted), *_pin_script(udid)])
 
     assert booter.is_running(IPHONE) is True
     record = booter.boot(IPHONE, Path("boot.log"))
@@ -215,7 +233,20 @@ def test_booted_simulator_is_reused_without_pin_or_shutdown() -> None:
     assert record.device_id == udid
     assert record.platform == "ios"
     assert record.target == "iphone"
-    assert [call[:3] for call in runner.calls] == [("xcrun", "simctl", "list")] * 2
+    assert [call[:3] for call in runner.calls] == [("xcrun", "simctl", "list")] * 2 + [("xcrun", "simctl", "spawn")] * 2
+    assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
+
+
+@pytest.mark.parametrize("read_back", ["1\n", "\n"])
+def test_reused_simulator_whose_pin_reads_back_wrong_raises_env_and_is_left_running(read_back: str) -> None:
+    udid = _pair().udid
+    booted = _with_state(_fixture(), udid, "Booted")
+    booter, runner = _booter([_listing(booted), *_pin_script(udid, read_back)])
+
+    with pytest.raises(RoundEnvError, match=rf"^env: .*{udid}.*{KEY}"):
+        booter.boot(IPHONE, Path("boot.log"))
+
+    assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
 
 
 def test_shutdown_simulator_is_not_running() -> None:
@@ -225,25 +256,18 @@ def test_shutdown_simulator_is_not_running() -> None:
     assert runner.calls == [("xcrun", "simctl", "list", "-j")]
 
 
-def test_boot_pins_keyboard_then_boots_then_waits() -> None:
+def test_boot_boots_then_waits_then_pins_the_device_keyboard() -> None:
     udid = _pair().udid
-    script = [
-        _listing(_fixture()),
-        *_pin_script(udid),
-        (("xcrun", "simctl", "boot", udid), _done()),
-        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
-    ]
-    booter, runner = _booter(script)
+    booter, runner = _booter(_boot_script(udid))
 
     record = booter.boot(IPHONE, Path("boot.log"))
 
-    assert [call[:4] for call in runner.calls] == [
+    assert runner.calls == [
         ("xcrun", "simctl", "list", "-j"),
-        ("defaults", "write", "com.apple.iphonesimulator", "ConnectHardwareKeyboard"),
-        (PLISTBUDDY, "-c", f"Print :DevicePreferences:{udid}", PLIST),
-        (PLISTBUDDY, "-c", f"Set :DevicePreferences:{udid}:ConnectHardwareKeyboard false", PLIST),
         ("xcrun", "simctl", "boot", udid),
-        ("xcrun", "simctl", "bootstatus", udid),
+        ("xcrun", "simctl", "bootstatus", udid, "-b"),
+        _spawn(udid, "write", "-bool", "false"),
+        _spawn(udid, "read"),
     ]
     assert record.reused is False
     assert record.device_id == udid
@@ -255,10 +279,10 @@ def test_boot_and_bootstatus_share_one_boot_timeout() -> None:
     boot_argv = ("xcrun", "simctl", "boot", udid)
     status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")
     clock = FakeClock()
-    script = [_listing(_fixture()), *_pin_script(udid), (boot_argv, _done()), (status_argv, _done())]
+    script = [_listing(_fixture()), (boot_argv, _done()), (status_argv, _done()), *_pin_script(udid)]
     runner = TimedRunner(script, clock, cost={boot_argv: 240.0})
 
-    IosBooter(runner, LANE, HOME, monotonic=clock.monotonic).boot(IPHONE, Path("boot.log"))
+    IosBooter(runner, LANE, monotonic=clock.monotonic).boot(IPHONE, Path("boot.log"))
 
     assert runner.timeouts[boot_argv] == 600.0
     assert runner.timeouts[status_argv] == 360.0
@@ -270,14 +294,13 @@ def test_boot_that_spends_the_whole_timeout_skips_bootstatus_and_shuts_down() ->
     clock = FakeClock()
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (boot_argv, _done()),
         (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
     runner = TimedRunner(script, clock, cost={boot_argv: 600.0})
 
     with pytest.raises(RoundEnvError, match="did not finish booting within 600 s"):
-        IosBooter(runner, LANE, HOME, monotonic=clock.monotonic).boot(IPHONE, Path("boot.log"))
+        IosBooter(runner, LANE, monotonic=clock.monotonic).boot(IPHONE, Path("boot.log"))
 
     assert not any(call[:4] == ("xcrun", "simctl", "bootstatus", udid) for call in runner.calls)
     assert runner.calls[-1] == ("xcrun", "simctl", "shutdown", udid)
@@ -288,14 +311,13 @@ def test_interrupt_during_bootstatus_shuts_down_once_and_reraises() -> None:
     status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
         (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
     runner = TimedRunner(script, FakeClock(), interrupt=(status_argv, KeyboardInterrupt()))
 
     with pytest.raises(KeyboardInterrupt):
-        IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
+        IosBooter(runner, LANE).boot(IPHONE, Path("boot.log"))
 
     assert runner.calls.count(("xcrun", "simctl", "shutdown", udid)) == 1
 
@@ -305,13 +327,12 @@ def test_interrupt_during_simctl_boot_shuts_down_and_reraises() -> None:
     boot_argv = ("xcrun", "simctl", "boot", udid)
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
     runner = TimedRunner(script, FakeClock(), interrupt=(boot_argv, KeyboardInterrupt()))
 
     with pytest.raises(KeyboardInterrupt):
-        IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
+        IosBooter(runner, LANE).boot(IPHONE, Path("boot.log"))
 
     assert runner.calls.count(("xcrun", "simctl", "shutdown", udid)) == 1
 
@@ -321,72 +342,13 @@ def test_interrupt_after_a_lost_boot_race_leaves_the_simulator_running() -> None
     status_argv = ("xcrun", "simctl", "bootstatus", udid, "-b")
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done(status=164, stderr=_ALREADY_BOOTED_TEXT)),
     ]
     runner = TimedRunner(script, FakeClock(), interrupt=(status_argv, KeyboardInterrupt()))
 
     with pytest.raises(KeyboardInterrupt):
-        IosBooter(runner, LANE, HOME).boot(IPHONE, Path("boot.log"))
+        IosBooter(runner, LANE).boot(IPHONE, Path("boot.log"))
 
-    assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
-
-
-def test_pin_adds_the_key_when_set_fails_on_a_missing_key() -> None:
-    udid = _pair().udid
-    key = f":DevicePreferences:{udid}:ConnectHardwareKeyboard"
-    script = [
-        _listing(_fixture()),
-        (("defaults", "write"), _done()),
-        ((PLISTBUDDY, "-c", f"Print :DevicePreferences:{udid}", PLIST), _done()),
-        ((PLISTBUDDY, "-c", f"Set {key} false", PLIST), _done(status=1)),
-        ((PLISTBUDDY, "-c", f"Add {key} bool false", PLIST), _done()),
-        (("xcrun", "simctl", "boot", udid), _done()),
-        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
-    ]
-    booter, runner = _booter(script)
-
-    booter.boot(IPHONE, Path("boot.log"))
-
-    assert (PLISTBUDDY, "-c", f"Add {key} bool false", PLIST) in runner.calls
-
-
-def test_pin_skips_plistbuddy_when_the_device_has_no_preference_dict() -> None:
-    udid = _pair().udid
-    script = [
-        _listing(_fixture()),
-        (("defaults", "write"), _done()),
-        ((PLISTBUDDY, "-c", f"Print :DevicePreferences:{udid}", PLIST), _done(status=1)),
-        (("xcrun", "simctl", "boot", udid), _done()),
-        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
-    ]
-    booter, runner = _booter(script)
-
-    booter.boot(IPHONE, Path("boot.log"))
-
-    assert not any(call[0] == PLISTBUDDY and call[2].startswith(("Set", "Add")) for call in runner.calls)
-
-
-@pytest.mark.parametrize("failing", ["defaults", "plist"])
-def test_failed_pin_raises_env_and_boots_nothing(failing: str) -> None:
-    udid = _pair().udid
-    key = f":DevicePreferences:{udid}:ConnectHardwareKeyboard"
-    if failing == "defaults":
-        script = [_listing(_fixture()), (("defaults", "write"), _done(status=1, stderr="denied"))]
-    else:
-        script = [
-            _listing(_fixture()),
-            (("defaults", "write"), _done()),
-            ((PLISTBUDDY, "-c", f"Print :DevicePreferences:{udid}", PLIST), _done()),
-            ((PLISTBUDDY, "-c", f"Set {key} false", PLIST), _done(status=1)),
-            ((PLISTBUDDY, "-c", f"Add {key} bool false", PLIST), _done(status=1)),
-        ]
-    booter, runner = _booter(script)
-
-    with pytest.raises(RoundEnvError, match=r"^env: .*Connect Hardware Keyboard"):
-        booter.boot(IPHONE, Path("boot.log"))
-
-    assert not any(call[:3] == ("xcrun", "simctl", "boot") for call in runner.calls)
     assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
 
 
@@ -394,12 +356,12 @@ def test_already_booted_is_not_an_error() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (
             ("xcrun", "simctl", "boot", udid),
             _done(status=164, stderr="Unable to boot device in current state: Booted"),
         ),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        *_pin_script(udid),
     ]
     booter, runner = _booter(script)
 
@@ -412,26 +374,92 @@ def test_already_booted_is_not_an_error() -> None:
     assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
 
 
-def test_failed_boot_raises_env_without_shutting_down_a_simulator_it_did_not_start() -> None:
+def test_failed_boot_raises_env_and_shuts_the_simulator_down() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done(status=1, stderr="Invalid device state")),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
     booter, runner = _booter(script)
 
     with pytest.raises(RoundEnvError, match="Invalid device state"):
         booter.boot(IPHONE, Path("boot.log"))
 
-    assert not any(call[:3] == ("xcrun", "simctl", "shutdown") for call in runner.calls)
+    assert runner.calls[-1] == ("xcrun", "simctl", "shutdown", udid)
+    assert not any(call[:3] == ("xcrun", "simctl", "bootstatus") for call in runner.calls)
+
+
+def test_failed_boot_whose_shutdown_also_fails_raises_the_boot_error() -> None:
+    udid = _pair().udid
+    script = [
+        _listing(_fixture()),
+        (("xcrun", "simctl", "boot", udid), _done(status=1, stderr="Invalid device state")),
+        (
+            ("xcrun", "simctl", "shutdown", udid),
+            _done(status=1, stderr="Unable to shutdown device in current state: Creating"),
+        ),
+    ]
+    booter, _ = _booter(script)
+
+    with pytest.raises(RoundEnvError, match="Invalid device state"):
+        booter.boot(IPHONE, Path("boot.log"))
+
+
+def test_retry_after_a_failed_boot_starts_with_a_shutdown_then_boots_and_pins(tmp_path: Path) -> None:
+    udid = _pair().udid
+    log = tmp_path / "boot.log"
+    script = [
+        _listing(_fixture()),
+        (("xcrun", "simctl", "boot", udid), _done(status=1, stderr="Bundle SimRenderingServices rejected boot")),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
+        *_boot_script(udid),
+    ]
+    booter, runner = _booter(script)
+
+    with pytest.raises(RoundEnvError):
+        booter.boot(IPHONE, log)
+    record = booter.boot(IPHONE, log)
+
+    kinds = [call[2] for call in runner.calls]
+    assert kinds == ["list", "boot", "shutdown", "list", "boot", "bootstatus", "spawn", "spawn"]
+    assert record.reused is False
+
+
+def test_boot_log_holds_each_attempts_stderr_bootstatus_output_read_back_and_the_first_error(tmp_path: Path) -> None:
+    udid = _pair().udid
+    log = tmp_path / "boot.log"
+    script = [
+        _listing(_fixture()),
+        (("xcrun", "simctl", "boot", udid), _done(status=1, stderr="rejected boot: Invalid connectionUUID")),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
+        _listing(_fixture()),
+        (("xcrun", "simctl", "boot", udid), _done(stdout="boot notice", stderr="boot warning")),
+        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done(stdout="Data Migration Failed")),
+        *_pin_script(udid),
+    ]
+    booter, _ = _booter(script)
+
+    with pytest.raises(RoundEnvError):
+        booter.boot(IPHONE, log)
+    booter.boot(IPHONE, log)
+
+    text = log.read_text()
+    assert "boot attempt 1" in text
+    assert "boot attempt 1 failed" in text
+    assert "rejected boot: Invalid connectionUUID" in text
+    assert "boot attempt 2" in text
+    assert "boot attempt 2 failed" not in text
+    assert "boot warning" in text
+    assert "boot notice" in text
+    assert "Data Migration Failed" in text
+    assert f"{KEY} read back: '0'" in text
 
 
 def test_timed_out_boot_raises_env_and_shuts_down() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done(status=-9, timed_out=True)),
         (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
@@ -447,7 +475,6 @@ def test_bootstatus_failure_after_a_lost_boot_race_leaves_the_simulator_running(
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done(status=164, stderr="Unable to boot device in current state: Booted")),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done(status=1, stderr="boom")),
     ]
@@ -463,7 +490,6 @@ def test_bootstatus_bound_raises_env() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done(status=-9, timed_out=True)),
         (("xcrun", "simctl", "shutdown", udid), _done()),
@@ -480,7 +506,6 @@ def test_bootstatus_failure_raises_env_and_shuts_down() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done(status=1, stderr="boom")),
         (("xcrun", "simctl", "shutdown", udid), _done()),
@@ -511,9 +536,9 @@ def test_shutdown_ends_a_simulator_this_booter_booted_once() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        *_pin_script(udid),
         (("xcrun", "simctl", "shutdown", udid), _done()),
     ]
     booter, runner = _booter(script)
@@ -539,9 +564,9 @@ def test_shutdown_failure_raises_env_naming_the_udid() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        *_pin_script(udid),
         (("xcrun", "simctl", "shutdown", udid), _done(status=1, stderr="CoreSimulator busy")),
     ]
     booter, _ = _booter(script)
@@ -555,9 +580,9 @@ def test_shutdown_of_an_already_shut_down_simulator_is_not_an_error() -> None:
     udid = _pair().udid
     script = [
         _listing(_fixture()),
-        *_pin_script(udid),
         (("xcrun", "simctl", "boot", udid), _done()),
         (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        *_pin_script(udid),
         (
             ("xcrun", "simctl", "shutdown", udid),
             _done(status=164, stderr="Unable to shutdown device in current state: Shutdown"),
@@ -572,9 +597,9 @@ def test_pinned_target_boots_its_pinned_pair() -> None:
     pair = resolve_pair(_fixture(), "iPhone Duo", "iOS 27.1")
     script = [
         _listing(_fixture()),
-        *_pin_script(pair.udid),
         (("xcrun", "simctl", "boot", pair.udid), _done()),
         (("xcrun", "simctl", "bootstatus", pair.udid, "-b"), _done()),
+        *_pin_script(pair.udid),
     ]
     booter, _ = _booter(script)
 
@@ -588,13 +613,71 @@ def test_ios_target_without_device_fails_as_catalog_error() -> None:
         booter.is_running(Target(name="iphone", platform="ios"))
 
 
+def test_pin_writes_the_device_preference_through_simctl_spawn_and_logs_the_read_back(tmp_path: Path) -> None:
+    udid = _pair().udid
+    log = tmp_path / "boot.log"
+    booter, runner = _booter(_boot_script(udid))
+
+    booter.boot(IPHONE, log)
+
+    assert _spawn(udid, "write", "-bool", "false") in runner.calls
+    assert _spawn(udid, "read") in runner.calls
+    assert f"{DOMAIN} {KEY} read back: '0'" in log.read_text()
+
+
+@pytest.mark.parametrize("read_back", ["1\n", "\n", "true\n"])
+def test_pin_that_reads_back_wrong_raises_env_and_shuts_down_the_simulator_it_booted(read_back: str) -> None:
+    udid = _pair().udid
+    script = [
+        _listing(_fixture()),
+        (("xcrun", "simctl", "boot", udid), _done()),
+        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        *_pin_script(udid, read_back),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
+    ]
+    booter, runner = _booter(script)
+
+    with pytest.raises(RoundEnvError, match=rf"^env: .*{udid}.*{KEY}"):
+        booter.boot(IPHONE, Path("boot.log"))
+
+    assert runner.calls[-1] == ("xcrun", "simctl", "shutdown", udid)
+
+
+def test_pin_write_that_fails_raises_env_even_when_the_read_back_is_false() -> None:
+    udid = _pair().udid
+    script = [
+        _listing(_fixture()),
+        (("xcrun", "simctl", "boot", udid), _done()),
+        (("xcrun", "simctl", "bootstatus", udid, "-b"), _done()),
+        (_spawn(udid, "write", "-bool", "false"), _done(status=1, stderr="no such domain")),
+        (_spawn(udid, "read"), _done("0\n")),
+        (("xcrun", "simctl", "shutdown", udid), _done()),
+    ]
+    booter, _ = _booter(script)
+
+    with pytest.raises(RoundEnvError, match="write status 1"):
+        booter.boot(IPHONE, Path("boot.log"))
+
+
+def test_round_writes_no_host_setting_for_the_keyboard() -> None:
+    udid = _pair().udid
+    booter, runner = _booter(_boot_script(udid))
+
+    booter.boot(IPHONE, Path("boot.log"))
+
+    assert {call[0] for call in runner.calls} == {"xcrun"}
+    assert not any("ConnectHardwareKeyboard" in part or "PlistBuddy" in part for call in runner.calls for part in call)
+
+
 def test_before_file_runs_nothing() -> None:
     udid = _pair().udid
-    booter, runner = _booter([_listing(_with_state(_fixture(), udid, "Booted"))])
+    booter, runner = _booter([_listing(_with_state(_fixture(), udid, "Booted")), *_pin_script(udid)])
 
-    booter.before_file(booter.boot(IPHONE, Path("boot.log")))
+    record = booter.boot(IPHONE, Path("boot.log"))
+    calls_after_boot = len(runner.calls)
+    booter.before_file(record)
 
-    assert len(runner.calls) == 1
+    assert len(runner.calls) == calls_after_boot
 
 
 @pytest.mark.parametrize(

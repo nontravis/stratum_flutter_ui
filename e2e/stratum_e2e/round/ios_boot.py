@@ -1,7 +1,7 @@
 """Resolve the iOS runtime and device as one pair, boot and reuse simulators, and boot nothing on a host platform.
 
-Ported from the skill's `platforms/ios.sh` (`simctl_resolve`, `ios_pin_hardware_keyboard`, `p_boot`, `p_kill`). The
-booter ends only a simulator it booted itself: one found `Booted` is reused as found and left running.
+Ported from the skill's `platforms/ios.sh` (`simctl_resolve`, `p_boot`, `p_kill`). The booter ends only a simulator it
+booted itself: one found `Booted` is reused and left running, with its keyboard preference pinned.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ _HOST_PLATFORMS = ("macos", "web", "linux")
 _BOOTED = "Booted"
 _ALREADY_BOOTED = "Unable to boot device in current state: Booted"
 _ALREADY_SHUTDOWN = "Unable to shutdown device in current state: Shutdown"
-_SIMULATOR_DOMAIN = "com.apple.iphonesimulator"
-_KEYBOARD_KEY = "ConnectHardwareKeyboard"
-_PLISTBUDDY = "/usr/libexec/PlistBuddy"
+_KEYBOARD_DOMAIN = "com.apple.keyboard.preferences"
+_MINIMIZATION_KEY = "AutomaticMinimizationEnabled"
+_DEFAULTS_FALSE = "0"
 _QUERY_TIMEOUT_S = 60.0
 
 
@@ -98,56 +98,81 @@ def _available_device(devices: object, name: str) -> Mapping[str, object] | None
 
 
 class IosBooter(Booter):
-    """Boots each target's simulator with Connect Hardware Keyboard pinned off, and ends only the ones it booted."""
+    """Boots each target's simulator, pins its soft keyboard to show, and ends only the ones it booted.
+
+    The pin is a device preference written through `simctl spawn`; the round writes no host setting for the keyboard.
+    A headless boot attaches the simulator's virtual hardware keyboard whatever the host's `ConnectHardwareKeyboard`
+    says, and `AutomaticMinimizationEnabled` = true then shows the soft keyboard minimized at 0 pt. A file that needs
+    the minimized state must set the preference itself. A simulator found `Booted` is left running, with that
+    preference pinned.
+    """
 
     def __init__(
         self,
         runner: Runner,
         lane: LaneConfig,
-        home: Path,
         *,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._runner = runner
         self._lane = lane
-        self._plist = home / "Library" / "Preferences" / f"{_SIMULATOR_DOMAIN}.plist"
         self._monotonic = monotonic
         # The UDIDs this booter booted: the one place `shutdown` learns that a simulator is ours to end.
         self._booted: set[str] = set()
+        # Boots begun per log file, so a retry's lines in the shared `boot.log` are told from attempt 1's.
+        self._attempts: dict[Path, int] = {}
 
     def is_running(self, target: Target) -> bool:
         """Whether the simulator of `target`'s pair is `Booted`, so `boot` reuses it and the memory gate is skipped."""
         return self._pair(target).state == _BOOTED
 
     def boot(self, target: Target, log: Path) -> BootRecord:
-        """Reuse a `Booted` simulator as found, else pin the keyboard key, boot it, and wait for `bootstatus`.
+        """Reuse a `Booted` simulator, else boot it and wait for `bootstatus`; then pin the soft keyboard either way.
 
-        `log` is unused: `simctl` keeps its own logs. One deadline of `boot_timeout_minutes` covers `simctl boot`
-        and `bootstatus`. An interrupt or timeout of `simctl boot`, and once it has succeeded any failure or interrupt,
-        shuts the simulator down.
+        A reused simulator is left running, with only its keyboard preference changed.
+
+        Appends each attempt's `simctl boot` stderr, `bootstatus` output, pin read-back, and error to `log`. One
+        deadline of `boot_timeout_minutes` covers `simctl boot` and `bootstatus`. Any failure or interrupt of
+        `simctl boot`, and once it has succeeded any failure or interrupt, shuts the simulator down: a boot that
+        failed can leave a half-started simulator that a retry would only hang on.
         """
+        attempt = self._attempts.get(log, 0) + 1
+        self._attempts[log] = attempt
+        _note(log, f"boot attempt {attempt}: {target.name}")
+        try:
+            return self._boot(target, log)
+        except BaseException as error:
+            _note(log, f"boot attempt {attempt} failed: {error!r}")
+            raise
+
+    def _boot(self, target: Target, log: Path) -> BootRecord:
         pair = self._pair(target)
         if pair.state == _BOOTED:
+            self._pin_soft_keyboard(pair.udid, log)
             return BootRecord(target=target.name, platform=_PLATFORM, device_id=pair.udid, reused=True)
-        self._pin_hardware_keyboard(pair.udid)
         limit = self._lane.boot_timeout_minutes * 60
         deadline = self._monotonic() + limit
         try:
             started = self._simctl("boot", pair.udid, timeout_s=limit)
         except BaseException:
-            # A killed `simctl` client can leave the simulator booting, as on the timeout path below.
+            # A killed `simctl` client can leave the simulator booting, as on the failure path below.
             self._end_quietly(pair.udid)
             raise
+        _note(
+            log,
+            f"simctl boot: status {started.status}, stdout {started.stdout.strip()!r}, "
+            f"stderr {started.stderr.strip()!r}",
+        )
         # Another session booting the same simulator since the listing is a reuse, not a failure.
         reused = _ALREADY_BOOTED in started.stderr + started.stdout
         if started.status != 0 and not reused:
-            if started.timed_out:
-                self._end_quietly(pair.udid)
+            self._end_quietly(pair.udid)
             raise RoundEnvError(f"simctl boot {pair.udid} failed (status {started.status}): {started.stderr.strip()}")
         if not reused:
             self._booted.add(pair.udid)
         try:
-            self._wait_booted(target, pair, limit, deadline)
+            self._wait_booted(target, pair, limit, deadline, log)
+            self._pin_soft_keyboard(pair.udid, log)
         except BaseException:
             if not reused:
                 self._end_quietly(pair.udid)
@@ -166,12 +191,14 @@ class IosBooter(Booter):
             return
         self._end(record.device_id)
 
-    def _wait_booted(self, target: Target, pair: IosPair, limit: int, deadline: float) -> None:
+    def _wait_booted(self, target: Target, pair: IosPair, limit: int, deadline: float, log: Path) -> None:
         name = f"{target.device} ({pair.udid})"
         remaining = deadline - self._monotonic()
         if remaining <= 0:
             raise RoundEnvError(f"{name} did not finish booting within {limit} s")
         waited = self._simctl("bootstatus", pair.udid, "-b", timeout_s=remaining)
+        printed = (waited.stdout + waited.stderr).strip()
+        _note(log, f"simctl bootstatus: status {waited.status}, output {printed!r}")
         if waited.timed_out:
             raise RoundEnvError(f"{name} did not finish booting within {limit} s")
         if waited.status != 0:
@@ -191,25 +218,24 @@ class IosBooter(Booter):
             raise RoundEnvError("simctl list -j printed no JSON object")
         return resolve_pair(parsed, target.device, target.runtime)
 
-    def _pin_hardware_keyboard(self, udid: str) -> None:
-        """Turn Connect Hardware Keyboard off globally and, when the device has its own dict, in that dict.
+    def _pin_soft_keyboard(self, udid: str, log: Path) -> None:
+        """Set the device's `AutomaticMinimizationEnabled` to false, read it back, and write the value to `log`.
 
-        A leaked "on" hides the OS keyboard that `keyboard_visibility_scope_mobile_test.dart` asserts. PlistBuddy edits only
-        the one nested key, so the device's saved window geometry survives. A failed write fails the boot.
+        Raises `RoundEnvError` when the write or the read fails or the read-back is not false; the soft keyboard
+        that `keyboard_visibility_scope_mobile_test.dart` asserts would otherwise open at 0 pt.
         """
-        written = self._run(["defaults", "write", _SIMULATOR_DOMAIN, _KEYBOARD_KEY, "-bool", "false"])
-        if written.status != 0 or not self._pin_device_key(udid):
-            raise RoundEnvError(f"{udid}: failed to pin Connect Hardware Keyboard off before boot")
+        written = self._device_defaults(udid, "write", _MINIMIZATION_KEY, "-bool", "false")
+        read = self._device_defaults(udid, "read", _MINIMIZATION_KEY)
+        value = read.stdout.strip()
+        _note(log, f"{_KEYBOARD_DOMAIN} {_MINIMIZATION_KEY} read back: {value!r}")
+        if written.status != 0 or read.status != 0 or value != _DEFAULTS_FALSE:
+            raise RoundEnvError(
+                f"{udid}: {_KEYBOARD_DOMAIN} {_MINIMIZATION_KEY} did not pin to false "
+                f"(write status {written.status}, read status {read.status}, read back {value!r})"
+            )
 
-    def _pin_device_key(self, udid: str) -> bool:
-        dict_key = f":DevicePreferences:{udid}"
-        if self._plistbuddy(f"Print {dict_key}").status != 0:
-            return True  # a device that never booted has no per-device dict, so the global key alone applies
-        key = f"{dict_key}:{_KEYBOARD_KEY}"
-        return self._plistbuddy(f"Set {key} false").status == 0 or self._plistbuddy(f"Add {key} bool false").status == 0
-
-    def _plistbuddy(self, command: str) -> Completed:
-        return self._run([_PLISTBUDDY, "-c", command, str(self._plist)])
+    def _device_defaults(self, udid: str, verb: str, *args: str) -> Completed:
+        return self._simctl("spawn", udid, "defaults", verb, _KEYBOARD_DOMAIN, *args, timeout_s=_QUERY_TIMEOUT_S)
 
     def _end(self, udid: str) -> None:
         """Forget `udid` as ours, then `simctl shutdown` it; a simulator already shut down is not an error."""
@@ -228,6 +254,13 @@ class IosBooter(Booter):
 
     def _run(self, argv: list[str], *, timeout_s: float = _QUERY_TIMEOUT_S) -> Completed:
         return self._runner.run(argv, timeout_s=timeout_s)
+
+
+def _note(log: Path, line: str) -> None:
+    """Append `line` to `log`, creating the file and its folder when absent."""
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a", encoding="utf-8") as sink:
+        sink.write(line + "\n")
 
 
 class HostBooter(Booter):

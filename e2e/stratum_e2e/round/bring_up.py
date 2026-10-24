@@ -200,5 +200,5 @@ def _platform_booter(platform: str, runner: Runner, config: pytest.Config, port_
         sdk = sdk_root(e2e_app_dir(catalog), os.environ, Path.home())
         return AndroidBooter(runner, sdk, catalog.lane, e2e_avd.avd_home(), port_dir)
     if platform == "ios":
-        return IosBooter(runner, catalog.lane, Path.home())
+        return IosBooter(runner, catalog.lane)
     return HostBooter()
