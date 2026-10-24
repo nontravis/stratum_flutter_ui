@@ -1,0 +1,7 @@
+  mHasPermanentDpad=false
+  mCurrentFocus=Window{597ef68 u0 dev.stratum.stratum_ui_test_app/dev.stratum.stratum_ui_test_app.MainActivity}
+  mFocusedApp=AppWindowToken{9ae0aaf token=Token{c67828e ActivityRecord{2c48289 u0 dev.stratum.stratum_ui_test_app/.MainActivity t274}}}
+  mInTouchMode=true
+  mLastDisplayFreezeDuration=0 due to Window{e9f663f u0 com.android.systemui.ImageWallpaper}
+  mLastWakeLockHoldingWindow=null mLastWakeLockObscuringWindow=Window{e9f663f u0 com.android.systemui.ImageWallpaper}
+  InputConsumers:

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from stratum_e2e.android.dumps import activities_dump, sdk_level, touch_mode, window_dump
 
 SERIAL = "emulator-5554"
+API28_WINDOW_DUMP = Path(__file__).resolve().parent / "fixtures" / "dumps" / "api28_dumpsys_window.txt"
 
 
 class FakeAdb:
@@ -128,6 +130,28 @@ def test_touch_mode_falls_back_to_the_top_activity_without_the_input_entry(
     assert [call[-1] for call in adb.calls] == ["input", "top"]
 
 
+# API 28 `dumpsys activity top`: the app's ViewRoot block prints neither mHasWindowFocus nor mInTouchMode.
+API28_TOP_DUMP = "  ACTIVITY app\n    ViewRoot:\n      mAdded=true\n      mIsAmbientMode=false\n"
+
+
+@pytest.mark.parametrize(("state", "expected"), [("true", True), ("false", False)])
+def test_touch_mode_falls_back_to_the_window_manager_line_on_api_28(
+    state: str, expected: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = API28_WINDOW_DUMP.read_text().replace("mInTouchMode=true", f"mInTouchMode={state}")
+    adb = FakeAdb(
+        {
+            ("shell", "-n", "dumpsys", "input"): NO_ENTRY,
+            ("shell", "-n", "dumpsys", "activity", "top"): API28_TOP_DUMP,
+            ("shell", "-n", "dumpsys", "window"): window,
+        }
+    )
+    monkeypatch.setattr("stratum_e2e.android.dumps.subprocess.run", adb)
+
+    assert touch_mode(SERIAL) is expected
+    assert [call[-1] for call in adb.calls] == ["input", "top", "window"]
+
+
 @pytest.mark.parametrize("dump", ["", NO_ENTRY, _input_dump("Display: 2 TouchMode: 1")])
 def test_touch_mode_rejects_dumps_without_a_display_zero_entry(
     dump: str, monkeypatch: pytest.MonkeyPatch
@@ -136,6 +160,8 @@ def test_touch_mode_rejects_dumps_without_a_display_zero_entry(
         {
             ("shell", "-n", "dumpsys", "input"): dump,
             ("shell", "-n", "dumpsys", "activity", "top"): "  no view root here\n",
+            # Not at a line start: only the anchored window-manager line counts.
+            ("shell", "-n", "dumpsys", "window"): "  other mInTouchMode=true\n  mInTouchMode=maybe\n",
         }
     )
     monkeypatch.setattr("stratum_e2e.android.dumps.subprocess.run", adb)

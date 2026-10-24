@@ -15,6 +15,7 @@ import subprocess
 
 _INPUT_TOUCH_MODE = re.compile(r"Display: 0 TouchMode: ([01])\b")
 _VIEW_TOUCH_MODE = re.compile(r"\bmHasWindowFocus=true\b.*?\bmInTouchMode=(true|false)", re.DOTALL)
+_WINDOW_TOUCH_MODE = re.compile(r"^\s*mInTouchMode=(true|false)$", re.MULTILINE)
 
 
 def window_dump(serial: str) -> str:
@@ -56,19 +57,21 @@ def touch_mode(serial: str) -> bool:
 
     Android leaves touch mode on the first navigation key and consumes that key, so a keyboard
     walk reads this before its first Tab. The state lives in ``dumpsys input``
-    (``TouchModePerDisplay``) from API 34. Before that, ``dumpsys window`` holds only a static
-    default, so the read falls back to the ViewRootImpl that holds window focus
-    (``mInTouchMode=`` after ``mHasWindowFocus=true`` in ``dumpsys activity top``, which also
-    lists the unfocused launcher), the object that applies the touch-mode exit. Raises
-    ValueError when neither dump has the entry.
+    (``TouchModePerDisplay``) from API 34. Before that, the read falls back to the ViewRootImpl
+    that holds window focus (``mInTouchMode=`` after ``mHasWindowFocus=true`` in
+    ``dumpsys activity top``, which also lists the unfocused launcher), then to the window
+    manager's global ``mInTouchMode=`` line in ``dumpsys window``, the only place API 28 prints
+    it; that line is live, not a default. Raises ValueError when no dump has the entry.
     """
     match = _INPUT_TOUCH_MODE.search(_adb(serial, "shell", "-n", "dumpsys", "input"))
     if match is None:
         match = _VIEW_TOUCH_MODE.search(_adb(serial, "shell", "-n", "dumpsys", "activity", "top"))
     if match is None:
+        match = _WINDOW_TOUCH_MODE.search(window_dump(serial))
+    if match is None:
         raise ValueError(
-            f"no touch mode on {serial!r}: neither 'Display: 0 TouchMode:' in dumpsys input "
-            "nor 'mInTouchMode=' in dumpsys activity top"
+            f"no touch mode on {serial!r}: none of 'Display: 0 TouchMode:' in dumpsys input, "
+            "'mInTouchMode=' in dumpsys activity top, or 'mInTouchMode=' in dumpsys window"
         )
     return match.group(1) in ("1", "true")
 

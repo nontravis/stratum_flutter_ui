@@ -50,6 +50,7 @@ platform = "android"
 avd = "Pixel_Tablet_API_35"                            # API 35 (edge-to-edge enforced, immersive honored), 800/1280dp wide
 alone = true
 build_mode = "profile"                                  # owner ruling 2026-10-17 (RC1 option A): AOT timing, flutter drive
+emulator_args = ["-gpu", "host"]                        # API 35 image boots software GLES; System UI misses its startup deadline and its ANR dialog covers the app; measured 2026-10-24 on this AVD: ANR in 1 of 3 default boots (e2e_talkback: 5 of 7, 0 of 8 with host GPU)
 
 [targets.iphone]
 platform = "ios"
@@ -69,6 +70,7 @@ platform = "android"
 avd = "E2E_TalkBack_API_35"
 alone = true
 integration = false                                     # e2e only, no integration build
+emulator_args = ["-gpu", "host"]                        # API 35 image boots software GLES; System UI misses its startup deadline and its ANR dialog covers the app; measured 2026-10-24: ANR in 5 of 7 default boots, 0 of 8 with host GPU
 
 [targets.mac]
 platform = "macos"
