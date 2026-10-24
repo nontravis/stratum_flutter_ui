@@ -43,6 +43,7 @@ ENV_SIGNS = (
     "device offline",
     "ADB exited with exit code",
     "touch up failed, pointer may be held down",
+    linux_docker.SYNC_FAILED_SIGN,
 )
 
 # skwasm needs a browser with WasmGC, which Chrome shipped at 119 (`web.sh:21-23`).

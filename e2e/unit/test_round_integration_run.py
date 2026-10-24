@@ -256,7 +256,7 @@ def test_run_argv_passes_a_sequence_its_files_and_keeps_the_app() -> None:
     assert argv[-1] == linux_docker.container_script(
         linux_docker.inner_command([path.as_posix() for path in files], None, sequence=True)
     )
-    home = argv.index("dt-linux-home-linux:/root/.local/share")
+    home = argv.index(f"{linux_docker.home_volume('linux')}:/root/.local/share")
     assert argv[home - 1] == "-v"
     mac_sequence = run_argv(plan_of("macos", [KEYBOARD, SMOKE], kind="sequence"), MAC,
                             [Path("integration_test", KEYBOARD), Path("integration_test", SMOKE)], "mac", ITEM, None)
@@ -451,6 +451,11 @@ def test_env_signs_class_env() -> None:
     assert not any("DT_WATCHER" in sign for sign in ENV_SIGNS)
     watcher = (REPORTS / "pixel_2-dr19-timeout.log").read_text(encoding="utf-8")
     assert classify_env(watcher, 124, False) is None
+
+
+def test_a_failed_linux_source_sync_is_env() -> None:
+    log = f"rsync: [receiver] write failed: No space left on device (28)\n{linux_docker.SYNC_FAILED_SIGN}\n"
+    assert classify_env(log, 1, False) == linux_docker.SYNC_FAILED_SIGN
 
 
 # Run results, logs, and timeouts through run_plan.
@@ -728,7 +733,7 @@ def test_linux_sequence_checks_packages_builds_and_resets_before_its_launch(tmp_
     ]
     assert {result.cls for result in outcome.files.values()} == {"pass"}
     assert outcome.argv[:2] == ("docker", "run")
-    assert f"{app.resolve().parent}:/work" in outcome.argv
+    assert f"{app.resolve().parent}:/host:ro" in outcome.argv
     assert "-w" in outcome.argv and outcome.argv[outcome.argv.index("-w") + 1] == "/work/test_app"
     assert "--no-uninstall" in outcome.argv[-1]
     assert f"integration_test/{RESTART_1} integration_test/{RESTART_2}" in outcome.argv[-1]

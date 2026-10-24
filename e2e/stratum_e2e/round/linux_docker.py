@@ -28,6 +28,29 @@ DEFAULT_PACKAGES = ("libgtk-3-dev", "libsecret-1-dev")
 
 ROUND_LABEL = "stratum-e2e-round=1"
 
+# Host-only trees the source sync leaves out of a target's work volume (`sync_command`). Anchored patterns name a path
+# under the repo root; the rest match at any depth. rsync never deletes an excluded path on the receiving side, so the
+# container keeps its own `build/`, `.dart_tool/`, and plugin lists beside each app folder between rounds.
+SYNC_EXCLUDES = (
+    "/.git",  # version control; in a worktree a file, so no trailing slash
+    "/.worktrees",  # other checkouts
+    "/.superpowers",  # the session journal
+    "/tmp",  # round dirs: a run's results leave through the `/round` mount only
+    "/e2e/.venv",  # host test tooling
+    "/e2e/.tools",
+    "/e2e/.wda-derived",
+    "build/",  # host build output; the container builds each app at its own path in the work volume
+    ".dart_tool/",  # host package configs, which hold host paths
+    ".flutter-plugins",  # host plugin lists, which hold host paths
+    ".flutter-plugins-dependencies",
+    "ephemeral/",  # host platform tooling Flutter regenerates
+    "Pods/",  # host CocoaPods state
+    ".symlinks/",
+    ".gradle/",  # host Gradle state
+)
+# A log line holding it never ran a test: the work volume could not take the host tree.
+SYNC_FAILED_SIGN = "dt: source sync failed"
+
 _BUILD_TIMEOUT_S = 3600.0
 _REPORT_PATH = "/round/report.json"
 
@@ -204,33 +227,42 @@ def linux_pub_gate() -> str:
     )
 
 
+def sync_command() -> str:
+    """The in-container command that brings the target's work volume (`/work`) level with the read-only host tree
+    (`/host`): incremental, deleting what the host deleted, and leaving out `SYNC_EXCLUDES`."""
+    excludes = " ".join(f"--exclude={shlex.quote(pattern)}" for pattern in SYNC_EXCLUDES)
+    return f"rsync -a --delete {excludes} /host/ /work/"
+
+
 def container_script(inner: str) -> str:
-    """The whole in-container script: the build-volume gate, the pub gate, `inner`, then its exit status.
+    """The whole in-container script: the source sync, the build-dir gate, the pub gate, `inner`, then its exit status.
 
-    The status goes to `build/.dt-last-exit`; the next run wipes the cmake build dir when it was not 0.
+    A failed sync prints `SYNC_FAILED_SIGN` and stops. The status goes to `build/.dt-last-exit`; the next run wipes
+    the cmake build dir when it was not 0.
     """
-    return f'{_BUILD_GATE}; {linux_pub_gate()} && {inner}; rc=$?; echo "$rc" > build/.dt-last-exit; exit "$rc"'
+    return (
+        f'{sync_command()} || {{ echo "{SYNC_FAILED_SIGN}"; exit 1; }}; '
+        f'{_BUILD_GATE}; {linux_pub_gate()} && {inner}; rc=$?; echo "$rc" > build/.dt-last-exit; exit "$rc"'
+    )
 
 
-def build_volume(target: str) -> str:
-    """The named volume holding the target's `build/` folder between rounds."""
-    return f"dt-linux-build-{target}"
+# Every docker object the round owns is named under `IMAGE_NAME`, so none collides with the bash tool's `dt-*` names.
 
 
-def dart_tool_volume(target: str) -> str:
-    """The named volume holding the target's `.dart_tool` folder, so the container's package config of its own
-    paths never lands in the host checkout, where host builds and runs would read it."""
-    return f"dt-linux-dart-tool-{target}"
+def source_volume(target: str) -> str:
+    """The named volume holding the target's work copy of the repo at `/work`: the synced source plus each app
+    folder's own `build/`, `.dart_tool/`, and plugin lists, kept between rounds."""
+    return f"{IMAGE_NAME}-src-{target}"
 
 
 def home_volume(target: str) -> str:
     """The named volume a sequence's launches share at `/root/.local/share`, the one place app data survives."""
-    return f"dt-linux-home-{target}"
+    return f"{IMAGE_NAME}-home-{target}"
 
 
 def container_name(target: str) -> str:
     """The name of the target's run container; pass it as `container` to `docker_run_argv`."""
-    return f"dt-linux-run-{target}"
+    return f"{IMAGE_NAME}-run-{target}"
 
 
 def host_pub_cache(environ: Mapping[str, str], home: Path) -> Path:
@@ -250,11 +282,11 @@ def docker_run_argv(
 ) -> list[str]:
     """The `docker run` argv for one Linux run of the app at `repo_root/app_rel`.
 
-    The repo mounts at `/work`, the host pub cache at `/root/.pub-cache`, `item_dir` at `/round` (where the report
-    leaves the container), the target's build volume at `/work/<app_rel>/build`, and its `.dart_tool` volume at
-    `/work/<app_rel>/.dart_tool`, so the container never writes the host's package state. A `sequence` also mounts the
-    home volume so its launches share app data. `target` names every volume; `linux_fresh_volume` removes the build
-    volume under that name.
+    The repo mounts read-only at `/host`, and the script syncs it into the target's source volume at `/work`, where
+    `flutter pub get`, the build, and `flutter test` run, so the container never writes the host tree. Each app
+    folder keeps its own `build/` and `.dart_tool/` at its own path in that volume. The host pub cache mounts at
+    `/root/.pub-cache`, and `item_dir` at `/round`, the one mount a run's results leave through (the report). A
+    `sequence` also mounts the home volume so its launches share app data. `target` names every volume.
     The run carries `ROUND_LABEL` so a stray container is findable.
 
     The caller holds the per-target lane lock, so at most one container named `container` runs; it runs
@@ -280,14 +312,12 @@ def docker_run_argv(
         "--label",
         ROUND_LABEL,
         "-v",
-        f"{repo_root}:/work",
+        f"{repo_root}:/host:ro",
+        "-v",
+        f"{source_volume(target)}:/work",
         "-v",
         f"{host_pub_cache(os.environ, Path.home())}:/root/.pub-cache",
         *home_mount,
-        "-v",
-        f"{build_volume(target)}:{workdir / 'build'}",
-        "-v",
-        f"{dart_tool_volume(target)}:{workdir / '.dart_tool'}",
         "-v",
         f"{item_dir}:/round",
         "-w",
@@ -297,17 +327,6 @@ def docker_run_argv(
         "-c",
         container_script(inner),
     ]
-
-
-def linux_fresh_volume(runner: Runner, target: str, fresh: bool, freshed: set[str]) -> bool:
-    """Remove the target's build volume once per process when `fresh`; whether a volume was removed.
-
-    `freshed` is the caller's tracker of targets already handled. A volume that never existed counts as handled.
-    """
-    if not fresh or target in freshed:
-        return False
-    freshed.add(target)
-    return runner.run(["docker", "volume", "rm", build_volume(target)]).status == 0
 
 
 def remove_stale_container_argv(target: str) -> list[str]:

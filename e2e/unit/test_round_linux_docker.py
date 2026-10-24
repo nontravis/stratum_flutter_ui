@@ -17,6 +17,7 @@ from stratum_e2e.round.linux_docker import (
     IMAGE_NAME,
     LINUX_MODULE_PACKAGES,
     ROUND_LABEL,
+    SYNC_EXCLUDES,
     DepsResolution,
     check_packages,
     container_name,
@@ -24,13 +25,14 @@ from stratum_e2e.round.linux_docker import (
     docker_run_argv,
     ensure_image,
     flutter_version,
+    home_volume,
     image_tag,
     inner_command,
     linux_deps_resolve,
-    linux_fresh_volume,
     linux_pub_gate,
     remove_stale_container_argv,
     reset_home_volume,
+    source_volume,
 )
 from stratum_e2e.round.runner import Completed, SubprocessRunner
 from unit.round_fakes import FakeRunner
@@ -150,20 +152,64 @@ def test_docker_run_argv_mounts_repo_and_round_dir(monkeypatch: pytest.MonkeyPat
 
     assert argv[:5] == ["docker", "run", "--rm", "--init", "--name"]
     assert argv[5] == "stratum-e2e-linux-run"
-    assert argv_pair(argv, "-v", "/repo:/work")
+    assert argv_pair(argv, "-v", "/repo:/host:ro")
+    assert argv_pair(argv, "-v", "stratum-e2e-linux-src-linux:/work")
     assert argv_pair(argv, "-v", "/cache/pub:/root/.pub-cache")
-    assert argv_pair(argv, "-v", "dt-linux-build-linux:/work/test_app/build")
     assert argv_pair(argv, "-v", "/repo/.round/item:/round")
     assert argv_pair(argv, "-w", "/work/test_app")
     assert argv[argv.index("stratum-e2e-linux:3.47.7-abcd1234") + 1 : -1] == ["bash", "-c"]
 
 
-def test_docker_run_argv_keeps_the_container_package_config_off_the_host_dart_tool() -> None:
-    argv = argv_for()
+def mounts_of(argv: list[str]) -> list[str]:
+    return [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == "-v"]
 
-    mounts = [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == "-v"]
-    assert "dt-linux-dart-tool-linux:/work/test_app/.dart_tool" in mounts
-    assert mounts.index("dt-linux-dart-tool-linux:/work/test_app/.dart_tool") > mounts.index("/repo:/work")
+
+@pytest.mark.parametrize("sequence", [False, True])
+def test_docker_run_argv_never_mounts_the_host_tree_read_write(
+    monkeypatch: pytest.MonkeyPatch, sequence: bool
+) -> None:
+    monkeypatch.setenv("PUB_CACHE", "/cache/pub")
+
+    for mount in mounts_of(argv_for(sequence=sequence)):
+        source, target, *mode = mount.split(":")
+        if source.startswith("/repo"):
+            # The host tree is read-only; only the item dir comes back, mounted for results alone.
+            assert mode == ["ro"] or (source == "/repo/.round/item" and target == "/round"), mount
+
+
+def test_docker_run_argv_keeps_each_apps_build_state_in_the_work_volume() -> None:
+    targets = [mount.split(":")[1] for mount in mounts_of(argv_for())]
+
+    assert not [target for target in targets if target.endswith(("/build", "/.dart_tool"))]
+    assert "/work" in targets
+
+
+def test_round_docker_names_never_reuse_the_bash_tools() -> None:
+    names = [source_volume("linux"), home_volume("linux"), container_name("linux")]
+
+    assert all(name.startswith(f"{IMAGE_NAME}-") for name in names)
+    assert not [name for name in names if name.startswith("dt-")]
+    assert len(set(names)) == 3
+
+
+def test_container_script_syncs_the_host_tree_before_the_gates() -> None:
+    script = container_script("xvfb-run flutter test a_test.dart")
+    sync = script[: script.index(" || ")]
+
+    assert sync.startswith("rsync -a --delete ")
+    assert sync.endswith(" /host/ /work/")
+    for pattern in SYNC_EXCLUDES:
+        assert f"--exclude={pattern}" in sync
+    assert script.index("rsync") < script.index("build/.dt-last-exit") < script.index("flutter pub get")
+
+
+def test_sync_excludes_the_host_only_trees() -> None:
+    for pattern in ("/.git", "/.worktrees", "/tmp", "build/", ".dart_tool/", ".flutter-plugins-dependencies"):
+        assert pattern in SYNC_EXCLUDES
+
+
+def test_dockerfile_installs_rsync_for_the_source_sync() -> None:
+    assert re.search(r"apt-get install[^;]*\brsync\b", DOCKERFILE.read_text(encoding="utf-8"))
 
 
 def test_docker_run_argv_defaults_the_pub_cache_to_the_home_folder(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -175,7 +221,7 @@ def test_docker_run_argv_defaults_the_pub_cache_to_the_home_folder(monkeypatch: 
 
 
 def test_docker_run_argv_mounts_the_home_volume_only_for_a_sequence() -> None:
-    assert argv_pair(argv_for(sequence=True), "-v", "dt-linux-home-linux:/root/.local/share")
+    assert argv_pair(argv_for(sequence=True), "-v", f"{home_volume('linux')}:/root/.local/share")
     assert not any(part.endswith(":/root/.local/share") for part in argv_for(sequence=False))
 
 
@@ -208,36 +254,6 @@ def test_linux_pub_gate_is_the_ported_script() -> None:
     assert ".dart_tool/.dt-lock-hash" in gate
     assert "flutter pub get --offline" in gate
     assert '"rootUri\\": *\\"file:///[^/\\"]+"' in gate
-
-
-def test_linux_fresh_volume_removes_once_per_target() -> None:
-    runner = FakeRunner([(("docker", "volume", "rm", "dt-linux-build-linux"), done())])
-    freshed: set[str] = set()
-
-    assert linux_fresh_volume(runner, "linux", True, freshed) is True
-    assert linux_fresh_volume(runner, "linux", True, freshed) is False
-
-    assert runner.calls == [("docker", "volume", "rm", "dt-linux-build-linux")]
-    assert freshed == {"linux"}
-
-
-def test_linux_fresh_volume_without_fresh_removes_nothing() -> None:
-    runner = FakeRunner([])
-    freshed: set[str] = set()
-
-    assert linux_fresh_volume(runner, "linux", False, freshed) is False
-
-    assert runner.calls == []
-    assert freshed == set()
-
-
-def test_linux_fresh_volume_reports_a_volume_that_never_existed() -> None:
-    runner = FakeRunner([(("docker", "volume", "rm"), done(1, stderr="no such volume"))])
-    freshed: set[str] = set()
-
-    assert linux_fresh_volume(runner, "linux", True, freshed) is False
-
-    assert freshed == {"linux"}
 
 
 def write_plugins(tmp_path: Path, plugin_names: list[str]) -> Path:
@@ -377,15 +393,15 @@ def test_remove_stale_container_argv_names_the_runs_container() -> None:
 
 
 def test_reset_home_volume_removes_the_targets_home_volume() -> None:
-    runner = FakeRunner([(("docker", "volume", "rm", "-f", "dt-linux-home-linux"), done())])
+    runner = FakeRunner([(("docker", "volume", "rm", "-f", home_volume("linux")), done())])
 
     reset_home_volume(runner, "linux")
 
-    assert runner.calls == [("docker", "volume", "rm", "-f", "dt-linux-home-linux")]
+    assert runner.calls == [("docker", "volume", "rm", "-f", home_volume("linux"))]
 
 
 def test_reset_home_volume_treats_no_such_volume_as_success() -> None:
-    runner = FakeRunner([(("docker", "volume", "rm"), done(1, stderr="Error: No such volume: dt-linux-home-linux\n"))])
+    runner = FakeRunner([(("docker", "volume", "rm"), done(1, stderr=f"Error: No such volume: {home_volume('linux')}\n"))])
 
     reset_home_volume(runner, "linux")
 
