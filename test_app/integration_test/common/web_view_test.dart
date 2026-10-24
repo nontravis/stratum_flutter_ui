@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 // The platform seam and message models this test reads are not in the
@@ -43,6 +44,71 @@ const _settle = Duration(seconds: 2);
 /// The URL tab prints a failed load as `<type>: <description>`.
 final _errorLine = RegExp(r'^(network|http): ');
 
+/// The method channel test_app's `MainActivity` answers on: the device
+/// tests' own oracle for the system WebView, apart from stratum_ui's code.
+const _webViewFeatures = MethodChannel(
+  'dev.stratum.stratum_ui_test_app/web_view_features',
+);
+
+/// The `StateError` message of a send with the Android bridge off
+/// (CO-01-02 US-03 FR-02 E11).
+const _bridgeDisabledMessage =
+    'The bridge is disabled because the WebView lacks '
+    'WEB_MESSAGE_LISTENER or JS_INJECTION_IN_FRAME_AND_WORLD support.';
+
+/// The WebView major version from which the bridge features must be
+/// present: the owner ruling of plan M7-T51, set above the highest measured
+/// lack (2026-10-24: `Pixel_2_API_28` 138 and `Pixel_Tablet_API_35` 124 lack
+/// them; `Pixel_8_API_37` 149 and `Small_Phone_API_33` 155 have both).
+const _bridgeFloorMajor = 146;
+
+/// What the system WebView of an Android device reports about the two
+/// features the bridge needs.
+class _BridgeFeatures {
+  const _BridgeFeatures({
+    required this.webMessageListener,
+    required this.jsInjectionInFrameAndWorld,
+    required this.versionName,
+  });
+
+  final bool webMessageListener;
+  final bool jsInjectionInFrameAndWorld;
+  final String? versionName;
+
+  /// Whether the bridge can open: it needs both features.
+  bool get both => webMessageListener && jsInjectionInFrameAndWorld;
+
+  /// The WebView's major version, or null when it reports none.
+  int? get major => int.tryParse(versionName?.split('.').first ?? '');
+}
+
+/// Asks the system WebView on Android; other platforms have no such limit,
+/// so the bridge counts as supported there.
+Future<_BridgeFeatures?> _readBridgeFeatures() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
+  final answer = await _webViewFeatures.invokeMapMethod<String, Object?>(
+    'bridgeFeatures',
+  );
+  if (answer == null) {
+    throw StateError('test_app answered no WebView features');
+  }
+  // A key the handler renamed or dropped must fail here, never read as a
+  // missing feature.
+  for (final key in ['webMessageListener', 'jsInjectionInFrameAndWorld']) {
+    if (answer[key] is! bool) {
+      throw StateError('test_app answered no boolean "$key": $answer');
+    }
+  }
+  if (!answer.containsKey('versionName')) {
+    throw StateError('test_app answered no "versionName": $answer');
+  }
+  return _BridgeFeatures(
+    webMessageListener: answer['webMessageListener']! as bool,
+    jsInjectionInFrameAndWorld: answer['jsInjectionInFrameAndWorld']! as bool,
+    versionName: answer['versionName'] as String?,
+  );
+}
+
 /// Chrome's `URL` tab page: the static page `web/web_view_device_page.html`,
 /// which the web build serves at the app's own port under the other loopback
 /// host name (`localhost` and `127.0.0.1` swap), so the page is cross-origin
@@ -73,6 +139,27 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
+  // Android alone can lack the bridge, by its system WebView (CO-01-02 US-03
+  // FR-01 E11, FR-02 E11). The answer is read at run time, in `setUpAll`,
+  // because the round's entry calls `main` unawaited and so no declaration may
+  // wait; null off Android, where the bridge counts as open.
+  _BridgeFeatures? features;
+
+  // Marks the running case skipped and returns true when the device lacks the
+  // bridge: a case that needs the bridge open starts with `if (...) return;`.
+  bool skipWithoutBridge() {
+    if (features?.both ?? true) return false;
+    markTestSkipped('the system WebView lacks the bridge features');
+    return true;
+  }
+
+  // The same for the E11 cases, which need the bridge off.
+  bool skipWithBridge() {
+    if (!(features?.both ?? true)) return false;
+    markTestSkipped('the bridge is open on this device');
+    return true;
+  }
+
   // Starts before group A on Android, iOS, and macOS, so the URL tab never
   // reaches a public test service; group B, native only, reuses
   // this same server instead of starting a second one, except the
@@ -82,7 +169,11 @@ void main() {
   // under the other loopback name instead.
   late _PageServer server;
 
+  // The URL tab's address: the web build never starts the page server.
+  Uri fixtureUrl() => kIsWeb ? _webCrossOriginPage() : server.page('/ok');
+
   setUpAll(() async {
+    features = await _readBridgeFeatures();
     if (!kIsWeb) server = await _PageServer.start();
   });
   tearDownAll(() {
@@ -104,8 +195,8 @@ void main() {
 
     tearDown(() => debugStratumWebViewPlatformFactory = null);
 
-    testWidgets('co01_02/us01/s1, co01_02/us02/s1, co01_02/us03/s1, co01_02/us03/s2: the URL, '
-        'HTML, and Bridge tabs show their content', (tester) async {
+    testWidgets('co01_02/us01/s1, co01_02/us02/s1: the URL and HTML tabs show '
+        'their content', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -163,7 +254,15 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await _checkpoint(binding, tester, 'a_html');
       expect(find.byType(StratumWebView), findsOneWidget);
+    });
 
+    // The two Bridge tab cases follow the device's bridge at run time, since a
+    // name cannot; neither name opens with the repeat prefix of group B's
+    // block, `co01_02/us03/s1`.
+    testWidgets('co01_02/us03/s2, co01_02/us03/s1: the Bridge tab sends to the '
+        'page and shows no error', (tester) async {
+      if (skipWithoutBridge()) return;
+      await _pumpFixture(tester, urlAddress: fixtureUrl());
       await tester.tap(find.text('Bridge'));
       await tester.pump(const Duration(seconds: 3));
       expect(find.text('No messages yet'), findsOneWidget);
@@ -174,6 +273,22 @@ void main() {
         find.byType(SnackBar),
         findsNothing,
         reason: 'postMessage threw a StateError: the HTML bridge is closed',
+      );
+    });
+
+    testWidgets('co01_02/us03/fr02/e11: the Bridge tab shows the disabled '
+        'bridge error', (tester) async {
+      if (skipWithBridge()) return;
+      await _pumpFixture(tester, urlAddress: fixtureUrl());
+      await tester.tap(find.text('Bridge'));
+      await tester.pump(const Duration(seconds: 3));
+      await tester.tap(find.text('Send to page'));
+      await tester.pump(const Duration(seconds: 1));
+      await _checkpoint(binding, tester, 'a_bridge_e11');
+      expect(
+        find.text(_bridgeDisabledMessage),
+        findsOneWidget,
+        reason: 'the send did not fail closed with the E11 StateError',
       );
     });
   });
@@ -423,6 +538,7 @@ void main() {
 
     testWidgets('co01_02/us03/s1, co01_02/us03/s2: a page on the allowlist and the app trade '
         'messages both ways', (tester) async {
+      if (skipWithoutBridge()) return;
       final controller = StratumWebViewController();
       final page = server.page('/bridge');
       final recorder = await _showPage(
@@ -455,6 +571,7 @@ void main() {
       'co01_02/us03/s3, nf01/NFR-Sec01: the app HTML document and the app '
       'trade messages both ways, the document in standards mode',
       (tester) async {
+        if (skipWithoutBridge()) return;
         // CO-01-02 US-03 FR-04 of the package docs: the document proves the
         // per-load nonce, so its messages arrive with no origin and the
         // app's send reaches it; US-02 FR-01 E02: the bootstrap goes after
@@ -507,6 +624,7 @@ void main() {
     testWidgets('co01_02/us03/s3, co01_02/us03/fr04/e04: a reload keeps the app HTML document connected on Android; '
         'on iOS, macOS, and Linux the reloaded page is empty and the bridge '
         'stays closed', (tester) async {
+      if (skipWithoutBridge()) return;
       // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
       // same HTML string again, so the reloaded document carries the same
       // nonce; WebKit on iOS and macOS, and WebKitGTK on Linux, reload an
@@ -564,6 +682,7 @@ void main() {
 
     testWidgets('co01_02/us03/s7, nf01/NFR-Sec02: the app HTML document follows a link off the '
         'allowlist, and the next send is refused', (tester) async {
+      if (skipWithoutBridge()) return;
       // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
       // bye on pagehide, so the app withholds the token (FR-02 E10).
       await _expectLinkAwayRefused(
@@ -579,6 +698,7 @@ void main() {
     testWidgets('co01_02/us03/s7, nf01/NFR-Sec02: the app HTML document reopens itself, puts '
         'its root back, follows a link off the allowlist, and the next send is '
         'refused', (tester) async {
+      if (skipWithoutBridge()) return;
       // CO-01-02 US-03 FR-04 E14 of the package docs: document.open() erases
       // the pagehide hook, but the bootstrap's observer sees the root
       // removed, even though the page puts it back, and posts bye at once.
@@ -595,6 +715,7 @@ void main() {
     testWidgets('co01_02/us03/s8, co01_02/us03/fr05/e03, nf01/NFR-Sec02: a reply after the web view moves from page '
         'A to page B of another allowed origin throws, and page B receives '
         'nothing', (tester) async {
+      if (skipWithoutBridge()) return;
       // CO-01-02 US-03 FR-05 E03 of the package docs: a reply reaches only
       // the message's sender, by origin for a URL page.
       final partner = await _PageServer.start();
@@ -661,6 +782,123 @@ void main() {
       );
       expect(recorder.errors, isEmpty);
     });
+
+    // The E11 cases below run on a device whose system WebView lacks a bridge
+    // feature; the pin case after them keeps that set honest.
+    testWidgets(
+      'co01_02/us03/fr01/e11: a page on the allowlist posts and no page '
+      'message reaches onMessage',
+      (tester) async {
+        if (skipWithBridge()) return;
+        // CO-01-02 US-03 FR-01 E11 of the package docs: the bridge stays off
+        // and no other channel stands in. The probe page records in its
+        // fragment whether `StratumBridge` exists, so an empty `messages`
+        // proves a page that ran and found no bridge, not a page that never
+        // ran.
+        final controller = StratumWebViewController();
+        final recorder = await _showPage(
+          tester,
+          server.page('/bridge-probe'),
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        final loaded = await pumpUntil(
+          tester,
+          () => recorder.finishes.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        final probe = loaded ? (await controller.currentUrl())?.fragment : null;
+        recorder.logOrder('e11 page message');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(loaded, isTrue, reason: 'the probe page never finished');
+        expect(
+          probe,
+          'bridge:absent',
+          reason: 'the page did not run, or found a StratumBridge object',
+        );
+        expect(
+          recorder.messages,
+          isEmpty,
+          reason: 'a page message reached onMessage with the bridge off',
+        );
+      },
+    );
+
+    testWidgets('co01_02/us03/fr02/e11: postMessage throws the disabled-bridge '
+        'StateError', (tester) async {
+      if (skipWithBridge()) return;
+      // CO-01-02 US-03 FR-02 E11 of the package docs.
+      final controller = StratumWebViewController();
+      final recorder = await _showPage(
+        tester,
+        server.page('/bridge'),
+        controller: controller,
+        allowedOrigins: {server.origin},
+      );
+      final loaded = await pumpUntil(
+        tester,
+        () => recorder.finishes.isNotEmpty,
+      );
+      Object? refusal;
+      if (loaded) {
+        try {
+          await controller.postMessage('ping');
+        } on StateError catch (error) {
+          refusal = error;
+        }
+      }
+      recorder.logOrder('e11 post message');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      expect(loaded, isTrue, reason: 'the bridge page never finished');
+      expect(
+        refusal,
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          _bridgeDisabledMessage,
+        ),
+        reason: 'postMessage did not fail closed',
+      );
+    });
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      testWidgets(
+        'the Android system WebView of major version $_bridgeFloorMajor or '
+        'newer has both bridge features',
+        (tester) async {
+          // The bridge's measured floor (plan M7-T51): a new enough WebView
+          // that reads a feature missing means the device, or this oracle,
+          // is wrong, so the run fails instead of passing as E11.
+          final read = features;
+          if (read == null) fail('the setUpAll read no WebView features');
+          final major = read.major;
+          if (major == null) {
+            fail(
+              read.versionName == null
+                  ? 'the device reports no WebView package'
+                  : 'the system WebView version "${read.versionName}" has no '
+                        'major number',
+            );
+          }
+          if (major >= _bridgeFloorMajor) {
+            expect(
+              read.webMessageListener,
+              isTrue,
+              reason: 'WebView ${read.versionName} lacks WEB_MESSAGE_LISTENER',
+            );
+            expect(
+              read.jsInjectionInFrameAndWorld,
+              isTrue,
+              reason:
+                  'WebView ${read.versionName} lacks '
+                  'JS_INJECTION_IN_FRAME_AND_WORLD',
+            );
+          }
+        },
+      );
+    }
   }, skip: kIsWeb);
 }
 
@@ -849,6 +1087,8 @@ class _PageServer {
         );
       case '/bridge':
         _writePage(response, HttpStatus.ok, _bridgeBody);
+      case '/bridge-probe':
+        _writePage(response, HttpStatus.ok, _bridgeProbeBody);
       case '/token-copy':
         _writePage(response, HttpStatus.ok, _tokenCopyBody);
       default:
@@ -870,6 +1110,20 @@ class _PageServer {
 
   Future<void> close() => _server.close(force: true);
 }
+
+/// A page that records in its fragment whether `StratumBridge` exists
+/// (`bridge:absent` or `bridge:present`) and posts `ready` only when it does,
+/// so the FR-01 E11 case sees a page that ran with the bridge off.
+const _bridgeProbeBody = '''
+<h1>Bridge probe</h1>
+<script>
+  window.addEventListener('load', function () {
+    var state = typeof StratumBridge === 'undefined' ? 'absent' : 'present';
+    history.replaceState(null, '', '#bridge:' + state);
+    if (state === 'present') StratumBridge.postMessage('ready');
+  });
+</script>
+''';
 
 /// Says `ready` once loaded and answers each app message with
 /// `echo:<data>` (FR-01 output `bridge round trip`).
@@ -1068,6 +1322,14 @@ class _Recorder {
       if (_errorAt[i] >= mark) errors[i],
   ];
 }
+
+/// Shows the web view fixture with its URL tab on [urlAddress].
+Future<void> _pumpFixture(WidgetTester tester, {required Uri urlAddress}) =>
+    tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: WebViewFixture(urlAddress: urlAddress)),
+      ),
+    );
 
 /// Shows one StratumWebView on [page] that reports into a new recorder; the
 /// test builds its own view, so the fixture keeps its pages.
