@@ -24,3 +24,15 @@ final Map<String, FixtureBuilder> fixtures = <String, FixtureBuilder>{
   'smoke/semantics_id': (context) => const SmokeSemanticsIdFixture(),
   'themes/system_style': (context) => const SystemStyleFixture(),
 };
+
+/// Fixture ids that draw under the system bars on purpose, so the host adds
+/// no safe-area padding around them.
+///
+/// `common/page_layout` pads its own slots by the insets through
+/// `PageLayout.safeArea`, and `themes/system_style` proves the bar styles over
+/// content that runs to the screen edge. Every other fixture sits inside the
+/// safe area, so no edge-to-edge window hides a row under a bar.
+const Set<String> edgeToEdgeFixtures = <String>{
+  'common/page_layout',
+  'themes/system_style',
+};

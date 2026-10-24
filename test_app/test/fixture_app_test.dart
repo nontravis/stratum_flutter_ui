@@ -71,4 +71,58 @@ void main() {
     expect(find.byType(StratumThemeApplication), findsOneWidget);
     expect(find.bySemanticsIdentifier('smoke.button'), findsOneWidget);
   });
+
+  group('system bars', () {
+    void insetTopBar(WidgetTester tester) {
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 50);
+      tester.view.viewPadding = const FakeViewPadding(top: 50);
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('a fixture keeps its content below the status bar', (
+      tester,
+    ) async {
+      insetTopBar(tester);
+      final controller = await tester.runAsync(
+        () => StratumThemeController.preload(googleFontsTimeout: Duration.zero),
+      );
+      addTearDown(controller!.dispose);
+
+      await tester.pumpWidget(
+        FixtureApp(
+          fixtureId: 'common/reorderable_list_view_layout',
+          themeController: controller,
+        ),
+      );
+
+      expect(
+        tester.getTopLeft(find.text('Item 1')).dy,
+        greaterThanOrEqualTo(50),
+      );
+    });
+
+    testWidgets('an edge-to-edge fixture draws under the status bar', (
+      tester,
+    ) async {
+      insetTopBar(tester);
+      expect(edgeToEdgeFixtures, contains('themes/system_style'));
+
+      await tester.pumpWidget(
+        const FixtureApp(fixtureId: 'themes/system_style'),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(Scaffold),
+          matching: find.byType(SafeArea),
+        ),
+        findsNothing,
+      );
+    });
+
+    test('every edge-to-edge id names a fixture', () {
+      expect(fixtures.keys, containsAll(edgeToEdgeFixtures));
+    });
+  });
 }
