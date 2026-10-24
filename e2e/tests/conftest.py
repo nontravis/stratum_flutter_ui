@@ -43,9 +43,10 @@ from stratum_e2e.ios.session import WDA_DERIVED_DATA, install_app, ios_capabilit
 from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.macos.session import mac_capabilities
 from stratum_e2e.ports import free_port
+from stratum_e2e.round.collect import item_target
 from stratum_e2e.round.errors import RoundEnvError
-from stratum_e2e.round.plugin import ROUND_KEY, RoundTarget, item_target
 from stratum_e2e.round.runner import Runner
+from stratum_e2e.round.state import ROUND_KEY, RoundTarget
 from stratum_e2e.selection import skip_reason
 from stratum_e2e.web.server import StaticServer
 

@@ -93,7 +93,8 @@ from selenium.common.exceptions import WebDriverException
 import stratum_e2e.android.session as android_session
 import stratum_e2e.android.talkback as talkback
 import stratum_e2e.android.uhid_keyboard as uhid_keyboard
-import stratum_e2e.round.plugin as plugin
+import stratum_e2e.round.bring_up as bring_up
+import stratum_e2e.round.state as state
 from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.app_build import AppBuild
@@ -248,19 +249,19 @@ def round_backends(request):
     fake = FakeBooter()
     real = None
     if "real_android" in SCENARIO:
-        real = AndroidBooter(runner, ROOT / "sdk", request.config.stash[plugin.CATALOG_KEY].lane, ROOT / "avd",
+        real = AndroidBooter(runner, ROOT / "sdk", request.config.stash[state.CATALOG_KEY].lane, ROOT / "avd",
                              ROOT / "ports")
 
     def booter_for(target):
         return real if real is not None and target.platform == "android" else fake
 
-    return plugin.Backends(
+    return state.Backends(
         runner=runner,
         booter_for=booter_for,
         resolve=resolve,
         build=build,
         run_plan=run_plan,
-        memory_reasons=lambda: host_memory_reasons(runner, request.config.stash[plugin.CATALOG_KEY].lane),
+        memory_reasons=lambda: host_memory_reasons(runner, request.config.stash[state.CATALOG_KEY].lane),
         now=lambda: NOW,
         port_dir=ROOT / "ports",
         sleep=lambda seconds: event("sleep"),
@@ -325,7 +326,7 @@ _install_failures = [SCENARIO.get("install_fail", 0)]
 
 android_session.subprocess = _Adb
 
-_real_acquire = plugin.acquire_lane
+_real_acquire = bring_up.acquire_lane
 
 
 class _Lease:
@@ -344,13 +345,13 @@ def _acquire(target, alone, wait_s, directory, holder, **kwargs):
     event(f"lane {target}")
     try:
         lease = _real_acquire(target, alone, wait_s, directory, holder, **kwargs)
-    except plugin.LaneBusy:
+    except bring_up.LaneBusy:
         event(f"lane busy {target}")
         raise
     return _Lease(lease, target)
 
 
-plugin.acquire_lane = _acquire
+bring_up.acquire_lane = _acquire
 
 
 def _check(serial):

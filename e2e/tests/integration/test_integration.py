@@ -10,7 +10,7 @@ import pytest
 
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.integration_run import FileResult
-from stratum_e2e.round.plugin import RoundTarget
+from stratum_e2e.round.state import RoundTarget
 
 
 def test_integration_file(

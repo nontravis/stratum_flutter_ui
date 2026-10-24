@@ -16,6 +16,7 @@ import pytest
 from stratum_e2e.appium_server import AppiumServer, default_android_home
 from stratum_e2e.paths import APPIUM_BIN, APPIUM_HOME
 from stratum_e2e.ports import free_port
+from stratum_e2e.round.state import ROUND_KEY
 
 pytest_plugins = ["pytester", "stratum_e2e.round.plugin"]  # pytester: unit/ tests run the hooks in a sandbox
 
@@ -57,9 +58,6 @@ def appium_server(request: pytest.FixtureRequest) -> Iterator[Callable[[], Appiu
     In a device round the failure is not kept, so the round's re-run of an item starts the server again;
     outside a round every later call raises it at once, so a leg never waits out the start timeout twice.
     """
-    # Imported here: importing a plugin this file registers before pytest loads it stops its assert rewriting.
-    from stratum_e2e.round.plugin import ROUND_KEY
-
     in_round = request.config.stash.get(ROUND_KEY, None) is not None
     started: list[AppiumServer] = []
     failure: list[tuple[Exception, TracebackType | None]] = []

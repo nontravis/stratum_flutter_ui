@@ -360,7 +360,7 @@ def run_plan(
         if completed.timed_out and linux is not None:
             _remove_container(runner, target)
     except RoundEnvError as error:
-        return RunOutcome((), 0.0, _env_files(plan, error.reason))
+        return RunOutcome((), 0.0, env_files(plan, error.reason))
     finally:
         cleanup(app_dir / INTEGRATION_FOLDER)
     output = completed.stdout + completed.stderr
@@ -389,10 +389,10 @@ def _files_of(
     plan: RunPlan, target: Target, argv: Sequence[str], completed: Completed, log: str, item_dir: Path
 ) -> dict[str, FileResult]:
     if completed.status == _NOT_FOUND_STATUS and not completed.stdout:
-        return _env_files(plan, f"{argv[0]} not found")
+        return env_files(plan, f"{argv[0]} not found")
     reason = classify_env(log, completed.status, completed.timed_out)
     if reason is not None:
-        return _env_files(plan, reason)
+        return env_files(plan, reason)
     if _drives(target):
         response = item_dir / RESPONSE_NAME
         data = _json_object(response.read_text(encoding="utf-8", errors="replace")) if response.is_file() else None
@@ -402,7 +402,8 @@ def _files_of(
     return read_test_report(lines, plan, log=log)
 
 
-def _env_files(plan: RunPlan, reason: str) -> dict[str, FileResult]:
+def env_files(plan: RunPlan, reason: str) -> dict[str, FileResult]:
+    """Every file of `plan` classed `env`, with as many runs as a launched run would have had."""
     return {
         file: FileResult("env", 0, plan.repeat if file in plan.wrapped else 1, reason, ()) for file in plan.files
     }

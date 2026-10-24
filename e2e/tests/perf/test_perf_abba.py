@@ -12,7 +12,7 @@ import pytest
 
 from stratum_e2e.paths import E2E_ROOT
 from stratum_e2e.round.catalog import TARGETS_TOML, load_catalog
-from stratum_e2e.round.plugin import Backends
+from stratum_e2e.round.state import Backends
 
 PERF_APP = "example"
 
