@@ -80,8 +80,8 @@ def record_item(
 def _cell(reports: Sequence[pytest.TestReport], log: str) -> Cell | None:
     """The cell of one run: `env` or `fail` from its first failed phase, `pass`, or `None` for a skipped item.
 
-    An item pytest expected to fail gets its row too: `xfail` when it failed, a `pass` naming the expectation when it
-    passed. A strict unexpected pass is a failed phase, so it reads `fail`.
+    An item pytest expected to fail gets its row too, its reason the expectation's: `xfail` when it failed, `xpass`
+    when it passed. A strict unexpected pass is a failed phase, so it reads `fail`.
     """
     outcome = _outcome(reports)
     if outcome is not None:
@@ -90,8 +90,8 @@ def _cell(reports: Sequence[pytest.TestReport], log: str) -> Cell | None:
     expected = next((report for report in reports if hasattr(report, "wasxfail")), None)
     if expected is not None:
         if expected.skipped:
-            return Cell("xfail", 0, 1, f"xfail: {expected.wasxfail}", log)
-        return Cell("pass", 1, 1, f"xpass: {expected.wasxfail}", log)
+            return Cell("xfail", 0, 1, str(expected.wasxfail), log)
+        return Cell("xpass", 1, 1, str(expected.wasxfail), log)
     if any(report.skipped for report in reports):
         return None
     return Cell("pass", 1, 1, "", log)

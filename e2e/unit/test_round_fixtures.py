@@ -615,13 +615,14 @@ def test_xfail_and_xpass_items_get_their_rows(pytester: pytest.Pytester, monkeyp
     result.assert_outcomes(passed=2, xfailed=1, xpassed=1, failed=1)
     cells = _cells(_summary(pytester))
     gap, fixed, strict = (cells[f"test_e2e.py::test_mac_{name}"]["mac"] for name in ("known_gap", "fixed", "strict"))
-    assert (gap["class"], gap["reason"]) == ("xfail", "xfail: known gap")
-    assert (fixed["class"], fixed["passed"], fixed["reason"]) == ("pass", 1, "xpass: fix landed")
+    assert (gap["class"], gap["reason"]) == ("xfail", "known gap")
+    assert (fixed["class"], fixed["passed"], fixed["reason"]) == ("xpass", 1, "fix landed")
     assert (strict["class"], strict["reason"]) == ("fail", "[XPASS(strict)] must fail")
     markdown = (_round_dirs(pytester)[-1] / "summary.md").read_text()
     assert "| test_e2e.py::test_mac_known_gap | — |" in markdown
-    assert "- `test_e2e.py::test_mac_known_gap` on `mac` [xfail]: xfail: known gap" in markdown
-    assert "- `test_e2e.py::test_mac_fixed` on `mac` [pass]: xpass: fix landed" in markdown
+    assert "| test_e2e.py::test_mac_fixed | 1/1 |" in markdown
+    assert "- `test_e2e.py::test_mac_known_gap` on `mac` [xfail]: known gap" in markdown
+    assert "- `test_e2e.py::test_mac_fixed` on `mac` [xpass]: fix landed" in markdown
 
 
 def test_a_failed_lane_release_is_recorded_on_its_own_target(

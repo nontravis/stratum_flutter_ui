@@ -31,8 +31,10 @@ _MAX_SEGMENT = 120
 _HASH_LENGTH = 12
 _BLOCK_AT = 2
 
-# `xfail`: an e2e item pytest expected to fail did fail; it counts neither way and reads as no cell.
-CellClass = Literal["pass", "fail", "env", "xfail"]
+# An e2e item pytest expected to fail: `xfail` when it failed (counted neither way, read as no cell), `xpass` when it
+# passed anyway (read as a pass).
+CellClass = Literal["pass", "fail", "env", "xfail", "xpass"]
+_PASSING: tuple[CellClass, ...] = ("pass", "xpass")
 ItemKind = Literal["integration", "e2e", "perf"]
 
 
@@ -96,22 +98,22 @@ class Cell:
     def __post_init__(self) -> None:
         if self.runs < 1:
             raise ValueError(f"a cell holds at least one run, got runs={self.runs}")
-        if self.cls == "pass" and self.passed != self.runs:
-            raise ValueError(f"a pass cell passes every run, got {self.passed}/{self.runs}")
-        if self.cls != "pass" and self.passed == self.runs:
+        if self.cls in _PASSING and self.passed != self.runs:
+            raise ValueError(f"a {self.cls} cell passes every run, got {self.passed}/{self.runs}")
+        if self.cls not in _PASSING and self.passed == self.runs:
             raise ValueError(f"a {self.cls} cell cannot pass every run, got {self.passed}/{self.runs}")
 
 
 def cell_text(cell: Cell | None) -> str:
     """Return the grid text of a cell.
 
-    A pass reads `n/N`. A repeat block that did not pass reads `n/N` and its class (`0/10 env`, `7/10 fail`), so a
-    tool failure never looks like a widget result. A single run that did not pass reads `fail` or `env`; none, or an
-    `xfail`, is `—` (its reason line says why).
+    A pass or an `xpass` reads `n/N`. A repeat block that did not pass reads `n/N` and its class (`0/10 env`,
+    `7/10 fail`), so a tool failure never looks like a widget result. A single run that did not pass reads `fail` or
+    `env`; none, or an `xfail`, is `—` (its reason line says why).
     """
     if cell is None or cell.cls == "xfail":
         return NO_CELL
-    if cell.cls == "pass":
+    if cell.cls in _PASSING:
         return f"{cell.passed}/{cell.runs}"
     if cell.runs > 1:
         return f"{cell.passed}/{cell.runs} {cell.cls}"
@@ -207,8 +209,7 @@ class Recorder:
             lines.append(_md_row([test, *texts, ", ".join(row.stories)]))
             for name in names:
                 cell = row.cells.get(name)
-                # A pass carries a reason only when pytest expected it to fail (`xpass: ...`).
-                if cell is not None and (cell.cls != "pass" or cell.reason):
+                if cell is not None and cell.cls != "pass":
                     reasons.append(_reason_line(test, name, cell))
         settings = [
             f"- boot setting on `{t.name}` failed: {failure}"
