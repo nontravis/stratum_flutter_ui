@@ -119,6 +119,7 @@ def test_cell_text() -> None:
     assert cell_text(_cell("pass", 1, 1)) == "1/1"
     assert cell_text(_cell("fail", 0, 1)) == "fail"
     assert cell_text(_cell("env", 0, 1)) == "env"
+    assert cell_text(Cell("xfail", 0, 1, "xfail: known gap", "")) == "—"
     assert cell_text(None) == "—"
 
 
@@ -166,6 +167,20 @@ def test_summary_md_lists_the_reason_of_each_failing_or_env_cell(tmp_path: Path)
     assert "- `t.dart` on `chrome` [env]: env: target blocked (chrome/t/flutter.log)" in text
     assert "- `u.dart` on `mac` [fail]: expected 1 got 2 (mac/u/flutter.log)" in text
     assert text.count("on `mac`") == 1
+
+
+def test_an_expected_failure_reads_no_cell_and_keeps_its_reason(tmp_path: Path) -> None:
+    rec = _recorder()
+    rec.add("mac", "t.py::gap", "e2e", [], Cell("xfail", 0, 1, "xfail: known gap", "mac/gap/pytest.log"))
+    rec.add("mac", "t.py::fixed", "e2e", [], Cell("pass", 1, 1, "xpass: fix landed", "mac/fixed/pytest.log"))
+    made = _write(tmp_path, rec)
+    lines = (made.path / "summary.md").read_text(encoding="utf-8").splitlines()
+    assert "| t.py::gap | — | — |  |" in lines
+    assert "| t.py::fixed | 1/1 | — |  |" in lines
+    assert "- `t.py::gap` on `mac` [xfail]: xfail: known gap (mac/gap/pytest.log)" in lines
+    assert "- `t.py::fixed` on `mac` [pass]: xpass: fix landed (mac/fixed/pytest.log)" in lines
+    data = json.loads((made.path / "summary.json").read_text(encoding="utf-8"))
+    assert data["rows"][0]["cells"]["mac"]["class"] == "xfail"
 
 
 def test_summary_md_without_a_failure_has_no_reason_list(tmp_path: Path) -> None:

@@ -31,7 +31,8 @@ _MAX_SEGMENT = 120
 _HASH_LENGTH = 12
 _BLOCK_AT = 2
 
-CellClass = Literal["pass", "fail", "env"]
+# `xfail`: an e2e item pytest expected to fail did fail; it counts neither way and reads as no cell.
+CellClass = Literal["pass", "fail", "env", "xfail"]
 ItemKind = Literal["integration", "e2e", "perf"]
 
 
@@ -105,9 +106,10 @@ def cell_text(cell: Cell | None) -> str:
     """Return the grid text of a cell.
 
     A pass reads `n/N`. A repeat block that did not pass reads `n/N` and its class (`0/10 env`, `7/10 fail`), so a
-    tool failure never looks like a widget result. A single run that did not pass reads `fail` or `env`; none is `—`.
+    tool failure never looks like a widget result. A single run that did not pass reads `fail` or `env`; none, or an
+    `xfail`, is `—` (its reason line says why).
     """
-    if cell is None:
+    if cell is None or cell.cls == "xfail":
         return NO_CELL
     if cell.cls == "pass":
         return f"{cell.passed}/{cell.runs}"
@@ -205,7 +207,8 @@ class Recorder:
             lines.append(_md_row([test, *texts, ", ".join(row.stories)]))
             for name in names:
                 cell = row.cells.get(name)
-                if cell is not None and cell.cls != "pass":
+                # A pass carries a reason only when pytest expected it to fail (`xpass: ...`).
+                if cell is not None and (cell.cls != "pass" or cell.reason):
                     reasons.append(_reason_line(test, name, cell))
         settings = [
             f"- boot setting on `{t.name}` failed: {failure}"

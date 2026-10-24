@@ -459,6 +459,9 @@ def pytest_runtest_makereport(
         else:
             reason = _first_line(call.excinfo.exconly())
             report.user_properties += [(_CLASS_PROPERTY, "fail"), (_REASON_PROPERTY, reason)]
+    elif report.failed:
+        # A phase that failed with no exception, such as a strict unexpected pass (`[XPASS(strict)] <reason>`).
+        report.user_properties += [(_CLASS_PROPERTY, "fail"), (_REASON_PROPERTY, _first_line(report.longreprtext))]
     ran = not _is_integration(item) and not item.stash.get(_STOPPED_KEY, False)
     if ran and (call.when == "call" or report.failed):
         _capture(state, item, target, failed=report.failed)
@@ -733,11 +736,20 @@ def _record_item(
 
 
 def _cell(reports: Sequence[pytest.TestReport], log: str) -> Cell | None:
-    """The cell of one run: `env` or `fail` from its first failed phase, `pass`, or `None` for a skipped item."""
+    """The cell of one run: `env` or `fail` from its first failed phase, `pass`, or `None` for a skipped item.
+
+    An item pytest expected to fail gets its row too: `xfail` when it failed, a `pass` naming the expectation when it
+    passed. A strict unexpected pass is a failed phase, so it reads `fail`.
+    """
     outcome = _outcome(reports)
     if outcome is not None:
         cls, reason = outcome
         return Cell("env" if cls == "env" else "fail", 0, 1, reason, log)
+    expected = next((report for report in reports if hasattr(report, "wasxfail")), None)
+    if expected is not None:
+        if expected.skipped:
+            return Cell("xfail", 0, 1, f"xfail: {expected.wasxfail}", log)
+        return Cell("pass", 1, 1, f"xpass: {expected.wasxfail}", log)
     if any(report.skipped for report in reports):
         return None
     return Cell("pass", 1, 1, "", log)
