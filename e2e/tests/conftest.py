@@ -13,6 +13,7 @@ import contextlib
 import re
 import subprocess
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -65,27 +66,37 @@ def app_id(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> 
     return _required_option(request.config, "app_id")
 
 
+@dataclass
+class _Installs:
+    """The (device, app) pairs installed so far, and outside a round the failed install of each pair."""
+
+    done: set[tuple[str, Path]] = field(default_factory=set)
+    failed: dict[tuple[str, Path], RoundEnvError] = field(default_factory=dict)
+
+
 @pytest.fixture(scope="session")
-def _installed(round_target: RoundTarget | None) -> set[tuple[str, Path]]:
-    """The (device, app) pairs installed so far; per target in a round, since a later emulator can reuse a serial."""
-    return set()
+def _installs(round_target: RoundTarget | None) -> _Installs:
+    """The installs tried so far; per target in a round, since a later emulator can reuse a serial."""
+    return _Installs()
 
 
 @pytest.fixture
-def installed_app(
-    request: pytest.FixtureRequest, platform: str, round_app: Path, _installed: set[tuple[str, Path]]
-) -> None:
+def installed_app(request: pytest.FixtureRequest, platform: str, round_app: Path, _installs: _Installs) -> None:
     """Install the app under test on --device once per (device, app) pair.
 
     A streamed `install -r` of a debug APK plus Flutter's asset copy after it filled a 5.8 GB
-    /data within 8 tests, and with `noReset` a reinstall per test buys no isolation. A failed
-    install is not remembered, so the round's re-run of the item installs again.
+    /data within 8 tests, and with `noReset` a reinstall per test buys no isolation. In a round a
+    failed install is not remembered, so the round's re-run of the item installs again; outside a
+    round every later item raises it at once, so a full device is never streamed to again.
     """
     if platform == "macos":
         return  # Mac2 launches the app bundle itself through `appPath`
     device = _required_option(request.config, "device")
-    if (device, round_app) in _installed:
+    pair = (device, round_app)
+    if pair in _installs.done:
         return
+    if pair in _installs.failed:
+        raise _installs.failed[pair]
     if platform not in ("android", "ios"):
         pytest.fail(f"no driver for platform {platform!r} yet", pytrace=False)
     try:
@@ -94,8 +105,11 @@ def installed_app(
         else:
             install_app(device, round_app)
     except (subprocess.CalledProcessError, OSError) as error:
-        raise RoundEnvError(f"app install on {device} failed: {error}") from error
-    _installed.add((device, round_app))
+        failure = RoundEnvError(f"app install on {device} failed: {error}")
+        if request.config.stash.get(ROUND_KEY, None) is None:
+            _installs.failed[pair] = failure
+        raise failure from error
+    _installs.done.add(pair)
 
 
 def _session_options(config: pytest.Config, platform: str, app_id: str, app: Path) -> AppiumOptions:

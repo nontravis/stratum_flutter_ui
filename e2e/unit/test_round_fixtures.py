@@ -304,14 +304,21 @@ appium.webdriver.Remote = _remote
 
 
 class _Adb:
-    """Stands in for `subprocess` inside `stratum_e2e.android.session`: an install only logs its serial."""
+    """Stands in for `subprocess` inside `stratum_e2e.android.session`: an install logs its serial and fails the first
+    `install_fail` times."""
 
     CalledProcessError = subprocess.CalledProcessError
 
     @staticmethod
     def run(argv, check=False):
         event(f"install {argv[2]}")
+        if _install_failures[0]:
+            _install_failures[0] -= 1
+            raise subprocess.CalledProcessError(1, argv, stderr="INSTALL_FAILED_INSUFFICIENT_STORAGE")
         return subprocess.CompletedProcess(argv, 0)
+
+
+_install_failures = [SCENARIO.get("install_fail", 0)]
 
 
 android_session.subprocess = _Adb
@@ -1033,6 +1040,39 @@ def test_legacy_appium_start_failure_is_kept_for_the_session(
     result.assert_outcomes(passed=1, skipped=1, errors=2)  # the integration item has no platform marker
     assert _events(root, "appium start") == ["appium start"]
     assert not _round_dirs(pytester)
+
+
+INSTALL_TESTS = """\
+@pytest.mark.android
+def test_install_a(installed_app):
+    event("item install_a")
+
+
+@pytest.mark.android
+def test_install_b(installed_app):
+    event("item install_b")
+"""
+
+
+def test_legacy_install_failure_is_kept_for_the_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, INSTALL_TESTS, {"install_fail": 99})
+    apk = pytester.path / "app.apk"
+    apk.write_bytes(b"apk")
+    result = _round(pytester, "--platform", "android", "--device", REUSED_SERIAL, "--app", str(apk), "--app-id", "x")
+    result.assert_outcomes(skipped=1, errors=2)  # the integration item has no platform marker
+    assert _events(root, "install ") == [f"install {REUSED_SERIAL}"]
+    assert f"env: app install on {REUSED_SERIAL} failed" in result.stdout.str()
+
+
+def test_round_install_failure_installs_again_on_the_rerun(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, INSTALL_TESTS, {"install_fail": 1, "running": ["tablet"]})
+    result = _round(pytester, "--target", "tablet")
+    result.assert_outcomes(passed=4)
+    assert _events(root, "install ") == ["install dev-tablet", "install dev-tablet"]
 
 
 MAC_APP = """\
