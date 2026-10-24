@@ -35,6 +35,7 @@ INTEGRATION_FOLDER = "integration_test"
 REPORT_NAME = "report.json"
 RESPONSE_NAME = "integration_response_data.json"
 LOG_NAME = "flutter.log"
+LINUX_BUILD_LOG = "linux_build.log"
 
 # A log line holding one of these never ran a test, so the run is `env`, never `fail` (`scripts/lib/run.sh:31`).
 # `DT_WATCHER:` is left out: the round's own timeout replaces the bash watcher that wrote it.
@@ -87,11 +88,14 @@ class RunOutcome:
     """One run of a plan: the command it ran, its wall time, and one result per file.
 
     `argv` is empty and `seconds` 0 when the run never launched (the device, a tool, or a pre-flight check stopped it).
+    `build_argv` and `build_seconds` are a Linux run's own app build step, empty when the run had none or it failed.
     """
 
     argv: tuple[str, ...]
     seconds: float
     files: dict[str, FileResult]
+    build_argv: tuple[str, ...] = ()
+    build_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -320,16 +324,18 @@ def run_plan(
     port_dir: Path,
     *,
     flutter_version: str | None = None,
+    build_first: bool = False,
 ) -> RunOutcome:
     """Run `plan` once on the device of `record` and return its command, wall time, and one result per file.
 
     Readies the device (`booter.before_file`), then the platform: a web run checks Chrome (a readable version, and
     `CHROME_WASMGC_FLOOR` for `wasm`), then holds a chromedriver on a port reserved in `port_dir` for the run; a Linux
-    run checks the plugin packages, then
-    builds or reuses the image (from `flutter_version`, read here when the caller has none), resets a sequence's home
-    volume, and removes a stale container, and again after a launch that timed out or was interrupted. It writes the
-    plan's entry right before the launch and `cleanup` removes it after, whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
-    A failed preparation, a missing command, or `classify_env` classes every file `env` with the reason.
+    run checks the plugin packages, then builds or reuses the image (from `flutter_version`, read here when the caller
+    has none), resets a sequence's home volume, and removes a stale container. With `build_first`, a Linux run builds
+    the app in its own container step before the tests (`_build_linux`). A container that timed out or was
+    interrupted is removed. It writes the plan's entry right before the launch and `cleanup` removes it after,
+    whatever happens. The output goes to `<item_dir>/flutter.log`, a drive run's logcat prefix stripped.
+    A failed preparation or build, a missing command, or `classify_env` classes every file `env` with the reason.
     Raises `ValueError` for a plan no run covers (`run_argv`) or a repeat prefix with no block to wrap.
     """
     timeout_s = run_timeout_s(plan, per_file_timeout_s)
@@ -342,24 +348,22 @@ def run_plan(
             booter.before_file(record)
             driver_port: int | None = None
             linux: LinuxRun | None = None
+            build_argv: tuple[str, ...] = ()
+            build_seconds = 0.0
             if target.platform == "web":
                 _require_chrome(runner, target.wasm)
                 driver_port = stack.enter_context(_chromedriver(runner, port_dir, item_dir))
             elif target.platform == "linux":
                 linux = _prepare_linux(plan, target, app_dir, runner, flutter_version)
+                if build_first:
+                    build_argv, build_seconds = _build_linux(runner, linux, target, app_dir, item_dir,
+                                                             per_file_timeout_s)
             argv = tuple(run_argv(plan, target, _run_files(plan, app_dir), record.device_id, item_dir, driver_port,
                                   linux=linux))
             env = {"FLUTTER_TEST_OUTPUTS_DIR": str(item_dir)} if _drives(target) else None
             started = time.monotonic()
-            try:
-                completed = runner.run(argv, timeout_s=timeout_s, cwd=app_dir, env=env)
-            except BaseException:
-                if linux is not None:
-                    _remove_container(runner, target)
-                raise
+            completed = _launch(runner, argv, timeout_s, app_dir, env, target, linux)
             seconds = time.monotonic() - started
-        if completed.timed_out and linux is not None:
-            _remove_container(runner, target)
     except RoundEnvError as error:
         return RunOutcome((), 0.0, env_files(plan, error.reason))
     finally:
@@ -367,7 +371,57 @@ def run_plan(
     output = completed.stdout + completed.stderr
     log = strip_drive_prefix(output) if _drives(target) else output
     (item_dir / LOG_NAME).write_text(log, encoding="utf-8")
-    return RunOutcome(argv, seconds, _files_of(plan, target, argv, completed, log, item_dir))
+    return RunOutcome(argv, seconds, _files_of(plan, target, argv, completed, log, item_dir), build_argv, build_seconds)
+
+
+def _launch(
+    runner: Runner,
+    argv: Sequence[str],
+    timeout_s: float,
+    cwd: Path,
+    env: Mapping[str, str] | None,
+    target: Target,
+    linux: LinuxRun | None,
+) -> Completed:
+    """Run one launch; a Linux container that timed out or was interrupted is removed (`_remove_container`)."""
+    try:
+        completed = runner.run(argv, timeout_s=timeout_s, cwd=cwd, env=env)
+    except BaseException:
+        if linux is not None:
+            _remove_container(runner, target)
+        raise
+    if completed.timed_out and linux is not None:
+        _remove_container(runner, target)
+    return completed
+
+
+def _build_linux(
+    runner: Runner, linux: LinuxRun, target: Target, app_dir: Path, item_dir: Path, timeout_s: float
+) -> tuple[tuple[str, ...], float]:
+    """Build the Linux app in its own container step and return its command and wall time.
+
+    The tests' own launch builds again, but a native build failure (CMake, the toolchain) then reads as a test file
+    that failed to load. This step makes it a tool failure, as design section 9 has it for any failed host build, so a
+    load failure after a green build step keeps reading `fail`. The output goes to `<item_dir>/linux_build.log`.
+    Raises `RoundEnvError` when the build fails or times out.
+    """
+    argv = tuple(
+        linux_docker.docker_run_argv(
+            linux.tag, linux.repo_root, linux.app_rel, item_dir, linux_docker.LINUX_BUILD_COMMAND,
+            linux_docker.container_name(target.name), False, target.name,
+        )
+    )
+    started = time.monotonic()
+    built = _launch(runner, argv, timeout_s, app_dir, None, target, linux)
+    seconds = time.monotonic() - started
+    output = built.stdout + built.stderr
+    (item_dir / LINUX_BUILD_LOG).write_text(output, encoding="utf-8")
+    if built.timed_out:
+        raise RoundEnvError(f"flutter build linux timed out after {timeout_s:.0f} s")
+    if built.status != 0:
+        last = next((line.strip() for line in reversed(output.splitlines()) if line.strip()), "no output")
+        raise RoundEnvError(f"flutter build linux failed (exit {built.status}): {last}")
+    return argv, seconds
 
 
 def _remove_container(runner: Runner, target: Target) -> None:

@@ -95,6 +95,8 @@ class RoundState:
         self.down: set[str] = set()
         self.live: dict[str, RoundTarget] = {}
         self.app_builds: dict[tuple[str, bool], Path] = {}
+        # Linux targets whose app built in its own container step this round (`integration_run.run_plan`).
+        self.linux_built: set[str] = set()
         self.resolved = False
         self.outcomes: dict[str, dict[str, FileResult]] = {}
         self.run_dirs: dict[tuple[str, str], Path] = {}

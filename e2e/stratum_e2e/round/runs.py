@@ -63,7 +63,11 @@ def run_with_retry(
 def _run_once(
     state: RoundState, backends: Backends, round_target: RoundTarget, plan: RunPlan
 ) -> dict[str, FileResult]:
-    """Run `plan` once; a launched run is recorded as a build entry (pre-flight F7) and keeps its device log."""
+    """Run `plan` once; a launched run is recorded as a build entry (pre-flight F7) and keeps its device log.
+
+    A Linux target builds its app in its own step before its first run of the round, and again after a build that
+    failed; the build is recorded as a build entry too.
+    """
     target, record = round_target.target, round_target.record
     run_dir = state.open_round_dir(backends.now).item_dir(target.name, plan.key)
     for file in plan.files:
@@ -81,7 +85,11 @@ def _run_once(
     outcome = backends.run_plan(
         plan, target, record, backends.booter_for(target), state.app_dir, run_dir, backends.runner,
         state.lane.run_timeout_minutes * 60, backends.port_dir, flutter_version=version,
+        build_first=target.platform == "linux" and target.name not in state.linux_built,
     )
+    if outcome.build_argv:
+        state.recorder.build(target.name, outcome.build_argv, outcome.build_seconds, reused=False)
+        state.linux_built.add(target.name)
     if outcome.argv:
         state.recorder.build(target.name, outcome.argv, outcome.seconds, reused=False)
         save_device_log(backends.runner, record, since, run_dir / DEVICE_LOG)

@@ -739,6 +739,75 @@ def test_linux_sequence_checks_packages_builds_and_resets_before_its_launch(tmp_
     assert f"integration_test/{RESTART_1} integration_test/{RESTART_2}" in outcome.argv[-1]
 
 
+def linux_prepared() -> list[Entry]:
+    """The answers a Linux run gets before its launches: the plugin scan, the image, the stale container check."""
+    return [
+        (("python3", "-I", "-c"), done(0, "")),
+        (("docker", "image", "inspect"), done(0)),
+        (("docker", "rm", "-f"), done(0)),
+    ]
+
+
+def test_linux_build_step_failure_is_env_and_runs_no_test(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    item = tmp_path / "item"
+    cmake = "CMake Error: The current CMakeCache.txt directory /work/test_app/build/linux/arm64/debug is different\n"
+    runner = RecordingRunner([*linux_prepared(), (("docker", "run"), done(1, cmake + "Build process failed.\n"))])
+
+    outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app, item,
+                       runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
+
+    assert outcome.files[KEYBOARD] == FileResult(
+        "env", 0, 1, "flutter build linux failed (exit 1): Build process failed.", ()
+    )
+    assert outcome.build_argv == ()
+    launches = [call for call in runner.calls if call[:2] == ("docker", "run")]
+    assert len(launches) == 1
+    assert launches[0][-1].endswith(f"&& {linux_docker.LINUX_BUILD_COMMAND}; " + 'rc=$?; echo "$rc" > build/'
+                                    '.dt-last-exit; exit "$rc"')
+    assert "CMakeCache.txt" in (item / integration_run.LINUX_BUILD_LOG).read_text(encoding="utf-8")
+
+
+def test_linux_build_step_that_times_out_is_env_and_removes_the_container(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    runner = RecordingRunner([
+        *linux_prepared(), (("docker", "run"), done(-9, timed_out=True)), (("docker", "rm", "-f"), done(0)),
+    ])
+
+    outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app,
+                       tmp_path / "item", runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
+
+    assert outcome.files[KEYBOARD].cls == "env"
+    assert outcome.files[KEYBOARD].reason == "flutter build linux timed out after 60 s"
+    assert runner.calls[-1] == tuple(linux_docker.remove_stale_container_argv("linux"))
+
+
+def test_linux_test_file_that_fails_to_load_after_a_green_build_is_fail(tmp_path: Path) -> None:
+    app = linux_app(tmp_path)
+    item = tmp_path / "item"
+    item.mkdir()
+    entry = "/work/test_app/integration_test/.round/linux_none-0000abcd_test.dart"
+    report = suite_report({entry: [(f"loading {entry}", "error")]})
+    runner = RecordingRunner(
+        [
+            *linux_prepared(),
+            (("docker", "run"), done(0, "Building Linux application...\n")),
+            (("docker", "run"), done(1, f"Error: Expected ';' after this.\nFailed to load \"{entry}\"\n")),
+        ],
+        {item / "report.json": report},
+    )
+
+    outcome = run_plan(plan_of("linux", [KEYBOARD]), LINUX, record_of(LINUX, "linux"), FakeBooter(), app, item,
+                       runner, 60.0, tmp_path / "ports", flutter_version="3.47.7", build_first=True)
+
+    assert outcome.files[KEYBOARD].cls == "fail"
+    build, test = (call for call in runner.calls if call[:2] == ("docker", "run"))
+    assert outcome.build_argv == build
+    assert outcome.argv == test
+    assert linux_docker.LINUX_BUILD_COMMAND in build[-1]
+    assert linux_docker.LINUX_BUILD_COMMAND not in test[-1]
+
+
 def test_linux_missing_package_is_env_before_the_image_build(tmp_path: Path) -> None:
     app = linux_app(tmp_path)
     runner = RecordingRunner([(("python3", "-I", "-c"), done(0, "module webview_all_linux webkit2gtk-4.1\n"))])

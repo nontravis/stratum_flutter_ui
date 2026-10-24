@@ -61,6 +61,13 @@ platform = "macos"
 platform = "web"
 browser = "chrome"
 
+[targets.linux]
+platform = "linux"
+e2e = false
+
+[targets.linux.plain_name]
+"smoke/b_test.dart" = "group B"
+
 [modes.fast]
 targets = ["mac"]
 repeat = 1
@@ -224,13 +231,19 @@ def build(app_dir, package_root, platform, wasm, runner, log):
 
 
 _plan_env = dict(SCENARIO.get("plan_env", {}))
+_linux_build_failures = [SCENARIO.get("linux_build_fail", 0)]
 
 
 def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_timeout_s, port_dir, *,
-             flutter_version=None):
-    event(f"run_plan {target.name} {plan.kind}")
+             flutter_version=None, build_first=False):
+    event(f"run_plan {target.name} {plan.kind}" + (" build" if build_first else ""))
     item_dir.mkdir(parents=True, exist_ok=True)
     (item_dir / LOG_NAME).write_text(f"ran {plan.key}\n", encoding="utf-8")
+    if build_first and _linux_build_failures[0]:
+        _linux_build_failures[0] -= 1
+        reason = "flutter build linux failed (exit 1): Build process failed."
+        return RunOutcome((), 0.0, {file: FileResult("env", 0, 1, reason, ()) for file in plan.files})
+    build_argv = ("flutter", "build", "linux") if build_first else ()
     argv = ("flutter", "test", plan.key)
     if _plan_env.get(target.name, 0):
         _plan_env[target.name] -= 1
@@ -240,7 +253,7 @@ def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_t
         cls = SCENARIO.get("outcomes", {}).get(file, "pass")
         reason = "" if cls == "pass" else f"{file} broke"
         files[file] = FileResult(cls, 1 if cls == "pass" else 0, 1, reason, (f"tag/{Path(file).stem}",))
-    return RunOutcome(argv, 1.5, files)
+    return RunOutcome(argv, 1.5, files, build_argv, 4.0 if build_argv else 0.0)
 
 
 @pytest.fixture(scope="session")
@@ -854,6 +867,27 @@ def test_memory_pressure_that_stays_is_env(pytester: pytest.Pytester, monkeypatc
     assert not _events(root, "boot ")
     reason = _cells(_summary(pytester))[FILE_A]["tablet"]["reason"]
     assert reason.startswith("memory pressure: a heavy process is running: 4242 qemu-system")
+
+
+def test_linux_builds_its_app_once_per_round_before_its_first_run(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch)
+    _round(pytester, "--target", "linux").assert_outcomes(passed=2)
+    assert _events(root, "run_plan ") == ["run_plan linux entry build", "run_plan linux plain_name"]
+    builds = [(build["command"], build["seconds"]) for build in _summary(pytester)["builds"]]
+    assert builds[0] == (["flutter", "build", "linux"], 4.0)
+    assert [command[:2] for command, _ in builds[1:]] == [["flutter", "test"]] * 2
+
+
+def test_linux_build_that_failed_builds_again_on_the_rerun(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, scenario={"linux_build_fail": 1})
+    _round(pytester, "--target", "linux").assert_outcomes(passed=2)
+    assert _events(root, "run_plan ") == [
+        "run_plan linux entry build", "run_plan linux entry build", "run_plan linux plain_name",
+    ]
 
 
 def test_integration_run_is_recorded_as_a_build_entry(

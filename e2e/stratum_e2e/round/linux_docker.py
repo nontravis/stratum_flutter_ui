@@ -50,6 +50,8 @@ SYNC_EXCLUDES = (
 )
 # A log line holding it never ran a test: the work volume could not take the host tree.
 SYNC_FAILED_SIGN = "dt: source sync failed"
+# The inner command of a Linux run's own app build step, before its tests (`integration_run`).
+LINUX_BUILD_COMMAND = "flutter build linux --debug"
 
 _BUILD_TIMEOUT_S = 3600.0
 _REPORT_PATH = "/round/report.json"
