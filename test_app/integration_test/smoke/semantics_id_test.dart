@@ -10,6 +10,7 @@ void main() {
     tester,
   ) async {
     await binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => binding.setSurfaceSize(null));
     await tester.pumpWidget(const FixtureApp(fixtureId: 'smoke/semantics_id'));
 
     expect(find.bySemanticsIdentifier('smoke.button'), findsOneWidget);
