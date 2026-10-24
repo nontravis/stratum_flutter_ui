@@ -277,8 +277,10 @@ def round_target(request: pytest.FixtureRequest) -> Iterator[RoundTarget | None]
 
     One instance per target, torn down before the next target's: the lane is taken, the device booted (the memory
     gate first, on a cold boot only), the TalkBack AVD checked, and the target's platform, device, and app id written
-    into the low-level options unless given on the command line. Teardown ends what was booted, then frees the lane.
-    Any step that fails raises `RoundEnvError`, which pytest keeps for every item of the target, so the round moves on.
+    into the low-level options unless given on the command line. Teardown ends what was booted, then frees the lane;
+    a teardown failure is recorded on the target, never raised into the next target's first item.
+    Any bring-up step that fails raises `RoundEnvError`, which pytest keeps for every item of the target, so the round
+    moves on.
     """
     param: object = getattr(request, "param", None)
     if param is None:
@@ -479,20 +481,23 @@ def item_target(item: pytest.Item) -> Target | None:
 
 @contextlib.contextmanager
 def _brought_up(state: _RoundState, backends: Backends, target: Target) -> Iterator[RoundTarget]:
-    """Hold the lane and the booted device of `target` while the block runs; end the device, then free the lane."""
+    """Hold the lane and the booted device of `target` while the block runs; end the device, then free the lane.
+
+    A failed shutdown or lane release is recorded on `target` and never raised (`_tear_down`).
+    """
     round_dir = state.open_round_dir(backends.now)
     past_failures = state.past_setting_failures.get(target.name, ())
     state.recorder.target(target.name, target.platform, "", reused=False, setting_failures=past_failures)
     if state.ledger.blocked(target.name):
         raise RoundEnvError(_BLOCKED)
     with contextlib.ExitStack() as stack:
-        stack.callback(_take_lane(state, backends, target).release)
+        stack.callback(_tear_down, state, target, "lane release", _take_lane(state, backends, target).release)
         booter = backends.booter_for(target)
         boot_dir = round_dir.item_dir(target.name, _BOOT_DIR)
         record = _boot(state, backends, booter, target, boot_dir / "boot.log")
         # Runs after shutdown, which adds the settings that failed to restore.
         stack.callback(_record_target, state, target, record, finished=True)
-        stack.callback(booter.shutdown, record)
+        stack.callback(_tear_down, state, target, "shutdown", booter.shutdown, record)
         _record_target(state, target, record)
         if target.avd == AVD_NAME:
             _check_talkback_avd(record.device_id)
@@ -502,6 +507,21 @@ def _brought_up(state: _RoundState, backends: Backends, target: Target) -> Itera
         state.live[target.name] = brought_up
         stack.callback(state.live.pop, target.name, None)
         yield brought_up
+
+
+def _tear_down(
+    state: _RoundState, target: Target, step: str, action: Callable[..., object], *args: object
+) -> None:
+    """Run one teardown step of `target`, recording a failure on `target` instead of raising it.
+
+    pytest finishes a target inside the setup of the next target's first item, so a raise here would fail that item
+    on a target that has run nothing.
+    """
+    try:
+        action(*args)
+    except Exception as error:
+        reason = error.reason if isinstance(error, RoundEnvError) else _first_line(f"{type(error).__name__}: {error}")
+        state.recorder.teardown_failure(target.name, f"{step} failed: {reason}")
 
 
 def _take_lane(state: _RoundState, backends: Backends, target: Target) -> Lease:

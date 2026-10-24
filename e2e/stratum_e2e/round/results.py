@@ -145,6 +145,7 @@ class Recorder:
 
     def __init__(self) -> None:
         self._targets: dict[str, _Target] = {}
+        self._teardown_failures: dict[str, list[str]] = {}
         self._builds: list[_Build] = []
         self._rows: dict[str, _Row] = {}
 
@@ -156,6 +157,12 @@ class Recorder:
         A repeat call for one name updates it and keeps its column.
         """
         self._targets[name] = _Target(name, platform, device_id, reused, tuple(setting_failures))
+
+    def teardown_failure(self, target: str, failure: str) -> None:
+        """Record that a teardown step of `target` (ending its device, freeing its lane) failed; a later `target()`
+        call for the name keeps it."""
+        self._require_target(target)
+        self._teardown_failures.setdefault(target, []).append(failure)
 
     def build(self, target: str, argv: Sequence[str], seconds: float, reused: bool) -> None:
         """Record one app build or integration run command and how long it took."""
@@ -205,8 +212,11 @@ class Recorder:
             for t in self._targets.values()
             for failure in t.setting_failures
         ]
-        if reasons or settings:
-            lines += ["", *reasons, *settings]
+        teardowns = [
+            f"- teardown of `{name}`: {failure}" for name in names for failure in self._teardown_failures.get(name, ())
+        ]
+        if reasons or settings or teardowns:
+            lines += ["", *reasons, *settings, *teardowns]
         return "\n".join(lines) + "\n"
 
     def _data(self, stamp: str, mode: str, repeat: int, wall_seconds: float) -> dict[str, object]:
@@ -223,6 +233,7 @@ class Recorder:
                     "device": t.device_id,
                     "reused": t.reused,
                     "setting_failures": list(t.setting_failures),
+                    "teardown_failures": list(self._teardown_failures.get(t.name, ())),
                 }
                 for t in self._targets.values()
             ],

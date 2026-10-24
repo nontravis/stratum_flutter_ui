@@ -208,9 +208,32 @@ def test_reused_target_is_recorded(tmp_path: Path) -> None:
     rec.target("pixel_8", "android", "emulator-5556", reused=True)
     data = json.loads((_write(tmp_path, rec).path / "summary.json").read_text(encoding="utf-8"))
     assert data["targets"] == [
-        {"name": "pixel_8", "platform": "android", "device": "emulator-5556", "reused": True, "setting_failures": []}
+        {
+            "name": "pixel_8", "platform": "android", "device": "emulator-5556", "reused": True,
+            "setting_failures": [], "teardown_failures": [],
+        }
     ]
     assert data["targets"][0]["reused"] is True
+
+
+def test_teardown_failures_reach_both_summaries_and_outlive_a_later_target_call(tmp_path: Path) -> None:
+    rec = Recorder()
+    rec.target("iphone", "ios", "udid-1", reused=False)
+    rec.target("mac", "macos", "mac", reused=False)
+    failure = "shutdown failed: simctl shutdown udid-1 failed (status 1): busy"
+    rec.teardown_failure("iphone", failure)
+    rec.target("iphone", "ios", "udid-1", reused=False, setting_failures=["s"])
+    made = _write(tmp_path, rec)
+    data = json.loads((made.path / "summary.json").read_text(encoding="utf-8"))
+    assert [t["teardown_failures"] for t in data["targets"]] == [[failure], []]
+    text = (made.path / "summary.md").read_text(encoding="utf-8")
+    assert f"- teardown of `iphone`: {failure}" in text
+    assert "teardown of `mac`" not in text
+
+
+def test_teardown_failure_for_an_unknown_target_is_refused() -> None:
+    with pytest.raises(ValueError, match="iphone"):
+        Recorder().teardown_failure("iphone", "shutdown failed: x")
 
 
 def test_setting_failures_reach_both_summaries(tmp_path: Path) -> None:

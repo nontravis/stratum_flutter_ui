@@ -180,12 +180,20 @@ class FakeBooter:
         pass
 
     def shutdown(self, record):
-        """End the device; the target's n-th shutdown fails to restore its n-th listed setting, if any."""
+        """End the device; the target's n-th shutdown fails to restore its n-th listed setting, if any.
+
+        A target named in `shutdown_fail` raises instead: `env` a `RoundEnvError`, `os` an `OSError`.
+        """
         event(f"shutdown {record.target}")
         count = _shutdowns[record.target] = _shutdowns.get(record.target, 0) + 1
         failures = SCENARIO.get("setting_failures", {}).get(record.target, [])
         if count <= len(failures):
             record.setting_failures.append(failures[count - 1])
+        how = SCENARIO.get("shutdown_fail", {}).get(record.target)
+        if how == "env":
+            raise RoundEnvError(f"simctl shutdown {record.device_id} failed (status 1): busy")
+        if how == "os":
+            raise OSError(f"cannot end {record.device_id}")
 
 
 _resolve_failures = [SCENARIO.get("resolve_fail", 0)]
@@ -316,6 +324,8 @@ class _Lease:
     def release(self):
         event(f"release {self._target}")
         self._lease.release()
+        if self._target in SCENARIO.get("release_fail", []):
+            raise OSError(f"cannot unlink the {self._target} holder file")
 
 
 def _acquire(target, alone, wait_s, directory, holder, **kwargs):
@@ -456,6 +466,42 @@ def test_round_runs_targets_one_after_another(pytester: pytest.Pytester, monkeyp
     ]
 
 
+@pytest.mark.parametrize(
+    ("how", "failure"),
+    [
+        ("env", "shutdown failed: simctl shutdown mac failed (status 1): busy"),
+        ("os", "shutdown failed: OSError: cannot end mac"),
+    ],
+)
+def test_a_failed_shutdown_is_recorded_on_its_own_target_not_the_next(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, how: str, failure: str
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_A + WEB_A, {"shutdown_fail": {"mac": how, "chrome": how}})
+    result = _round(pytester, "--target", "mac,chrome")
+    result.assert_outcomes(passed=6)
+    assert "release mac" in _events(root)
+    summary = _summary(pytester)
+    cells = _cells(summary)
+    assert [cells[test]["chrome"]["class"] for test in (FILE_A, FILE_B, "test_e2e.py::test_web_a")] == ["pass"] * 3
+    assert {t["name"]: t["teardown_failures"] for t in summary["targets"]} == {
+        "mac": [failure], "chrome": [failure.replace("mac", "chrome")],
+    }
+    assert f"- teardown of `mac`: {failure}" in (_round_dirs(pytester)[-1] / "summary.md").read_text()
+
+
+def test_a_failed_lane_release_is_recorded_on_its_own_target(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_tree(pytester, monkeypatch, MAC_A + WEB_A, {"release_fail": ["mac"]})
+    result = _round(pytester, "--target", "mac,chrome")
+    result.assert_outcomes(passed=6)
+    summary = _summary(pytester)
+    assert _cells(summary)[FILE_A]["chrome"]["class"] == "pass"
+    assert {t["name"]: t["teardown_failures"] for t in summary["targets"]} == {
+        "mac": ["lane release failed: OSError: cannot unlink the mac holder file"], "chrome": [],
+    }
+
+
 def test_lane_busy_reports_env_on_every_item_of_that_target_and_moves_on(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -517,7 +563,8 @@ def test_reused_target_gets_no_settings_no_restore_no_kill(
     result.assert_outcomes(passed=3)
     summary = _summary(pytester)
     assert summary["targets"][0] == {
-        "name": "pixel_8", "platform": "android", "device": REUSED_SERIAL, "reused": True, "setting_failures": []
+        "name": "pixel_8", "platform": "android", "device": REUSED_SERIAL, "reused": True, "setting_failures": [],
+        "teardown_failures": [],
     }
     device_calls = [line for line in _events(root, "run ", "spawn ") if REUSED_SERIAL in line or "emulator" in line]
     assert device_calls, "the reused emulator was never asked anything"
