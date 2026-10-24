@@ -92,12 +92,17 @@ class Lease:
         self._fds: list[int] = [target_fd, machine_fd]
 
     def release(self) -> None:
-        """Remove the holder file, then free the machine lock and the target lock, in reverse of how they were taken."""
+        """Remove the holder file, then free the machine lock and the target lock, in reverse of how they were taken.
+
+        The locks are freed even when removing the holder file raises; readers skip a holder file left behind.
+        """
         if not self._fds:
             return
-        self._holder_file.unlink(missing_ok=True)
-        while self._fds:
-            os.close(self._fds.pop())
+        try:
+            self._holder_file.unlink(missing_ok=True)
+        finally:
+            while self._fds:
+                os.close(self._fds.pop())
 
     def __enter__(self) -> Lease:
         return self

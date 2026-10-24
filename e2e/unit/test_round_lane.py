@@ -165,6 +165,22 @@ def test_release_frees_both_locks_and_is_idempotent(tmp_path: Path) -> None:
         pass
 
 
+def test_release_frees_both_locks_when_the_holder_file_cannot_be_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lease = acquire_lane("pixel_8", True, 0, tmp_path, HOLDER_A)
+
+    def refuse(path: Path, missing_ok: bool = False) -> None:
+        raise PermissionError(1, "Operation not permitted", str(path))
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+    with pytest.raises(PermissionError):
+        lease.release()
+    monkeypatch.undo()
+    with acquire_lane("pixel_8", True, 0, tmp_path, HOLDER_B):
+        pass
+
+
 def test_context_exit_releases_the_lane(tmp_path: Path) -> None:
     with acquire_lane("pixel_8", True, 0, tmp_path, HOLDER_A):
         pass
