@@ -15,8 +15,9 @@ WEB_VIEW = "common/web_view_test.dart"
 SMOKE = "smoke/semantics_id_test.dart"
 RESTART_1 = "common/page_layout_restart_1_linux_test.dart"
 SYSTEM_STYLE_LINUX = "themes/system_style_linux_test.dart"
-EVERYWHERE_FILES = 5
-LINUX_FILES = 8
+MOBILE_FILES = 5
+MAC_FILES = 4
+LINUX_FILES = 7
 
 TARGETS_TOML = f"""\
 [apps.test_app]
@@ -233,7 +234,7 @@ def test_integration_items_follow_platform_files(pytester: pytest.Pytester, monk
     ids = _ids(result)
     mac = [item for item in ids if "test_integration_file[mac-" in item]
     linux = [item for item in ids if "test_integration_file[linux-" in item]
-    assert len(mac) == EVERYWHERE_FILES
+    assert len(mac) == MAC_FILES
     assert len(linux) == LINUX_FILES
     assert f"test_integration.py::test_integration_file[mac-{SMOKE}]" in mac
     assert not any(RESTART_1 in item for item in mac)
@@ -262,7 +263,7 @@ def test_linux_and_iphone_run_no_e2e(pytester: pytest.Pytester, monkeypatch: pyt
     ids = _ids(_collect(pytester, "--target", "linux,iphone"))
     assert ids
     assert all("test_integration_file[" in item for item in ids)
-    assert len([item for item in ids if "[iphone-" in item]) == EVERYWHERE_FILES
+    assert len([item for item in ids if "[iphone-" in item]) == MOBILE_FILES
     assert len([item for item in ids if "[linux-" in item]) == LINUX_FILES
 
 

@@ -20,6 +20,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
 
+  flutter_keyboard_visibility: ^7.0.1
   flutter_lints: ^6.0.0
 
 dependency_overrides:

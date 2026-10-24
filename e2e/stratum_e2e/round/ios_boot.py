@@ -194,7 +194,7 @@ class IosBooter(Booter):
     def _pin_hardware_keyboard(self, udid: str) -> None:
         """Turn Connect Hardware Keyboard off globally and, when the device has its own dict, in that dict.
 
-        A leaked "on" hides the OS keyboard that `keyboard_visibility_scope_test.dart` asserts. PlistBuddy edits only
+        A leaked "on" hides the OS keyboard that `keyboard_visibility_scope_mobile_test.dart` asserts. PlistBuddy edits only
         the one nested key, so the device's saved window geometry survives. A failed write fails the boot.
         """
         written = self._run(["defaults", "write", _SIMULATOR_DOMAIN, _KEYBOARD_KEY, "-bool", "false"])

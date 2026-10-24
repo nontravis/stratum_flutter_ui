@@ -41,7 +41,7 @@ from unit.round_fakes import FakeProcess, FakeRunner
 REPORTS = Path(__file__).parent / "fixtures" / "round" / "reports"
 BUILDS = Path(__file__).parent / "fixtures" / "round" / "builds"
 INTEGRATION_FIXTURE = Path(__file__).parent / "fixtures" / "round" / "integration_test"
-KEYBOARD = "common/keyboard_visibility_scope_test.dart"
+KEYBOARD = "common/keyboard_visibility_scope_mobile_test.dart"
 SMOKE = "smoke/semantics_id_test.dart"
 WEB_VIEW = "common/web_view_test.dart"
 RESTART_1 = "common/page_layout_restart_1_linux_test.dart"

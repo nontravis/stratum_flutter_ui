@@ -1,6 +1,6 @@
 {
   "stratum_round": {
-    "common/keyboard_visibility_scope_test.dart": {
+    "common/keyboard_visibility_scope_mobile_test.dart": {
       "fo07/us04/s1, fo07/us04/fr01: the OS keyboard opens over the field": "pass",
       "fo07/us04/fr02/e01: the scope reads hidden once the keyboard closes": "fail"
     },

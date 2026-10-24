@@ -1,8 +1,9 @@
 // Proves FO-07 US-04 FR-02 E02 (Scenario 2) on Android and iOS: the
 // platform's own keyboard service really reports the on-screen keyboard
 // (`tester.showKeyboard`, never `setVisibleForTesting`), and a dependent that
-// reads only `KeyboardVisibilityScope` rebuilds exactly once for each open and
-// each close. The test self-selects by the real host OS
+// reads only `KeyboardVisibilityScope` rebuilds once for each change the OS
+// reports through the plugin the scope reads, never once per frame. The test
+// self-selects by the real host OS
 // (`support/host_platform.dart`'s `hostOSName`, never `defaultTargetPlatform`,
 // which every `flutter test` process forces to `TargetPlatform.android`) and
 // reports a skip on every other host, where E05 is a widget test
@@ -18,7 +19,12 @@
 // cold boot can take well past the measured 10 s bound for reasons of the
 // environment, never this package.
 //
-//   flutter test integration_test/common/keyboard_visibility_scope_test.dart -d <device>
+//   flutter test integration_test/common/keyboard_visibility_scope_mobile_test.dart -d <device>
+import 'dart:async';
+
+// The scope reads this plugin; the test counts the plugin's own events to prove
+// the scope follows them.
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
@@ -205,15 +211,139 @@ Future<void> _warmUpKeyboard(WidgetTester tester, List<bool> builds) async {
 /// review Critical, edges review Minor #3).
 bool get _isAndroidOrIOS => hostOSName == 'android' || hostOSName == 'ios';
 
-/// E02, US-04 Scenario 2: a real on-screen keyboard opens once and closes
-/// once, and a dependent that reads only the scope rebuilds exactly once for
-/// each.
+/// Records every value the plugin reports through
+/// `KeyboardVisibilityController().onChange` into [events], and prints one
+/// `KV-OS` line per event with the value and the ms since
+/// [_keyboardRequestedAt], so a device log maps each build to the OS event
+/// behind it.
+///
+/// This is the stream [KeyboardVisibilityScope] reads, so [events] is the
+/// OS's own count of changes, whatever frames land between them.
+StreamSubscription<bool> _listenToOsEvents(List<bool> events) {
+  return KeyboardVisibilityController().onChange.listen((value) {
+    events.add(value);
+    final requestedAt = _keyboardRequestedAt;
+    final ms = requestedAt == null
+        ? 'n/a'
+        : '${DateTime.now().difference(requestedAt).inMilliseconds}';
+    debugPrint('KV-OS event=$value ms=$ms');
+  });
+}
+
+/// Whether every value in [window] differs from the one before it, the first
+/// compared with [before].
+bool _everyBuildFlips(bool before, List<bool> window) {
+  var previous = before;
+  for (final value in window) {
+    if (value == previous) return false;
+    previous = value;
+  }
+  return true;
+}
+
+/// Waits until the scope has built [expected] as the plugin's last report and
+/// no build is pending, so a half of E02 ends on the OS's final state and a
+/// "hidden" report one frame behind its event never crosses the split between
+/// the open and the close half.
+///
+/// Never fails on its own: both waits are bounded by
+/// [_scopeAfterOsEventBound], and [_expectScopeFollowedOs] names what it saw.
+Future<void> _settleScope(
+  WidgetTester tester,
+  List<bool> builds,
+  List<bool> osEvents, {
+  required bool expected,
+}) async {
+  await pumpUntil(
+    tester,
+    () =>
+        osEvents.isNotEmpty &&
+        osEvents.last == expected &&
+        builds.last == expected,
+    timeout: _scopeAfterOsEventBound,
+  );
+  await tester.pump();
+  await pumpUntil(
+    tester,
+    () => !tester.binding.hasScheduledFrame,
+    timeout: _scopeAfterOsEventBound,
+  );
+}
+
+/// Asserts the scope followed the OS's own reports across one half (open or
+/// close) of E02: [window] holds the builds of that half, [osEvents] the
+/// plugin events of the same half, [before] the value the scope read when the
+/// half began, and [expectedLast] the value the half ends on.
+///
+/// The OS can report a flip (shown, hidden, shown) inside one request, and
+/// the scope publishes each one (s03 INV-10), so the count to hold is the
+/// plugin's, never a fixed one.
+void _expectScopeFollowedOs({
+  required String half,
+  required bool before,
+  required bool expectedLast,
+  required List<bool> window,
+  required List<bool> osEvents,
+}) {
+  expect(
+    window,
+    isNotEmpty,
+    reason:
+        '$half: the scope never rebuilt the dependent after the OS reported '
+        'the change (s03 INV-10, US-04 Scenario 2)',
+  );
+  expect(
+    window.length,
+    lessThanOrEqualTo(osEvents.length),
+    reason:
+        '$half: ${window.length} builds for ${osEvents.length} OS reports; '
+        'the scope follows each change the OS reports, never each frame '
+        '(s03 INV-7 and INV-10, US-04 Scenario 2)',
+  );
+  expect(
+    osEvents.last,
+    expectedLast,
+    reason:
+        '$half: the OS ended on ${osEvents.last ? 'open' : 'closed'}, not '
+        '${expectedLast ? 'open' : 'closed'} (s03 INV-10, US-04 Scenario 2)',
+  );
+  expect(
+    _everyBuildFlips(before, window),
+    isTrue,
+    reason:
+        '$half: builds $window after $before; each build must flip the '
+        'value from the one before it, or the scope published a repeat '
+        '(s03 INV-7, US-04 Scenario 2)',
+  );
+  expect(
+    window.last,
+    osEvents.last,
+    reason:
+        '$half: the last build must read what the OS last reported, '
+        '${osEvents.last ? 'open' : 'closed'} (s03 INV-10, US-04 Scenario 2)',
+  );
+  expect(
+    window.last,
+    expectedLast,
+    reason:
+        '$half: the last build must read ${expectedLast ? 'open' : 'closed'} '
+        '(s03 INV-10, US-04 Scenario 2)',
+  );
+}
+
+/// E02, US-04 Scenario 2: a real on-screen keyboard opens and closes, and a
+/// dependent that reads only the scope rebuilds once per change the OS
+/// reports through the plugin, never once per frame (s03 INV-10).
 ///
 /// Anchors each half on the OS event rather than the scope (fix-5 item 2,
 /// `rca-kv-dr14b.findings.md` Part 2 Fix option A): a timeout waiting for
 /// `viewInsets.bottom` fails naming the OS keyboard, never the scope, so a
 /// slow IME is never blamed on this package; only once that inset has
 /// arrived does the scope get a short bound of its own to react.
+///
+/// Counts the scope's builds against the plugin's own events for the same
+/// window (task 53): Android can report shown, hidden, shown inside one
+/// open, and the scope publishes each report.
 Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
   debugPrint('fo07/us04/fr02/e02, s2: platform=$hostOSName');
   final beforeOpen = builds.length;
@@ -224,6 +354,10 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
         'the scope must already read closed before this case requests the '
         'show, or an earlier open went unnoticed (fix-5 item 2.1, P2)',
   );
+
+  final osEvents = <bool>[];
+  final osSubscription = _listenToOsEvents(osEvents);
+  addTearDown(osSubscription.cancel);
 
   final showRequestedAt = DateTime.now();
   _keyboardRequestedAt = showRequestedAt;
@@ -261,15 +395,17 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
         'the scope did not read open within '
         '${_scopeAfterOsEventBound.inSeconds}s of the OS inset arriving',
   );
-  expect(
-    builds.length - beforeOpen,
-    1,
-    reason:
-        'the scope notifies a dependent once per open, never once per '
-        'animation frame (s03 invariant 7, US-04 Scenario 2)',
+  await _settleScope(tester, builds, osEvents, expected: true);
+  final beforeClose = builds.length;
+  final osEventsBeforeClose = osEvents.length;
+  _expectScopeFollowedOs(
+    half: 'open',
+    before: false,
+    expectedLast: true,
+    window: builds.sublist(beforeOpen),
+    osEvents: osEvents.sublist(0, osEventsBeforeClose),
   );
 
-  final beforeClose = builds.length;
   final closeRequestedAt = DateTime.now();
   _keyboardRequestedAt = closeRequestedAt;
   FocusManager.instance.primaryFocus?.unfocus();
@@ -306,10 +442,21 @@ Future<void> _proveE02(WidgetTester tester, List<bool> builds) async {
         'the scope did not read closed within '
         '${_scopeAfterOsEventBound.inSeconds}s of the OS inset clearing',
   );
+  await _settleScope(tester, builds, osEvents, expected: false);
+  _expectScopeFollowedOs(
+    half: 'close',
+    before: true,
+    expectedLast: false,
+    window: builds.sublist(beforeClose),
+    osEvents: osEvents.sublist(osEventsBeforeClose),
+  );
   expect(
-    builds.length - beforeClose,
-    1,
-    reason: 'closing the keyboard notifies the dependent exactly once more',
+    builds.length - beforeOpen,
+    lessThanOrEqualTo(osEvents.length),
+    reason:
+        'across the open and the close, ${builds.length - beforeOpen} builds '
+        'for ${osEvents.length} OS reports (s03 INV-7 and INV-10, US-04 '
+        'Scenario 2)',
   );
   _keyboardRequestedAt = null;
 }

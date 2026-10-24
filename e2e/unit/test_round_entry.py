@@ -26,6 +26,7 @@ RESTART_1 = "common/page_layout_restart_1_linux_test.dart"
 RESTART_2 = "common/page_layout_restart_2_linux_test.dart"
 SYSTEM_STYLE_LINUX = "themes/system_style_linux_test.dart"
 SPLIT_WEB = "common/split_layout_setting_web_test.dart"
+KEYBOARD_MOBILE = "common/keyboard_visibility_scope_mobile_test.dart"
 
 
 def _android_targets() -> list[Target]:
@@ -47,14 +48,14 @@ def test_platform_files_skip_linux_only_off_linux() -> None:
     android = platform_files(FIXTURE, "android")
 
     assert android == [
-        "common/keyboard_visibility_scope_test.dart",
+        KEYBOARD_MOBILE,
         "common/reorderable_list_view_layout_test.dart",
         "common/screen_radius_scope_test.dart",
         WEB_VIEW,
         SMOKE,
     ]
     linux = platform_files(FIXTURE, "linux")
-    assert len(linux) == 8
+    assert len(linux) == 7
     assert {RESTART_1, RESTART_2, SYSTEM_STYLE_LINUX} <= set(linux)
 
 
@@ -68,7 +69,17 @@ def test_a_web_only_file_is_present_on_web_and_no_linux_only_file_is() -> None:
 
     assert SPLIT_WEB in web
     assert not any(name.endswith("_linux_test.dart") for name in web)
-    assert len(web) == 6
+    assert len(web) == 5
+
+
+@pytest.mark.parametrize("platform", ["android", "ios"])
+def test_a_mobile_only_file_is_present_on_android_and_ios(platform: str) -> None:
+    assert KEYBOARD_MOBILE in platform_files(FIXTURE, platform)
+
+
+@pytest.mark.parametrize("platform", ["macos", "web", "linux"])
+def test_a_mobile_only_file_is_absent_off_mobile(platform: str) -> None:
+    assert KEYBOARD_MOBILE not in platform_files(FIXTURE, platform)
 
 
 def test_chrome_and_chrome_wasm_plan_the_web_only_file() -> None:
@@ -88,7 +99,7 @@ def test_platform_files_never_list_a_round_entry_or_a_wrapped_sibling(tmp_path: 
 
     files = platform_files(folder, "linux")
 
-    assert len(files) == 8
+    assert len(files) == 7
     assert not any(ENTRY_PREFIX in f or ".dt_" in f for f in files)
 
 
@@ -355,7 +366,7 @@ def test_the_template_names_the_nested_set_up_all_limit() -> None:
 
 def test_each_file_records_its_own_results_when_two_files_share_a_test_name() -> None:
     """Both files may declare `testWidgets('same name')`; `binding.results` is keyed by that bare name alone."""
-    first, second = "common/keyboard_visibility_scope_test.dart", "common/screen_radius_scope_test.dart"
+    first, second = KEYBOARD_MOBILE, "common/screen_radius_scope_test.dart"
     (plan,) = plan_runs("android", [Target(name="p", platform="android")], [first, second], [], 1)["p"]
 
     source = entry_source(plan)
@@ -417,7 +428,7 @@ def test_cleanup_removes_the_entry_and_siblings(tmp_path: Path) -> None:
     assert not entry.exists()
     assert not sibling.exists()
     assert sorted(path.relative_to(folder).as_posix() for path in folder.rglob("*.dart")) == sorted(
-        {*platform_files(folder, "linux"), *platform_files(folder, "web")},
+        {*platform_files(folder, "linux"), *platform_files(folder, "web"), *platform_files(folder, "android")},
     )
 
 
@@ -427,4 +438,4 @@ def test_cleanup_on_a_clean_folder_is_a_no_op(tmp_path: Path) -> None:
 
     cleanup(folder)
 
-    assert len(platform_files(folder, "linux")) == 8
+    assert len(platform_files(folder, "linux")) == 7

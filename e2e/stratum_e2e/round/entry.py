@@ -22,7 +22,11 @@ from stratum_e2e.round.wrap_repeat import dart_string, sibling_path, wrap_file
 ENTRY_PREFIX = "dt_round_"
 _WRAPPED_PREFIX = ".dt_"
 # A file whose name ends in one of these suffixes runs only on the platform it names.
-_PLATFORM_ONLY_SUFFIXES = MappingProxyType({"_linux_test.dart": "linux", "_web_test.dart": "web"})
+_PLATFORM_ONLY_SUFFIXES = MappingProxyType({
+    "_linux_test.dart": ("linux",),
+    "_mobile_test.dart": ("android", "ios"),
+    "_web_test.dart": ("web",),
+})
 _TEST_SUFFIX = "_test.dart"
 _KEY_HEX_LENGTH = 8
 
@@ -114,8 +118,9 @@ class RunPlan:
 def platform_files(integration_dir: Path, platform: str) -> list[str]:
     """Returns the sorted paths, relative to `integration_dir`, of the `_test.dart` files `platform` runs.
 
-    A `*_linux_test.dart` file counts on `linux` only and a `*_web_test.dart` file on `web` only (a `chrome` or
-    `chrome_wasm` target); a round entry and a wrapped sibling never count.
+    A `*_linux_test.dart` file counts on `linux` only, a `*_mobile_test.dart` file on `android` and `ios` only, and a
+    `*_web_test.dart` file on `web` only (a `chrome` or `chrome_wasm` target); a round entry and a wrapped sibling
+    never count.
     """
     found: list[str] = []
     for path in integration_dir.rglob(f"*{_TEST_SUFFIX}"):
@@ -131,7 +136,7 @@ def platform_files(integration_dir: Path, platform: str) -> list[str]:
 
 def _runs_on(name: str, platform: str) -> bool:
     return all(
-        platform == only for suffix, only in _PLATFORM_ONLY_SUFFIXES.items() if name.endswith(suffix)
+        platform in only for suffix, only in _PLATFORM_ONLY_SUFFIXES.items() if name.endswith(suffix)
     )
 
 
