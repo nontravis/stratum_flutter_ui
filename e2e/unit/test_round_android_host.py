@@ -65,6 +65,31 @@ def test_sdk_root_reads_a_properties_path_with_escaped_colons(tmp_path: Path) ->
     assert sdk_root(app_dir, {}, tmp_path / "home") == sdk
 
 
+def test_sdk_root_passes_over_a_properties_file_that_is_not_utf8(tmp_path: Path) -> None:
+    home_sdk = _sdk(tmp_path / "home" / "Library" / "Android" / "sdk")
+    app_dir = tmp_path / "app"
+    (app_dir / "android").mkdir(parents=True)
+    (app_dir / "android" / "local.properties").write_bytes(b"sdk.dir=/Users/caf\xe9/sdk\n")
+    assert sdk_root(app_dir, {}, tmp_path / "home") == home_sdk
+
+
+def test_sdk_root_passes_over_a_properties_file_it_cannot_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home_sdk = _sdk(tmp_path / "home" / "Library" / "Android" / "sdk")
+    app_dir = tmp_path / "app"
+    _write_properties(app_dir, f"sdk.dir={tmp_path / 'props'}\n")
+    real_read = Path.read_text
+
+    def refuse(path: Path, *args: object, **kwargs: object) -> str:
+        if path.name == "local.properties":
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_read(path, *args, **kwargs)  # type: ignore[arg-type]  # forwards read_text's own arguments
+
+    monkeypatch.setattr(Path, "read_text", refuse)
+    assert sdk_root(app_dir, {}, tmp_path / "home") == home_sdk
+
+
 def test_sdk_root_names_all_four_places_when_none_exists(tmp_path: Path) -> None:
     with pytest.raises(RoundEnvError) as caught:
         sdk_root(tmp_path / "app", {}, tmp_path / "home")

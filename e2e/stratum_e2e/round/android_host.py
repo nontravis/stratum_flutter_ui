@@ -40,9 +40,14 @@ def sdk_root(app_dir: Path, environ: Mapping[str, str], home: Path) -> Path:
 
 
 def _properties_sdk_dir(properties: Path) -> str:
+    """The `sdk.dir` of `properties`; empty when the file is absent, unreadable, or not UTF-8, so the next place wins."""
     if not properties.is_file():
         return ""
-    match = _SDK_DIR.search(properties.read_text())
+    try:
+        text = properties.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    match = _SDK_DIR.search(text)
     return match.group(1).strip().replace("\\:", ":") if match else ""
 
 
