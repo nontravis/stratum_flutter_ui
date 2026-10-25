@@ -77,7 +77,8 @@ class _SpawnRunner(FakeRunner):
 
 def test_android_device_log_reads_logcat_since_the_epoch_second() -> None:
     assert device_log_argv(_record("android"), SINCE) == [
-        "adb", "-s", "emulator-5556", "logcat", "-d", "-v", "threadtime", "-T", f"{EPOCH}.456",
+        "adb", "-s", "emulator-5556", "logcat", "-d", "-b", "main,system,crash,events", "-v", "threadtime",
+        "-T", f"{EPOCH}.456",
     ]
 
 

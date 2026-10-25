@@ -18,6 +18,8 @@ from stratum_e2e.round.runner import Runner
 
 _LOG_TIMEOUT_S: Final = 60.0
 _SCREENSHOT_TIMEOUT_S: Final = 30.0
+# logcat's default buffers omit `events`, where the system writes `am_anr`; name every buffer an ANR leaves a line in.
+_LOGCAT_BUFFERS: Final = "main,system,crash,events"
 
 
 def device_log_argv(record: BootRecord, since: datetime) -> list[str] | None:
@@ -28,7 +30,8 @@ def device_log_argv(record: BootRecord, since: datetime) -> list[str] | None:
     if since.tzinfo is None:
         raise ValueError("a device log starts at a timezone-aware datetime")
     if record.platform == "android":
-        return ["adb", "-s", record.device_id, "logcat", "-d", "-v", "threadtime", "-T", f"{since.timestamp():.3f}"]
+        start = f"{since.timestamp():.3f}"
+        return ["adb", "-s", record.device_id, "logcat", "-d", "-b", _LOGCAT_BUFFERS, "-v", "threadtime", "-T", start]
     if record.platform == "ios":
         start = f"@{int(since.timestamp())}"
         return ["xcrun", "simctl", "spawn", record.device_id, "log", "show", "--style", "compact", "--start", start]
