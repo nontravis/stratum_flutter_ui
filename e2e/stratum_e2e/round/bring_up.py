@@ -34,14 +34,22 @@ from stratum_e2e.round.lane import (
     wait_for_memory,
 )
 from stratum_e2e.round.runner import Runner, SubprocessRunner
-from stratum_e2e.round.state import BLOCKED, CATALOG_KEY, E2E_APP, Backends, RoundState, RoundTarget, e2e_app_dir
+from stratum_e2e.round.state import (
+    BLOCKED,
+    CATALOG_KEY,
+    DEVICE_LOG,
+    E2E_APP,
+    Backends,
+    RoundState,
+    RoundTarget,
+    e2e_app_dir,
+)
 
 # The low-level options a round writes per target; `--app` stays the user's, since `round_app` supplies the app.
 _RESOLVED: Final = ("platform", "device", "app_id")
 
 _BOOT_KEY: Final = "boot"
 _BOOT_DIR: Final = "boot"
-_BOOT_LOG: Final = "boot.log"
 
 
 @contextlib.contextmanager
@@ -59,7 +67,7 @@ def bring_up(state: RoundState, backends: Backends, target: Target) -> Iterator[
         stack.callback(_tear_down, state, target, "lane release", _take_lane(state, backends, target).release)
         booter = backends.booter_for(target)
         boot_dir = round_dir.item_dir(target.name, _BOOT_DIR)
-        record = _boot(state, backends, booter, target, boot_dir / "boot.log", round_dir.target_dir(target.name))
+        record = _boot(state, backends, booter, target, boot_dir)
         # Runs after shutdown, which adds the settings that failed to restore.
         stack.callback(_record_target, state, target, record, finished=True)
         stack.callback(_tear_down, state, target, "shutdown", booter.shutdown, record)
@@ -99,22 +107,22 @@ def _take_lane(state: RoundState, backends: Backends, target: Target) -> Lease:
         raise RoundEnvError("lane busy") from error
 
 
-def _boot(
-    state: RoundState, backends: Backends, booter: Booter, target: Target, log: Path, target_dir: Path
-) -> BootRecord:
+def _boot(state: RoundState, backends: Backends, booter: Booter, target: Target, boot_dir: Path) -> BootRecord:
     """Boot `target`, passing the memory gate first on a cold boot; an `env` boot retries once, then blocks (C9).
 
-    A booted device keeps its device log from the boot command on in `<target_dir>/boot.log`; the retry's log goes to
-    `boot-2.log`, so it never replaces the failed attempt's.
+    The boot command's own log is `boot_dir/boot.log`. A booted device keeps its device log in `boot_dir/device.log`,
+    from the start of the first attempt, taken after the memory gate, through the end of the last attempt's settle; each
+    attempt appends its part, so a failed attempt's lines stay.
     """
-    attempt = 0
+    log = boot_dir / "boot.log"
+    device_log: BootLog | None = None
     while True:
         if not booter.is_running(target):
             reasons = wait_for_memory(backends.memory_reasons, state.lane.lane_wait_minutes * 60, sleep=backends.sleep)
             if reasons:
                 raise RoundEnvError(f"memory pressure: {'; '.join(reasons)}")
-        attempt += 1
-        device_log = BootLog(target_dir / (_BOOT_LOG if attempt == 1 else f"boot-{attempt}.log"), backends.now())
+        if device_log is None:
+            device_log = BootLog(boot_dir / DEVICE_LOG, backends.now())
         try:
             return booter.boot(target, log, device_log)
         except RoundEnvError as error:

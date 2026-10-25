@@ -61,9 +61,21 @@ def save_device_log(runner: Runner, record: BootRecord, since: datetime, path: P
 
 
 def keep_boot_log(runner: Runner, record: BootRecord, device_log: BootLog | None) -> None:
-    """Save the device log of a boot the caller ran, when it asked for one; a failed capture is never an error."""
-    if device_log is not None:
-        save_device_log(runner, record, device_log.since, device_log.path)
+    """Append the device log of a boot the caller ran to `device_log.path`, when it asked for one.
+
+    A header line names the device first. The command writes a partial file that is appended and removed, so an earlier
+    attempt's lines stay and a failed capture leaves the file as it was and is never an error.
+    """
+    if device_log is None:
+        return
+    partial = device_log.path.with_name(f".{device_log.path.name}.partial")
+    partial.unlink(missing_ok=True)
+    save_device_log(runner, record, device_log.since, partial)
+    if partial.is_file():
+        with device_log.path.open("ab") as sink:
+            sink.write(f"--- device log of {record.device_id} since {device_log.since.isoformat()} ---\n".encode())
+            sink.write(partial.read_bytes())
+        partial.unlink()
 
 
 def save_screenshot(runner: Runner, record: BootRecord, path: Path) -> bool:

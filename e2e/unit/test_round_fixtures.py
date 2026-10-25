@@ -93,7 +93,7 @@ import json
 import os
 import signal
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import appium.webdriver
@@ -285,6 +285,15 @@ def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_t
     return RunOutcome(argv, 1.5, files, build_argv, 4.0 if build_argv else 0.0, exit_status=status)
 
 
+_ticks = [0]
+
+
+def _clock():
+    """`NOW`; with `now_step` in the scenario, a clock that moves that many seconds on each read."""
+    _ticks[0] += 1
+    return NOW + timedelta(seconds=SCENARIO.get("now_step", 0) * _ticks[0])
+
+
 @pytest.fixture(scope="session")
 def round_backends(request):
     runner = FakeRunner()
@@ -304,7 +313,7 @@ def round_backends(request):
         build=build,
         run_plan=run_plan,
         memory_reasons=lambda: host_memory_reasons(runner, request.config.stash[state.CATALOG_KEY].lane),
-        now=lambda: NOW,
+        now=_clock,
         port_dir=ROOT / "ports",
         sleep=lambda seconds: event("sleep"),
     )
@@ -696,15 +705,16 @@ def test_lane_busy_reports_env_on_every_item_of_that_target_and_moves_on(
     assert "boot mac" in _events(root)
 
 
-def test_each_boot_attempt_gets_its_own_device_log_in_the_target_dir(
+def test_every_boot_attempt_logs_to_device_log_beside_boot_log_from_the_first_start(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    root = _make_tree(pytester, monkeypatch, MAC_A, {"boot_fail": {"mac": 1}})
+    root = _make_tree(pytester, monkeypatch, MAC_A, {"boot_fail": {"mac": 1}, "now_step": 60})
     result = _round(pytester, "--target", "mac")
     result.assert_outcomes(passed=3)
+    first_start = "2026-10-24T01:04:03+00:00"  # clock reads: the round dir's name, then the first attempt's start
     assert _events(root, "device log") == [
-        "device log mac mac/boot.log 2026-10-24T01:02:03+00:00",
-        "device log mac mac/boot-2.log 2026-10-24T01:02:03+00:00",
+        f"device log mac boot/device.log {first_start}",
+        f"device log mac boot/device.log {first_start}",
     ]
 
 

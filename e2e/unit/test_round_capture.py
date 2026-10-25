@@ -10,8 +10,14 @@ from typing import cast
 
 import pytest
 
-from stratum_e2e.round.boot import BootRecord
-from stratum_e2e.round.capture import device_log_argv, save_device_log, save_screenshot, screenshot_argv
+from stratum_e2e.round.boot import BootLog, BootRecord
+from stratum_e2e.round.capture import (
+    device_log_argv,
+    keep_boot_log,
+    save_device_log,
+    save_screenshot,
+    screenshot_argv,
+)
 from stratum_e2e.round.runner import Completed
 from unit.round_fakes import FakeRunner
 
@@ -220,4 +226,56 @@ def test_failed_ios_screenshot_keeps_the_earlier_one(tmp_path: Path) -> None:
 def test_screenshot_runs_nothing_on_web(tmp_path: Path) -> None:
     runner = FakeRunner([])
     assert save_screenshot(runner, _record("web", "chrome"), tmp_path / "screenshot.png") is False
+    assert runner.calls == []
+
+
+class _LogRunner(FakeRunner):
+    """A FakeRunner whose command writes `text` to its `log`, or fails and writes nothing."""
+
+    def __init__(self, text: str | None) -> None:
+        super().__init__([])
+        self._text = text
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout_s: float | None = None,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        log: Path | None = None,
+    ) -> Completed:
+        self.calls.append(tuple(argv))
+        if self._text is not None and log is not None:
+            log.write_text(self._text)
+        return _done(status=0 if self._text is not None else 1)
+
+
+def test_boot_logs_of_two_attempts_are_appended_under_a_header_each(tmp_path: Path) -> None:
+    boot_log = BootLog(tmp_path / "device.log", SINCE)
+    keep_boot_log(_LogRunner("first\n"), _record("android", "emulator-5556"), boot_log)
+    keep_boot_log(_LogRunner("second\n"), _record("android", "emulator-5558"), boot_log)
+
+    header = f"--- device log of {{}} since {SINCE.isoformat()} ---\n"
+    assert (tmp_path / "device.log").read_text() == (
+        header.format("emulator-5556") + "first\n" + header.format("emulator-5558") + "second\n"
+    )
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["device.log"]
+
+
+def test_a_failed_boot_log_capture_leaves_the_file_as_it_was(tmp_path: Path) -> None:
+    path = tmp_path / "device.log"
+    path.write_text("kept\n")
+
+    keep_boot_log(_LogRunner(None), _record("android"), BootLog(path, SINCE))
+
+    assert path.read_text() == "kept\n"
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["device.log"]
+
+
+def test_no_boot_log_request_runs_no_command(tmp_path: Path) -> None:
+    runner = _LogRunner("x")
+
+    keep_boot_log(runner, _record("android"), None)
+
     assert runner.calls == []

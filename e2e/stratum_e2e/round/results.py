@@ -79,13 +79,9 @@ class RoundDir:
                 continue
             return cls(root / name)
 
-    def target_dir(self, target: str) -> Path:
-        """The folder of one target's logs; it is created with the first item of the target."""
-        return self.path / _segment(target)
-
     def item_dir(self, target: str, test: str) -> Path:
         """Create and return the folder for one target's run of one test; it holds that item's logs."""
-        folder = self.target_dir(target) / _segment(test)
+        folder = self.path / _segment(target) / _segment(test)
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
