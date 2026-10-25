@@ -110,19 +110,20 @@ def _take_lane(state: RoundState, backends: Backends, target: Target) -> Lease:
 def _boot(state: RoundState, backends: Backends, booter: Booter, target: Target, boot_dir: Path) -> BootRecord:
     """Boot `target`, passing the memory gate first on a cold boot; an `env` boot retries once, then blocks (C9).
 
-    The boot command's own log is `boot_dir/boot.log`. A booted device keeps its device log in `boot_dir/device.log`,
-    from the start of the first attempt, taken after the memory gate, through the end of the last attempt's settle; each
-    attempt appends its part, so a failed attempt's lines stay.
+    The boot command's own log is `boot_dir/boot.log`. A booted device keeps its device log, from the boot command
+    through the end of the boot, in `boot_dir/device.log`; the retry's goes to `device-2.log`, so a failed attempt's
+    lines stay.
     """
     log = boot_dir / "boot.log"
-    device_log: BootLog | None = None
+    attempt = 0
     while True:
         if not booter.is_running(target):
             reasons = wait_for_memory(backends.memory_reasons, state.lane.lane_wait_minutes * 60, sleep=backends.sleep)
             if reasons:
                 raise RoundEnvError(f"memory pressure: {'; '.join(reasons)}")
-        if device_log is None:
-            device_log = BootLog(boot_dir / DEVICE_LOG, backends.now())
+        attempt += 1
+        name = DEVICE_LOG if attempt == 1 else f"{Path(DEVICE_LOG).stem}-{attempt}{Path(DEVICE_LOG).suffix}"
+        device_log = BootLog(boot_dir / name, backends.now())
         try:
             return booter.boot(target, log, device_log)
         except RoundEnvError as error:

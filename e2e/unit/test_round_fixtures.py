@@ -705,16 +705,16 @@ def test_lane_busy_reports_env_on_every_item_of_that_target_and_moves_on(
     assert "boot mac" in _events(root)
 
 
-def test_every_boot_attempt_logs_to_device_log_beside_boot_log_from_the_first_start(
+def test_each_boot_attempt_logs_to_its_own_device_log_beside_boot_log(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _make_tree(pytester, monkeypatch, MAC_A, {"boot_fail": {"mac": 1}, "now_step": 60})
     result = _round(pytester, "--target", "mac")
     result.assert_outcomes(passed=3)
-    first_start = "2026-10-24T01:04:03+00:00"  # clock reads: the round dir's name, then the first attempt's start
+    # Clock reads: the round dir's name, then each attempt's start.
     assert _events(root, "device log") == [
-        f"device log mac boot/device.log {first_start}",
-        f"device log mac boot/device.log {first_start}",
+        "device log mac boot/device.log 2026-10-24T01:04:03+00:00",
+        "device log mac boot/device-2.log 2026-10-24T01:05:03+00:00",
     ]
 
 

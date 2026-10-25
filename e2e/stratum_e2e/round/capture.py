@@ -63,8 +63,8 @@ def save_device_log(runner: Runner, record: BootRecord, since: datetime, path: P
 def keep_boot_log(runner: Runner, record: BootRecord, device_log: BootLog | None) -> None:
     """Append the device log of a boot the caller ran to `device_log.path`, when it asked for one.
 
-    A header line names the device first. The command writes a partial file that is appended and removed, so an earlier
-    attempt's lines stay and a failed capture leaves the file as it was and is never an error.
+    A header line names the device first. The command writes a partial file that is appended and removed, so the lines
+    of an earlier bring-up of the target stay, and a failed capture leaves the file as it was and is never an error.
     """
     if device_log is None:
         return
