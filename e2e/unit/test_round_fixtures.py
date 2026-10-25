@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -782,6 +783,76 @@ def test_mac_sigterm(round_target):
     assert events.index("shutdown mac") > events.index("item mac sigterm")
     assert events.index("release mac") > events.index("shutdown mac")
     assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+
+
+def _round_with_sigint_ignored(pytester: pytest.Pytester, *args: str) -> pytest.RunResult:
+    """Run a round whose pytest starts with SIGINT ignored, as every `&` command of a non-interactive shell does."""
+    prior = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        return _round(pytester, *args)
+    finally:
+        signal.signal(signal.SIGINT, prior)
+
+
+def test_sigint_mid_round_restores_and_kills(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    sigint = """\
+@pytest.mark.macos
+def test_mac_sigint(round_target):
+    event("item mac sigint")
+    os.kill(os.getpid(), signal.SIGINT)
+    time.sleep(10)
+    event("item mac survived")
+"""
+    root = _make_tree(pytester, monkeypatch, sigint)
+    result = _round_with_sigint_ignored(pytester, "--target", "mac")
+    assert result.ret == pytest.ExitCode.INTERRUPTED
+    events = _events(root)
+    assert "item mac survived" not in events
+    assert events.index("shutdown mac") > events.index("item mac sigint")
+    assert events.index("release mac") > events.index("shutdown mac")
+    assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+
+
+def test_round_signals_return_to_their_prior_handlers(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe = """\
+@pytest.mark.macos
+def test_mac_signals(round_target):
+    event(f"signals in round {_signals()}")
+"""
+    root = _make_tree(pytester, monkeypatch, probe)
+    with (root / "conftest.py").open("a") as conftest:
+        conftest.write(
+            """
+import signal
+
+
+def _signals():
+    names = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
+    return " ".join(getattr(handler, "__name__", str(handler)) for handler in names)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config):
+    from round_fake import event
+    event(f"signals after round {_signals()}")
+"""
+        )
+    # The item cannot see the conftest helper through the test module, so give the module the same one.
+    tests_module = root / "tests" / "test_e2e.py"
+    tests_module.write_text(
+        tests_module.read_text()
+        + "\n\ndef _signals():\n"
+        + "    names = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))\n"
+        + '    return " ".join(getattr(handler, "__name__", str(handler)) for handler in names)\n'
+    )
+    result = _round_with_sigint_ignored(pytester, "--target", "mac")
+    result.assert_outcomes(passed=3)
+    assert _events(root, "signals") == [
+        "signals in round _interrupt _interrupt",
+        f"signals after round {signal.Handlers.SIG_DFL} {signal.Handlers.SIG_IGN}",
+    ]
 
 
 def test_round_dir_holds_summary_and_item_logs(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:

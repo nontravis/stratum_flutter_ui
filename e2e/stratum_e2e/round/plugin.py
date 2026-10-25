@@ -6,8 +6,8 @@ catalog, parametrizes nothing, leaves collection to the low-level `--platform` p
 low-level options as before. In a round every item under `tests/` is parametrized by `round_target`, the integration
 items by `integration_file` as well, and the pairs a target does not run are deselected. Items run target by target:
 `round_target` takes the target's lane and boots it before its first item, and pytest tears it down (shutdown, then
-lane release) before the next target's first item. The round dir is written when the session ends, after a SIGTERM
-too.
+lane release) before the next target's first item. The round dir is written when the session ends, after a SIGTERM or
+SIGINT too.
 
 The hooks and fixtures live here, since `pytest_plugins` registers this module; they build on `state` (keys and round
 state), `collect` (planning and selection), `bring_up` (lane, boot, backends), `runs` (resolve, build, integration
@@ -71,7 +71,8 @@ from stratum_e2e.round.state import (
 
 _Handler = Callable[[int, FrameType | None], object] | int | None
 
-_SIGTERM_KEY: Final = pytest.StashKey[_Handler]()
+_STOP_SIGNALS: Final = (signal.SIGTERM, signal.SIGINT)
+_PRIOR_HANDLERS_KEY: Final = pytest.StashKey[dict[signal.Signals, _Handler]]()
 _STOPPED_KEY: Final = pytest.StashKey[bool]()
 
 
@@ -101,8 +102,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Resolve the round and plan its integration runs; stay inert when no round option is given.
 
-    In a round, SIGTERM raises `KeyboardInterrupt`, so a watch-lane stop still tears every target down and writes the
-    round dir.
+    In a round, SIGTERM and SIGINT raise `KeyboardInterrupt`, so a watch-lane stop still tears every target down and
+    writes the round dir. SIGINT needs its own handler: a non-interactive shell starts every `&` command with SIGINT
+    ignored, and Python keeps an inherited ignore.
     """
     config.stash[ROUND_KEY] = None
     target_arg, mode_arg, repeat_arg = (config.getoption(name) for name in ("target", "mode", "repeat"))
@@ -121,13 +123,13 @@ def pytest_configure(config: pytest.Config) -> None:
     config.stash[CATALOG_KEY] = catalog
     config.stash[RUNS_KEY] = runs
     config.stash[STATE_KEY] = RoundState(config, round_plan, catalog, runs)
-    config.stash[_SIGTERM_KEY] = signal.signal(signal.SIGTERM, _interrupt)
+    config.stash[_PRIOR_HANDLERS_KEY] = {stop: signal.signal(stop, _interrupt) for stop in _STOP_SIGNALS}
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Give SIGTERM back the handler it had before the round."""
-    if _SIGTERM_KEY in config.stash:
-        signal.signal(signal.SIGTERM, config.stash[_SIGTERM_KEY])
+    """Give SIGTERM and SIGINT back the handlers they had before the round."""
+    for stop, handler in config.stash.get(_PRIOR_HANDLERS_KEY, {}).items():
+        signal.signal(stop, handler)
 
 
 def _interrupt(signum: int, frame: FrameType | None) -> NoReturn:
