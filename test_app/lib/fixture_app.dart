@@ -45,7 +45,8 @@ class FixtureApp extends StatelessWidget {
 }
 
 /// Hosts one fixture inside the safe area, so an edge-to-edge window never
-/// hides content under a system bar; [edgeToEdgeFixtures] opt out.
+/// hides content under a system bar; a fixture's `FixtureEntry.edgeToEdge`
+/// opts out.
 class _FixturePage extends StatelessWidget {
   const _FixturePage({required this.fixtureId});
 
@@ -53,14 +54,12 @@ class _FixturePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final builder = fixtures[fixtureId];
-    final content = builder == null
+    final entry = fixtures[fixtureId];
+    final content = entry == null
         ? _UnknownFixture(id: fixtureId)
-        : builder(context);
+        : entry.builder(context);
     return Scaffold(
-      body: edgeToEdgeFixtures.contains(fixtureId)
-          ? content
-          : SafeArea(child: content),
+      body: (entry?.edgeToEdge ?? false) ? content : SafeArea(child: content),
     );
   }
 }

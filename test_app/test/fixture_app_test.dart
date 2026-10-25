@@ -106,7 +106,11 @@ void main() {
       tester,
     ) async {
       insetTopBar(tester);
-      expect(edgeToEdgeFixtures, contains('themes/system_style'));
+      expect(
+        fixtures['themes/system_style']!.edgeToEdge,
+        isTrue,
+        reason: 'the fixture under test must still declare edgeToEdge',
+      );
 
       await tester.pumpWidget(
         const FixtureApp(fixtureId: 'themes/system_style'),
@@ -121,8 +125,14 @@ void main() {
       );
     });
 
-    test('every edge-to-edge id names a fixture', () {
-      expect(fixtures.keys, containsAll(edgeToEdgeFixtures));
+    test('every edge-to-edge entry is a full registry entry', () {
+      // The declaration lives on the entry itself, so this holds by
+      // construction; kept as a smoke check that the map still holds
+      // FixtureEntry values.
+      expect(
+        fixtures.values.where((entry) => entry.edgeToEdge).length,
+        greaterThanOrEqualTo(2),
+      );
     });
   });
 }
