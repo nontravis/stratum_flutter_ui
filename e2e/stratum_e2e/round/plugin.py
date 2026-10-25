@@ -143,14 +143,17 @@ def _stop_handler(config: pytest.Config) -> Callable[[int, FrameType | None], No
     def _interrupt(signum: int, frame: FrameType | None) -> NoReturn:
         """Stop the round on its first stop signal and ignore the rest, so a second cannot cut the teardown short.
 
-        The notice bypasses pytest's capture, which would otherwise hold it back from the terminal.
+        The notice bypasses pytest's capture, which would otherwise hold it back from the terminal. It is best effort:
+        the stop is raised whether or not the notice could be written.
         """
         for stop in _STOP_SIGNALS:
             signal.signal(stop, signal.SIG_IGN)
-        capture = config.pluginmanager.get_plugin("capturemanager")
-        with capture.global_and_fixture_disabled() if capture is not None else contextlib.nullcontext():
-            print(STOP_NOTICE, file=sys.stderr, flush=True)
-        raise KeyboardInterrupt(f"signal {signum}")
+        try:
+            capture = config.pluginmanager.get_plugin("capturemanager")
+            with capture.global_and_fixture_disabled() if capture is not None else contextlib.nullcontext():
+                print(STOP_NOTICE, file=sys.stderr, flush=True)
+        finally:
+            raise KeyboardInterrupt(f"signal {signum}")
 
     return _interrupt
 

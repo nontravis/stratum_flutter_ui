@@ -230,11 +230,12 @@ def test_screenshot_runs_nothing_on_web(tmp_path: Path) -> None:
 
 
 class _LogRunner(FakeRunner):
-    """A FakeRunner whose command writes `text` to its `log`, or fails and writes nothing."""
+    """A FakeRunner whose command writes `text` to its `log` and ends with `status`; no `text` writes nothing."""
 
-    def __init__(self, text: str | None) -> None:
+    def __init__(self, text: str | None, status: int = 0) -> None:
         super().__init__([])
         self._text = text
+        self._status = status
 
     def run(
         self,
@@ -248,7 +249,7 @@ class _LogRunner(FakeRunner):
         self.calls.append(tuple(argv))
         if self._text is not None and log is not None:
             log.write_text(self._text)
-        return _done(status=0 if self._text is not None else 1)
+        return _done(status=self._status if self._text is not None else 1)
 
 
 def test_boot_logs_of_two_attempts_are_appended_under_a_header_each(tmp_path: Path) -> None:
@@ -268,6 +269,16 @@ def test_a_failed_boot_log_capture_leaves_the_file_as_it_was(tmp_path: Path) -> 
     path.write_text("kept\n")
 
     keep_boot_log(_LogRunner(None), _record("android"), BootLog(path, SINCE))
+
+    assert path.read_text() == "kept\n"
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["device.log"]
+
+
+def test_a_capture_that_ends_non_zero_leaves_the_file_as_it_was(tmp_path: Path) -> None:
+    path = tmp_path / "device.log"
+    path.write_text("kept\n")
+
+    keep_boot_log(_LogRunner("adb: device offline\n", status=1), _record("android"), BootLog(path, SINCE))
 
     assert path.read_text() == "kept\n"
     assert sorted(item.name for item in tmp_path.iterdir()) == ["device.log"]

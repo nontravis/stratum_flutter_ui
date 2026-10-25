@@ -883,6 +883,35 @@ def test_mac_sigint(round_target):
     assert result.stderr.str().count(STOP_NOTICE) == 1
 
 
+def test_the_stop_raises_even_when_its_notice_cannot_be_written(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sigint = """\
+@pytest.mark.macos
+def test_mac_sigint(round_target):
+    import builtins
+
+    def closed(*args, **kwargs):
+        raise OSError("stderr is closed")
+
+    real_print, builtins.print = builtins.print, closed
+    try:
+        event("item mac sigint")
+        os.kill(os.getpid(), signal.SIGINT)
+        time.sleep(10)
+        event("item mac survived")
+    finally:
+        builtins.print = real_print
+"""
+    root = _make_tree(pytester, monkeypatch, sigint)
+    result = _round_with_priors(pytester, "signal.SIG_DFL", "signal.default_int_handler", "--target", "mac")
+    assert result.ret == pytest.ExitCode.INTERRUPTED
+    events = _events(root)
+    assert "item mac survived" not in events
+    assert events.index("release mac") > events.index("shutdown mac")
+    assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+
+
 @pytest.mark.parametrize(
     ("sigterm", "sigint"),
     [
