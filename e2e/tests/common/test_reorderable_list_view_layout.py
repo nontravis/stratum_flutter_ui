@@ -1,6 +1,7 @@
 """Reorder list: the screen reader takes Alt+Up (TalkBack), offers valid moves, moves and speaks.
 
-Drives the `common/reorderable_list_view_layout` fixture (FO-06 US-11). TalkBack's actions
+Drives the `common/reorderable_list_view_layout` fixture (FO-06 US-11; US-04 FR-02 E11: each
+row, the disabled one too, is one stop that reads its role, state, moves and tap). TalkBack's actions
 for the focused item open through its own keyboard shortcuts on the uhid keyboard, measured
 on the e2e AVD (TalkBack 15): Alt+Space opens the TalkBack menu, Alt+Enter on its `Actions`
 entry opens the item's actions, Alt+Right steps through them and Alt+Enter runs the one in
@@ -18,12 +19,14 @@ move announcement.
 from __future__ import annotations
 
 import re
+import time
 import xml.etree.ElementTree as ET
 from typing import Any
 
 import pytest
 from appium.webdriver.common.appiumby import AppiumBy
 
+from stratum_e2e.android import emu_mouse
 from stratum_e2e.android.screen_reader import (
     MENU_CANCEL,
     MENU_STEPS,
@@ -41,7 +44,7 @@ from stratum_e2e.ios.focus_order import focus_order, matches_order
 from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.locate import by_id
 from stratum_e2e.macos import tree as mac_tree
-from stratum_e2e.waits import wait_until
+from stratum_e2e.waits import wait_until, wait_until_held
 from stratum_e2e.web import snapshot as web_snapshot
 from stratum_e2e.web.session import accessibility_snapshot
 
@@ -56,14 +59,15 @@ MOVE_TO_START = "Move to the start"
 MOVE_TO_END = "Move to the end"
 ALL_MOVES = {MOVE_UP, MOVE_DOWN, MOVE_TO_START, MOVE_TO_END}
 WAIT_TIMEOUT_S = 10
+SPEECH_QUIET_S = 1.5
 
 ACTIONS_HINT = "Actions available"
-# What VoiceOver speaks in turn, item 1 to the last element on screen: each movable item
-# reads as `Item <n> Button Actions available` at one stop; the disabled Item 6 reads
-# `dimmed` and offers no actions; the log follows (VoiceOver cuts an utterance at 64 characters).
+# What VoiceOver speaks in turn, item 1 to the last element on screen: each root row, the
+# disabled Item 6 too, reads its label, `Button`, its state, and `Actions available` at one
+# stop; the log follows (VoiceOver cuts an utterance at 64 characters).
 IOS_FOCUS_ORDER = [
     *(f"Item {n} Button {ACTIONS_HINT}" for n in range(1, ITEM_COUNT)),
-    f"Item {ITEM_COUNT} dimmed Button",
+    f"Item {ITEM_COUNT} dimmed Button {ACTIONS_HINT}",
     "Log: nothing yet.",
 ]
 
@@ -138,6 +142,22 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
 def _focus_item(driver: Any, label: str) -> None:
     """Explore-by-touch: touch [label]'s item so TalkBack focuses and speaks it."""
     focus_by_touch(driver, driver.find_element(AppiumBy.ACCESSIBILITY_ID, label), label)
+
+
+def _settled_speech(talkback: TalkBackLog) -> list[str]:
+    """Return the utterances since the mark once there is speech and no new one for a quiet spell."""
+    seen = {"count": -1, "since": time.monotonic()}
+
+    def quiet() -> bool:
+        count = len(talkback.since_mark())
+        now = time.monotonic()
+        if count != seen["count"]:
+            seen.update(count=count, since=now)
+            return False
+        return count > 0 and now - seen["since"] >= SPEECH_QUIET_S
+
+    wait_until(quiet, "TalkBack speech to settle after the focus", timeout_s=WAIT_TIMEOUT_S)
+    return talkback.since_mark()
 
 
 def _offered_moves(keyboard: UhidKeyboard, talkback: TalkBackLog) -> set[str]:
@@ -248,6 +268,66 @@ def test_talkback_move_up_moves_item_and_speaks_position(
 
 
 @pytest.mark.android
+@pytest.mark.level2
+@pytest.mark.talkback_avd
+@pytest.mark.req("fo06/us04/fr02/e11")
+def test_talkback_reads_a_root_row_with_its_role_moves_and_tap_at_one_stop(
+    driver: Any, platform: str, app_id: str, talkback: TalkBackLog, keyboard: UhidKeyboard
+) -> None:
+    _open(driver, platform, app_id)
+
+    talkback.mark()
+    _focus_item(driver, "Item 3")
+    spoken = _settled_speech(talkback)
+    node = driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 3")
+
+    assert spoken[0].startswith("Item 3"), spoken
+    assert node.get_attribute("class") == "android.widget.Button"
+    assert node.get_attribute("enabled") == "true"
+    assert _offered_moves(keyboard, talkback) == ALL_MOVES
+
+    _close_actions(driver, keyboard, talkback, returns_to="Item 3")
+    assert "Item 3 tapped" not in _app_log(driver)
+    x, y = emu_mouse.center(driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 3").rect)
+    emu_mouse.double_tap(str(driver.capabilities["udid"]), x, y)
+    wait_until(
+        lambda: "Item 3 tapped" in _app_log(driver),
+        "the log to gain `Item 3 tapped`",
+        timeout_s=WAIT_TIMEOUT_S,
+    )
+
+
+@pytest.mark.android
+@pytest.mark.level2
+@pytest.mark.talkback_avd
+@pytest.mark.req("fo06/us04/fr02/e11")
+def test_talkback_reads_the_disabled_root_row_with_its_moves_and_no_tap(
+    driver: Any, platform: str, app_id: str, talkback: TalkBackLog, keyboard: UhidKeyboard
+) -> None:
+    _open(driver, platform, app_id)
+
+    talkback.mark()
+    _focus_item(driver, "Item 6")
+    spoken = _settled_speech(talkback)
+    node = driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 6")
+
+    assert node.get_attribute("enabled") == "false"
+    assert spoken[0].startswith("Item 6"), spoken
+    assert "disabled" in " ".join(spoken).lower(), spoken
+    assert _offered_moves(keyboard, talkback) == {MOVE_UP, MOVE_TO_START}
+
+    _close_actions(driver, keyboard, talkback, returns_to="Item 6")
+    x, y = emu_mouse.center(driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 6").rect)
+    emu_mouse.double_tap(str(driver.capabilities["udid"]), x, y)
+    wait_until_held(
+        lambda: "Item 6 tapped" not in _app_log(driver),
+        "the log to stay free of `Item 6 tapped`",
+        hold_s=3,
+        timeout_s=WAIT_TIMEOUT_S,
+    )
+
+
+@pytest.mark.android
 @pytest.mark.level1
 @pytest.mark.req("fo06/us11/fr03/e03")
 def test_os_tree_exposes_items_and_disabled_item_6(
@@ -284,6 +364,7 @@ def test_ios_tree_exposes_items_and_disabled_item_6(
 @pytest.mark.ios
 @pytest.mark.level2
 @pytest.mark.req("fo06/us11/fr03/e03")
+@pytest.mark.req("fo06/us04/fr02/e11")
 def test_voiceover_reads_each_item_at_one_stop(
     driver: Any, platform: str, app_id: str
 ) -> None:
