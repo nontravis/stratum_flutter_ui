@@ -17,11 +17,17 @@ TALKBACK_SERVICE = (
 FIRST_UTTERANCE_TIMEOUT_S = 20
 UNBIND_TIMEOUT_S = 10
 POLL_INTERVAL_S = 0.5
+# A window title can take 3.4 s to speak (measured on the e2e AVD) with reads queued behind it.
+IDLE_QUIET_S = 1.2
+IDLE_TIMEOUT_S = 20
+IDLE_POLL_INTERVAL_S = 0.25
 
 _SERVICES_SETTING = "enabled_accessibility_services"
 _ENABLED_SETTING = "accessibility_enabled"
 _UNSET = "null"
 _UTTERANCE = re.compile(r'Speaking fragment text="([^"]*)"')
+_STARTED = re.compile(r'Speaking fragment text="[^"]*", utteranceId=(\S+?),')
+_FINISHED = re.compile(r'Received callback for "([^"]+)"')
 
 
 class TalkBackSilent(RuntimeError):
@@ -30,6 +36,10 @@ class TalkBackSilent(RuntimeError):
 
 class TalkBackStuck(RuntimeError):
     """TalkBack stayed bound after the session turned it off."""
+
+
+class TalkBackNotIdle(RuntimeError):
+    """TalkBack still held a started utterance, or kept starting new ones, after the idle timeout."""
 
 
 def avd_name(serial: str) -> str:
@@ -55,8 +65,41 @@ class TalkBackLog:
         self._serial = serial
 
     def mark(self) -> None:
-        """Drop everything logged so far; `since_mark` reads only what follows."""
-        _adb(self._serial, "logcat", "-c")
+        """Wait until TalkBack is idle, then drop everything logged so far.
+
+        `since_mark` reads only what follows. TalkBack speaks first in, first out and logs an
+        utterance only when it starts to play, so a mark taken while earlier reads are queued
+        lets one of them cross it. Raises TalkBackNotIdle as `wait_idle` does.
+        """
+        self.wait_idle()
+        _clear_logcat(self._serial)
+
+    def wait_idle(
+        self, quiet_s: float = IDLE_QUIET_S, timeout_s: float = IDLE_TIMEOUT_S
+    ) -> None:
+        """Return once every started utterance has its TTS callback and none started for [quiet_s].
+
+        Polls the log, so [quiet_s] is measured from the poll that first saw the newest start.
+        Raises TalkBackNotIdle naming the unfinished utterances after [timeout_s].
+        """
+        deadline = time.monotonic() + timeout_s
+        started_count = -1
+        quiet_since = time.monotonic()
+        while True:
+            log = _adb(self._serial, "logcat", "-d")
+            started = _STARTED.findall(log)
+            pending = set(started) - set(_FINISHED.findall(log))
+            now = time.monotonic()
+            if len(started) != started_count:
+                started_count, quiet_since = len(started), now
+            elif not pending and now - quiet_since >= quiet_s:
+                return
+            if now >= deadline:
+                raise TalkBackNotIdle(
+                    f"TalkBack not idle after {timeout_s} s on {self._serial}: "
+                    f"unfinished {sorted(pending) or 'none'}, {len(started)} started"
+                )
+            time.sleep(IDLE_POLL_INTERVAL_S)
 
     def since_mark(self) -> list[str]:
         """Return the utterances spoken since the last `mark`, in order."""
@@ -104,7 +147,7 @@ class TalkBackSession:
     def _enable(self) -> TalkBackLog:
         self._stop()
         log = TalkBackLog(self._serial)
-        log.mark()
+        _clear_logcat(self._serial)  # TalkBack is off here: nothing to wait for
         _put_secure(self._serial, _SERVICES_SETTING, TALKBACK_SERVICE)
         _put_secure(self._serial, _ENABLED_SETTING, "1")
         self._wait_first_utterance()
@@ -142,6 +185,10 @@ class TalkBackSession:
 
 def _talkback_bound(serial: str) -> bool:
     return "label=TalkBack" in _adb(serial, "shell", "dumpsys", "accessibility")
+
+
+def _clear_logcat(serial: str) -> None:
+    _adb(serial, "logcat", "-c")
 
 
 def _get_secure(serial: str, setting: str) -> str:

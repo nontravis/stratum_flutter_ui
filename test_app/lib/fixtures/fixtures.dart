@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'common/focus_builder.dart';
 import 'common/ink_well.dart';
 import 'common/modal_layout.dart';
+import 'common/page_drawer.dart';
 import 'common/page_layout.dart';
 import 'common/reorderable_list_view_layout.dart';
 import 'common/split_layout.dart';
@@ -18,6 +19,7 @@ final Map<String, FixtureBuilder> fixtures = <String, FixtureBuilder>{
   'common/focus_builder': (context) => const FocusBuilderFixture(),
   'common/ink_well': (context) => const InkWellFixture(),
   'common/modal_layout': (context) => const ModalLayoutFixture(),
+  'common/page_drawer': (context) => const PageDrawerFixture(),
   'common/page_layout': (context) => const PageLayoutFixture(),
   'common/reorderable_list_view_layout': (context) =>
       const ReorderableListViewLayoutFixture(),

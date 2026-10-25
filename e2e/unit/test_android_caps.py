@@ -42,6 +42,13 @@ def test_android_capabilities_keep_talkback_bound() -> None:
     assert caps["appium:appPackage"] == APP_ID
 
 
+def test_android_capabilities_outlast_a_keyboard_only_stretch() -> None:
+    """A TalkBack keyboard walk sends Appium nothing for tens of seconds; Appium's default 60 s ends the session."""
+    caps = android_capabilities(SERIAL, APP_ID)
+
+    assert caps["appium:newCommandTimeout"] == 300
+
+
 def test_open_fixture_takes_serial_from_udid(monkeypatch: pytest.MonkeyPatch) -> None:
     run = RecordingRun()
     monkeypatch.setattr(fixtures.subprocess, "run", run)

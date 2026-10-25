@@ -20,6 +20,10 @@ class VoiceOverSilent(RuntimeError):
     """Every move of a walk returned no speech."""
 
 
+class VoiceOverNoEdge(RuntimeError):
+    """A walk used up its moves without reaching the edge: no utterance repeated."""
+
+
 class VoiceOverNotEnabled(RuntimeError):
     """`mobile: isVoiceOverEnabled` reported VoiceOver off right after the enable."""
 
@@ -79,6 +83,24 @@ class VoiceOver:
         if not spoken:
             raise VoiceOverSilent(f"{max_moves} forward moves spoke nothing")
         return spoken
+
+    def walk_backward(self, first_stop: str, max_moves: int = DEFAULT_MAX_MOVES) -> list[str]:
+        """Move backward from [first_stop] up to [max_moves] times; return every stop, nearest first.
+
+        [first_stop] is the stop focus holds now (`current()`); it heads the list. Skips silent
+        moves and stops when an utterance repeats the previous one, which is the first element on
+        screen. Raises VoiceOverNoEdge when [max_moves] moves end with no repeat (focus never
+        reached the edge, or every move was silent).
+        """
+        stops = [first_stop]
+        for _ in range(max_moves):
+            utterance = self.move("backward")
+            if utterance is None:
+                continue
+            if utterance == stops[-1]:
+                return stops
+            stops.append(utterance)
+        raise VoiceOverNoEdge(f"{max_moves} backward moves reached no repeat; heard {stops}")
 
     def _utterance(self, script: str, args: dict[str, Any]) -> str | None:
         reply = self._driver.execute_script(script, args)

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from stratum_e2e.android.tree import key_focused, labels, labels_with, parent_attributes, resource_ids
+import pytest
+
+from stratum_e2e.android.tree import bounds, key_focused, labels, labels_with, parent_attributes, resource_ids
 
 PAGE = """<hierarchy>
   <node resource-id="" content-desc="" text="" focused="true"/>
@@ -85,3 +87,12 @@ def test_labels_prefer_text_then_content_desc_then_hint() -> None:
 
 def test_labels_list_every_labeled_node_in_tree_order() -> None:
     assert labels(PAGE) == ["Choose A", "Close", "Log: menu", "Choose A"]
+
+
+def test_bounds_reads_left_top_right_bottom() -> None:
+    assert bounds({"bounds": "[0,72][720,1536]"}) == (0, 72, 720, 1536)
+
+
+def test_bounds_rejects_a_node_without_bounds() -> None:
+    with pytest.raises(ValueError):
+        bounds({"class": "android.view.View"})

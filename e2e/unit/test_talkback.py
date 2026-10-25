@@ -10,6 +10,7 @@ from stratum_e2e.android.talkback import (
     AVD_NAME,
     TALKBACK_SERVICE,
     TalkBackLog,
+    TalkBackNotIdle,
     TalkBackSession,
     TalkBackSilent,
     TalkBackStuck,
@@ -34,6 +35,12 @@ ROLE_LINE = (
     'text="Button. 1 of 6. In list. 6 items", utteranceId=talkback_31, spans=null\n'
 )
 NEXT_LINE = ITEM_1_LINE.replace("Item 1", "Item 2")
+ITEM_1_DONE = (
+    '10-22 16:39:32.900  9112  9300 D talkback: FailoverTextToSpeech: '
+    'Received callback for "talkback_31", returned true\n'
+)
+ITEM_2_LINE = ITEM_1_LINE.replace("Item 1", "Item 2").replace("talkback_31", "talkback_32")
+ITEM_2_DONE = ITEM_1_DONE.replace("talkback_31", "talkback_32")
 
 
 class FakeClock:
@@ -64,7 +71,9 @@ class FakeAdb:
         self.speak_after_polls: int | None = None
         self.unbind_after_polls = 0
         self.never_unbinds = False
-        self.speech = ITEM_1_LINE
+        self.speech = ITEM_1_LINE + ITEM_1_DONE
+        # Text appended to the log on successive `logcat -d` reads, one entry per read.
+        self.logcat_additions: list[str] = []
         self.bound = False
         self.bound_polls = 0
         self._log_polls = 0
@@ -117,6 +126,8 @@ class FakeAdb:
 
     def _read_logcat(self) -> str:
         self._log_polls += 1
+        if self.logcat_additions:
+            self.logcat += self.logcat_additions.pop(0)
         due = self.speak_after_polls is not None and self._log_polls >= self.speak_after_polls
         if self._speech_pending and due:
             self.logcat += self.speech
@@ -309,3 +320,61 @@ def test_session_raises_stuck_when_talkback_never_unbinds_and_restores(
     assert isinstance(raised.value, RuntimeError)
     assert 10 <= clock.now < 11
     assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}
+
+
+def test_wait_idle_returns_once_every_utterance_finished_and_the_log_was_quiet(
+    fake_adb: FakeAdb, clock: FakeClock
+) -> None:
+    fake_adb.logcat = ITEM_1_LINE + ITEM_1_DONE
+
+    TalkBackLog(SERIAL).wait_idle()
+
+    assert clock.now >= 1.2
+
+
+def test_wait_idle_waits_for_the_callback_of_a_started_utterance(
+    fake_adb: FakeAdb, clock: FakeClock
+) -> None:
+    fake_adb.logcat = ITEM_1_LINE
+    fake_adb.logcat_additions = ["", "", "", "", ITEM_1_DONE]
+
+    TalkBackLog(SERIAL).wait_idle()
+
+    assert fake_adb.logcat_additions == []
+    assert clock.now >= 1.2
+
+
+def test_wait_idle_restarts_the_quiet_window_at_each_new_utterance(
+    fake_adb: FakeAdb, clock: FakeClock
+) -> None:
+    fake_adb.logcat = ITEM_1_LINE + ITEM_1_DONE
+    fake_adb.logcat_additions = ["", "", "", ITEM_2_LINE + ITEM_2_DONE]
+
+    TalkBackLog(SERIAL).wait_idle()
+
+    # The second utterance starts at the fourth read (0.75 s in): quiet is 1.2 s after it.
+    assert clock.now >= 0.75 + 1.2
+
+
+def test_wait_idle_raises_when_an_utterance_never_finishes(
+    fake_adb: FakeAdb, clock: FakeClock
+) -> None:
+    fake_adb.logcat = ITEM_1_LINE
+
+    with pytest.raises(TalkBackNotIdle, match="talkback_31"):
+        TalkBackLog(SERIAL).wait_idle(timeout_s=5)
+
+    assert clock.now >= 5
+
+
+def test_mark_waits_for_an_idle_queue_before_it_clears_the_log(fake_adb: FakeAdb) -> None:
+    fake_adb.logcat = ITEM_1_LINE
+    fake_adb.logcat_additions = ["", "", ITEM_1_DONE]
+
+    TalkBackLog(SERIAL).mark()
+
+    assert fake_adb.logcat_additions == []
+    assert fake_adb.logcat == ""
+    reads = [call for call in fake_adb.calls if call[0] == "logcat"]
+    assert reads[-1] == ["logcat", "-c"]
+    assert reads[:-1] and all(call == ["logcat", "-d"] for call in reads[:-1])

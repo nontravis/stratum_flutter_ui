@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
+
+_BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
 
 
 def resource_ids(page_source: str) -> set[str]:
@@ -62,3 +65,15 @@ def parent_attributes(page_source: str, identifier: str) -> dict[str, str] | Non
             if child.get("resource-id") == identifier:
                 return dict(parent.attrib)
     return None
+
+
+def bounds(attributes: dict[str, str]) -> tuple[int, int, int, int]:
+    """Return `(left, top, right, bottom)` from a node's `bounds` attribute.
+
+    Raises ValueError when [attributes] holds no well-formed `bounds`.
+    """
+    match = _BOUNDS.fullmatch(attributes.get("bounds", ""))
+    if match is None:
+        raise ValueError(f"no bounds in {attributes!r}")
+    left, top, right, bottom = (int(group) for group in match.groups())
+    return left, top, right, bottom

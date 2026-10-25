@@ -9,6 +9,7 @@ import pytest
 from stratum_e2e.ios.voiceover import (
     UTTERANCE_LIMIT,
     VoiceOver,
+    VoiceOverNoEdge,
     VoiceOverNotEnabled,
     VoiceOverSilent,
     matches_prefix,
@@ -118,6 +119,46 @@ def test_walk_all_none_raises_voiceover_silent() -> None:
     with VoiceOver(driver) as voiceover:
         with pytest.raises(VoiceOverSilent):
             voiceover.walk_forward()
+
+
+def test_walk_backward_returns_the_first_stop_then_each_move_until_a_repeat() -> None:
+    driver = FakeDriver(moves=["B", "A", "A"])
+
+    with VoiceOver(driver) as voiceover:
+        assert voiceover.walk_backward("C") == ["C", "B", "A"]
+
+    moves = [args for script, args in driver.calls if script == "mobile: voiceOverMove"]
+    assert moves == [{"direction": "backward"}] * 3
+
+
+def test_walk_backward_skips_a_silent_move() -> None:
+    driver = FakeDriver(moves=[None, "A", None, "A"])
+
+    with VoiceOver(driver) as voiceover:
+        assert voiceover.walk_backward("B") == ["B", "A"]
+
+
+def test_walk_backward_ends_at_once_when_the_first_stop_is_the_edge() -> None:
+    driver = FakeDriver(moves=["C"])
+
+    with VoiceOver(driver) as voiceover:
+        assert voiceover.walk_backward("C") == ["C"]
+
+
+def test_walk_backward_fails_when_the_cap_is_hit_with_no_repeat() -> None:
+    driver = FakeDriver(moves=["A", "B", "C", "D"])
+
+    with VoiceOver(driver) as voiceover:
+        with pytest.raises(VoiceOverNoEdge):
+            voiceover.walk_backward("Z", max_moves=3)
+
+
+def test_walk_backward_fails_when_every_move_is_silent() -> None:
+    driver = FakeDriver(moves=[None] * 30)
+
+    with VoiceOver(driver) as voiceover:
+        with pytest.raises(VoiceOverNoEdge):
+            voiceover.walk_backward("Z")
 
 
 def test_matches_prefix_truncates_expected_to_64() -> None:

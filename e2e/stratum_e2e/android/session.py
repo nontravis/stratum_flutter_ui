@@ -6,6 +6,12 @@ import subprocess
 from pathlib import Path
 
 
+# A TalkBack walk presses keys and reads the speech log for many seconds without an Appium
+# command; Appium ends a session after 60 s of silence by default (measured: an 18-press
+# actions-menu test ended at 60 s once each press also waited for an idle speech queue).
+NEW_COMMAND_TIMEOUT_S = 300
+
+
 def android_capabilities(serial: str, app_id: str) -> dict[str, object]:
     """Return UiAutomator2 capabilities that keep TalkBack bound and the app unlaunched.
 
@@ -21,6 +27,7 @@ def android_capabilities(serial: str, app_id: str) -> dict[str, object]:
         "appium:noReset": True,
         "appium:autoLaunch": False,
         "appium:disableSuppressAccessibilityService": True,
+        "appium:newCommandTimeout": NEW_COMMAND_TIMEOUT_S,
     }
 
 
