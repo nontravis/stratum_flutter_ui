@@ -1,10 +1,4 @@
-import 'dart:async';
-
 import 'package:stratum_ui/stratum_ui.dart';
-
-/// How long `Open drawer in 5 s` waits before it opens the drawer, so a screen
-/// reader is already on when the drawer appears.
-const pageDrawerFixtureOpenDelay = Duration(seconds: 5);
 
 /// Drawer fixture for the open drawer and its scrim that a `PageLayout` shows
 /// (FO-06 US-19 FR-05).
@@ -12,11 +6,14 @@ const pageDrawerFixtureOpenDelay = Duration(seconds: 5);
 /// A page whose `left` is a drawer on every window size: text `Drawer link A`
 /// (id `page_drawer.link_a`) and text `Drawer link B`. The body holds text
 /// `Page body`, button `Open drawer`, which opens the drawer at once, and
-/// button `Open drawer in 5 s`, which opens it after
-/// [pageDrawerFixtureOpenDelay]. The buttons carry no id: a semantics
-/// identifier would split a button's label and role from its tap onto two
-/// nodes, so a test finds each by its label. The drawer carries no label of
-/// its own: it reads `Navigation menu` and its scrim `Dismiss`.
+/// button `Open drawer when VoiceOver is on`, which a tap arms. Once armed,
+/// the first screen reader focus in the app is the reader's start-up focus;
+/// the drawer opens on the next focus move, which a test makes after it has
+/// heard the reader's first read, so the drawer never opens while the reader
+/// is still starting. The buttons carry no id: a semantics identifier would
+/// split a button's label and role from its tap onto two nodes, so a test
+/// finds each by its label. The drawer carries no label of its own: it reads
+/// `Navigation menu` and its scrim `Dismiss`.
 class PageDrawerFixture extends StatefulWidget {
   const PageDrawerFixture({super.key});
 
@@ -29,13 +26,23 @@ class _PageDrawerFixtureState extends State<PageDrawerFixture> {
 
   final _controller = PageLayoutController();
 
-  Timer? _openTimer;
+  /// Whether a tap armed `Open drawer when VoiceOver is on`.
+  bool _armed = false;
+
+  /// Screen reader focus changes seen since the arming tap.
+  int _focusMoves = 0;
 
   // MARK: - Lifecycle
 
   @override
+  void initState() {
+    super.initState();
+    ServicesBinding.instance.accessibilityFocus.addListener(_onReaderFocus);
+  }
+
+  @override
   void dispose() {
-    _openTimer?.cancel();
+    ServicesBinding.instance.accessibilityFocus.removeListener(_onReaderFocus);
     _controller.dispose();
     super.dispose();
   }
@@ -70,8 +77,8 @@ class _PageDrawerFixtureState extends State<PageDrawerFixture> {
             child: const Text('Open drawer'),
           ),
           FilledButton(
-            onPressed: _openLater,
-            child: const Text('Open drawer in 5 s'),
+            onPressed: () => _armed = true,
+            child: const Text('Open drawer when VoiceOver is on'),
           ),
         ],
       ),
@@ -80,8 +87,11 @@ class _PageDrawerFixtureState extends State<PageDrawerFixture> {
 
   // MARK: - Private Methods
 
-  void _openLater() {
-    _openTimer?.cancel();
-    _openTimer = Timer(pageDrawerFixtureOpenDelay, _controller.openLeft);
+  /// Opens the drawer on the second focus change after arming: the first is
+  /// the screen reader's start-up focus, the second a move the test makes.
+  void _onReaderFocus() {
+    if (!_armed) return;
+    _focusMoves += 1;
+    if (_focusMoves == 2) _controller.openLeft();
   }
 }

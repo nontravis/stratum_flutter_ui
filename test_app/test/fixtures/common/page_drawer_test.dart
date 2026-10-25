@@ -1,8 +1,9 @@
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart' show ServicesBinding;
+import 'package:flutter/widgets.dart' show SizedBox;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart' show StratumThemeController;
 import 'package:stratum_ui_test_app/fixture_app.dart';
-import 'package:stratum_ui_test_app/fixtures/common/page_drawer.dart';
 
 import '../one_actionable_node.dart';
 
@@ -11,7 +12,17 @@ const _linkAId = 'page_drawer.link_a';
 const _drawer = 'Navigation menu';
 const _scrim = 'Dismiss';
 const _openNow = 'Open drawer';
-const _openLater = 'Open drawer in 5 s';
+const _openWhenOn = 'Open drawer when VoiceOver is on';
+
+var _nextReaderNode = 0;
+
+/// Moves the screen reader focus to a node the notifier has not held before,
+/// as the engine reports `didGainFocus`; an equal id would not notify.
+Future<void> _moveReaderFocus(WidgetTester tester) async {
+  _nextReaderNode += 1;
+  ServicesBinding.instance.accessibilityFocus.value = _nextReaderNode;
+  await tester.pumpAndSettle();
+}
 
 Future<void> _openFixture(WidgetTester tester) async {
   // The theme preload reads assets, which needs real time, not fake async.
@@ -43,7 +54,7 @@ void main() {
     final handle = tester.ensureSemantics();
     await _openFixture(tester);
 
-    for (final label in [_openNow, _openLater]) {
+    for (final label in [_openNow, _openWhenOn]) {
       expectOneActionableNode(
         tester,
         find.bySemanticsLabel(label),
@@ -85,20 +96,63 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('Open drawer in 5 s opens the drawer only after the delay', (
+  testWidgets('armed, the first screen reader focus change does not open the '
+      'drawer', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _openFixture(tester);
+
+    await tester.tap(find.bySemanticsLabel(_openWhenOn));
+    await tester.pumpAndSettle();
+    await _moveReaderFocus(tester);
+
+    expect(find.bySemanticsIdentifier(_linkAId), findsNothing);
+    handle.dispose();
+  });
+
+  testWidgets('armed, the second screen reader focus change opens the drawer', (
     tester,
   ) async {
     final handle = tester.ensureSemantics();
     await _openFixture(tester);
 
-    await tester.tap(find.bySemanticsLabel(_openLater));
-    await tester.pump(pageDrawerFixtureOpenDelay - const Duration(seconds: 1));
-    await tester.pump();
-    expect(find.bySemanticsIdentifier(_linkAId), findsNothing);
-
-    await tester.pump(pageDrawerFixtureOpenDelay);
+    await tester.tap(find.bySemanticsLabel(_openWhenOn));
     await tester.pumpAndSettle();
+    await _moveReaderFocus(tester);
+    await _moveReaderFocus(tester);
+
     expect(find.bySemanticsIdentifier(_linkAId), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('unarmed, screen reader focus changes open nothing', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _openFixture(tester);
+
+    for (var move = 0; move < 4; move += 1) {
+      await _moveReaderFocus(tester);
+    }
+
+    expect(find.bySemanticsIdentifier(_linkAId), findsNothing);
+    handle.dispose();
+  });
+
+  testWidgets('nothing is pending after the fixture is disposed', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _openFixture(tester);
+
+    await tester.tap(find.bySemanticsLabel(_openWhenOn));
+    await tester.pumpAndSettle();
+    await _moveReaderFocus(tester);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+
+    // A listener left behind would open the disposed controller here.
+    await _moveReaderFocus(tester);
+    expect(tester.takeException(), isNull);
     handle.dispose();
   });
 }

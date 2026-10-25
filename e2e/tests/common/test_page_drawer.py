@@ -2,21 +2,22 @@
 
 Drives the `common/page_drawer` fixture (FO-06 US-19 FR-05; design section 10, US-13 scenario 3).
 `PageLayout` shows `left` as a drawer on every window. The page behind it holds `Page body`,
-`Open drawer`, and `Open drawer in 5 s`. The drawer reads `Navigation menu`, holds `Drawer link A`
-and `Drawer link B`, and its scrim reads `Dismiss`. A screen reader reads those and never the
-page words.
+`Open drawer`, and `Open drawer when VoiceOver is on`. The drawer reads `Navigation menu`, holds
+`Drawer link A` and `Drawer link B`, and its scrim reads `Dismiss`. A screen reader reads those and
+never the page words.
 
 On Android the test walks TalkBack through the drawer, then taps the scrim's strip beside the
 drawer and double-taps to activate it: the drawer closes. On iOS, with VoiceOver on, an Appium
-touch does not reach the app, so the button that opens the drawer 5 s later is clicked first,
-and VoiceOver is only read: once the drawer is up, the walk back to the first stop and forward
-to the last.
+touch does not reach the app, so the button that arms the drawer is clicked while VoiceOver is
+off. The test then enables VoiceOver, waits for its first read in the app (a page word, with the
+drawer still closed), and makes one forward move, which the fixture opens the drawer on.
+VoiceOver is only read: once the drawer is up, the walk back to the first stop and forward to
+the last.
 
-UNCOVERED on iOS: that VoiceOver speaks `Navigation menu` when the drawer opens. The driver
-cannot reach it: `mobile: voiceOverCurrentSpeech` never returns the route name (a pane title is
-announced as a screen change, not as speech the driver reads). The iOS test therefore proves the
-drawer's name from the page source, and the scrim and the hidden page from the walks. Main queues
-the name sub-leg for the owner; no assertion here claims it.
+On iOS VoiceOver speaks no drawer name when the drawer opens (owner ruling 2026-10-25: follow the
+iOS convention, as Material's own Drawer does on iOS; an owner listening test found no spoken name
+on PageDrawer and on Material's Drawer alike). The iOS test proves the drawer's name from the page
+source, and the scrim and the hidden page from the walks.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ from stratum_e2e.waits import wait_until
 FIXTURE_ID = "common/page_drawer"
 LINK_A_ID = "page_drawer.link_a"
 OPEN_DRAWER = "Open drawer"
-OPEN_DRAWER_LATER = "Open drawer in 5 s"
+OPEN_DRAWER_LATER = "Open drawer when VoiceOver is on"
 DRAWER, SCRIM = "Navigation menu", "Dismiss"
 DRAWER_WORDS = {DRAWER, "Drawer link A", "Drawer link B", SCRIM}
 PAGE_WORDS = ("Page body", OPEN_DRAWER)
@@ -49,7 +50,7 @@ SCRIM_MARGIN_PX = 48
 STEPS = 8
 WAIT_TIMEOUT_S = 10
 FOCUS_TIMEOUT_S = 10
-# The fixture opens the drawer 5 s after the click; VoiceOver turning on takes part of that.
+# VoiceOver's start-up focus in the app comes 3-6 s after it is enabled (measured).
 SCREEN_CHANGE_TIMEOUT_S = 20
 
 
@@ -83,6 +84,11 @@ def _page_in_tree(driver: Any) -> bool:
 
 def _starts_with_any(utterance: str, words: tuple[str, ...]) -> bool:
     return any(matches_prefix(utterance, word) for word in words)
+
+
+def _mentions_any(utterance: str, words: set[str]) -> bool:
+    """Whether [utterance] holds a word anywhere: VoiceOver can prefix the app name."""
+    return any(word in utterance for word in words)
 
 
 @pytest.mark.android
@@ -151,12 +157,21 @@ def test_voiceover_reads_the_drawer_and_its_scrim_and_never_the_page(
     _open_fixture(driver, platform, app_id, OPEN_DRAWER_LATER)
     click(by_label(driver, platform, OPEN_DRAWER_LATER, exact=True), platform)
 
+    # A tap on the arm button makes the fixture open the drawer on the first focus move after
+    # VoiceOver's start-up focus, so the drawer never opens while VoiceOver is still starting.
+    # The test waits for VoiceOver's first read in the app (a page word, drawer still closed),
+    # then makes that move itself; a drawer word in VoiceOver's own speech below proves
+    # VoiceOver was on and inside the open drawer.
     with VoiceOver(driver) as voiceover:
-        assert not _link_a_on_screen(driver, platform), (
-            "the drawer opened before VoiceOver was on; the walks would not see it open"
-        )
         wait_until(
-            lambda: _starts_with_any(voiceover.current() or "", tuple(DRAWER_WORDS)),
+            lambda: "Page body" in (voiceover.current() or ""),
+            "VoiceOver's first read in the app, on the page",
+            timeout_s=SCREEN_CHANGE_TIMEOUT_S,
+        )
+        assert not _link_a_on_screen(driver, platform), "drawer opened before the first read"
+        voiceover.move("forward")
+        wait_until(
+            lambda: _mentions_any(voiceover.current() or "", DRAWER_WORDS),
             "VoiceOver to speak a drawer word once the drawer opens",
             timeout_s=SCREEN_CHANGE_TIMEOUT_S,
         )
