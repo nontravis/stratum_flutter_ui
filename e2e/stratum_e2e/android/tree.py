@@ -11,21 +11,30 @@ def resource_ids(page_source: str) -> set[str]:
     return {node.get("resource-id") or "" for node in root.iter()} - {""}
 
 
+def node_label(node: ET.Element) -> str:
+    """Return a node's label: its `text`, else `content-desc`, else `hint`; "" when it has none.
+
+    A Flutter text field is an `android.widget.EditText` with empty `text` and no
+    `content-desc`: its semantics label (and the group label merged into it) sits in `hint`.
+    """
+    return node.get("text") or node.get("content-desc") or node.get("hint") or ""
+
+
 def labels(page_source: str) -> list[str]:
-    """Return the labels (`text`, else `content-desc`) of every labeled node, in tree order."""
+    """Return the labels (see `node_label`) of every labeled node, in tree order."""
     root = ET.fromstring(page_source.encode("utf-8"))
-    found = (node.get("text") or node.get("content-desc") or "" for node in root.iter())
+    found = (node_label(node) for node in root.iter())
     return [label for label in found if label]
 
 
 def labels_with(page_source: str, attribute: str) -> list[str]:
     """Return the labels of nodes whose [attribute] is "true" in [page_source], in tree order.
 
-    A label is the node's `text`, else its `content-desc`; unlabeled nodes are skipped.
+    A label is the node's `node_label`; unlabeled nodes are skipped.
     """
     root = ET.fromstring(page_source.encode("utf-8"))
     labels = (
-        node.get("text") or node.get("content-desc") or ""
+        node_label(node)
         for node in root.iter()
         if node.get(attribute) == "true"
     )

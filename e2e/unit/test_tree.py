@@ -64,5 +64,24 @@ def test_labels_with_reads_the_attribute_it_is_given() -> None:
     assert labels_with(page, "absent") == []
 
 
+def test_labels_with_reads_the_hint_of_a_text_field_that_has_no_text() -> None:
+    # A Flutter text field is an EditText: empty `text`, no `content-desc`, its label in `hint`.
+    page = (
+        '<hierarchy><node class="android.widget.EditText" text="" hint="Group&#10;Street"'
+        ' a11y-focused="true"/></hierarchy>'
+    )
+
+    assert labels_with(page, "a11y-focused") == ["Group\nStreet"]
+
+
+def test_labels_prefer_text_then_content_desc_then_hint() -> None:
+    page = (
+        '<hierarchy><node text="T" content-desc="C" hint="H"/><node content-desc="C" hint="H"/>'
+        '<node hint="H"/><node/></hierarchy>'
+    )
+
+    assert labels(page) == ["T", "C", "H"]
+
+
 def test_labels_list_every_labeled_node_in_tree_order() -> None:
     assert labels(PAGE) == ["Choose A", "Close", "Log: menu", "Choose A"]

@@ -43,17 +43,15 @@ def entry_name(utterance: str) -> str:
     return utterance.removeprefix("selected, ").split(", ")[0]
 
 
-def press_and_hear(
-    keyboard: UhidKeyboard, talkback: TalkBackLog, usage: int, mods: int = 0
-) -> list[str]:
-    """Press a key and return TalkBack's whole reply once it has been quiet for SPEECH_QUIET_S.
+def settled_speech(talkback: TalkBackLog, timeout_s: float = SPEECH_TIMEOUT_S) -> list[str]:
+    """Return the speech since the last mark once it is non-empty and has been quiet for SPEECH_QUIET_S.
 
-    TalkBack speaks a reply in parts (a name, then a hint seconds later), so the reply
-    ends on silence, never on the first part. Empty after SPEECH_TIMEOUT_S of silence.
+    TalkBack speaks in parts (a name, then a hint seconds later), so a reply ends on silence,
+    never on the first part. Polls every POLL_INTERVAL_S, never a fixed sleep. Returns what
+    was heard when [timeout_s] passes first: empty after [timeout_s] of silence, so a caller
+    that needs speech asserts on the result.
     """
-    talkback.mark()
-    keyboard.press(usage, mods)
-    deadline = time.monotonic() + SPEECH_TIMEOUT_S
+    deadline = time.monotonic() + timeout_s
     spoken: list[str] = []
     quiet_since = time.monotonic()
     while time.monotonic() < deadline:
@@ -64,6 +62,39 @@ def press_and_hear(
         elif spoken and time.monotonic() - quiet_since >= SPEECH_QUIET_S:
             break
     return spoken
+
+
+def press_and_hear(
+    keyboard: UhidKeyboard, talkback: TalkBackLog, usage: int, mods: int = 0
+) -> list[str]:
+    """Press a key and return TalkBack's whole reply once it has been quiet for SPEECH_QUIET_S.
+
+    Empty after SPEECH_TIMEOUT_S of silence (see `settled_speech`).
+    """
+    talkback.mark()
+    keyboard.press(usage, mods)
+    return settled_speech(talkback)
+
+
+def step_through(
+    driver: Any, keyboard: UhidKeyboard, talkback: TalkBackLog, steps: int
+) -> tuple[list[str], list[str]]:
+    """Move TalkBack's focus forward [steps] times with Alt+Right and record what it did.
+
+    Each step presses Alt+Right and waits for the reply to go quiet (`press_and_hear`), then
+    reads the node that holds accessibility focus. Return `(heard, focused)`: every utterance
+    of every step in order, and one entry per step holding the label of the focused node
+    (the first when several hold it, "" when none does). Starts from the focus TalkBack holds
+    now; the caller puts it on the starting node first. Reused by every test that walks a
+    screen's reading order.
+    """
+    heard: list[str] = []
+    focused: list[str] = []
+    for _ in range(steps):
+        heard.extend(press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT))
+        holders = a11y_focused(driver.page_source)
+        focused.append(holders[0] if holders else "")
+    return heard, focused
 
 
 def open_actions(keyboard: UhidKeyboard, talkback: TalkBackLog) -> list[str]:

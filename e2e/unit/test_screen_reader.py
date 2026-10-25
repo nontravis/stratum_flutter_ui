@@ -15,6 +15,8 @@ from stratum_e2e.android.screen_reader import (
     open_actions,
     press_and_hear,
     run_action,
+    settled_speech,
+    step_through,
     swipe_vertically,
     vertical_swipe_points,
 )
@@ -187,6 +189,81 @@ class FakeDriver:
     def page_source(self) -> str:
         nodes = "".join(f'<node content-desc="{label}" a11y-focused="true"/>' for label in self.focused)
         return f"<hierarchy>{nodes}</hierarchy>"
+
+
+class WalkingDriver:
+    """A driver whose accessibility focus is the next scripted label on each page-source read."""
+
+    def __init__(self, labels: list[str]) -> None:
+        self.labels = list(labels)
+
+    @property
+    def page_source(self) -> str:
+        label = self.labels.pop(0) if self.labels else ""
+        node = f'<node content-desc="{label}" a11y-focused="true"/>' if label else ""
+        return f"<hierarchy>{node}</hierarchy>"
+
+
+def test_step_through_presses_alt_right_and_collects_speech_and_focus(clock: FakeClock) -> None:
+    device = ScriptedDevice([["Heading", "Heading text"], ["Group"], ["Street, text field"]])
+    driver = WalkingDriver(["Heading", "Group", "Street"])
+
+    heard, focused = step_through(driver, device, device, 3)  # type: ignore[arg-type]
+
+    assert device.presses == [(KEY_RIGHT, MOD_LALT)] * 3
+    assert heard == ["Heading", "Heading text", "Group", "Street, text field"]
+    assert focused == ["Heading", "Group", "Street"]
+
+
+def test_step_through_reads_an_empty_focus_when_no_node_holds_it(clock: FakeClock) -> None:
+    device = ScriptedDevice([["Heading"], []])
+    driver = WalkingDriver(["Heading"])
+
+    heard, focused = step_through(driver, device, device, 2)  # type: ignore[arg-type]
+
+    assert heard == ["Heading"]
+    assert focused == ["Heading", ""]
+
+
+def test_step_through_with_zero_steps_presses_nothing(clock: FakeClock) -> None:
+    device = ScriptedDevice([["Heading"]])
+
+    assert step_through(WalkingDriver([]), device, device, 0) == ([], [])  # type: ignore[arg-type]
+    assert device.presses == []
+
+
+def test_settled_speech_returns_the_speech_once_it_has_gone_quiet(clock: FakeClock) -> None:
+    device = ScriptedDevice([])
+    device._spoken = ["Heading"]
+
+    assert settled_speech(device) == ["Heading"]  # type: ignore[arg-type]
+    assert clock.now >= screen_reader.SPEECH_QUIET_S
+    assert clock.now < SPEECH_TIMEOUT_S
+
+
+def test_settled_speech_waits_for_late_speech_before_it_counts_as_quiet(clock: FakeClock) -> None:
+    class LateSpeech:
+        def since_mark(self) -> list[str]:
+            if clock.now < 1.0:
+                return []
+            return ["Heading"] if clock.now < 2.0 else ["Heading", "Group"]
+
+    assert settled_speech(LateSpeech(), timeout_s=10) == ["Heading", "Group"]  # type: ignore[arg-type]
+
+
+def test_settled_speech_is_empty_after_the_timeout_of_silence(clock: FakeClock) -> None:
+    device = ScriptedDevice([])
+
+    assert settled_speech(device, timeout_s=5) == []  # type: ignore[arg-type]
+    assert clock.now >= 5
+
+
+def test_step_through_reads_the_first_node_when_several_hold_focus(clock: FakeClock) -> None:
+    device = ScriptedDevice([["Heading"]])
+
+    _, focused = step_through(FakeDriver(["A", "B"]), device, device, 1)  # type: ignore[arg-type]
+
+    assert focused == ["A"]
 
 
 def test_focus_by_touch_taps_the_centre_and_waits_for_the_label(

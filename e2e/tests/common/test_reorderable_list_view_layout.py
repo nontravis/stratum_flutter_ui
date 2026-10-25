@@ -19,7 +19,6 @@ move announcement.
 from __future__ import annotations
 
 import re
-import time
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -28,6 +27,7 @@ from appium.webdriver.common.appiumby import AppiumBy
 
 from stratum_e2e.android import emu_mouse
 from stratum_e2e.android.screen_reader import (
+    FOCUS_TIMEOUT_S,
     MENU_CANCEL,
     MENU_STEPS,
     entry_name,
@@ -35,6 +35,7 @@ from stratum_e2e.android.screen_reader import (
     open_actions,
     press_and_hear,
     run_action,
+    settled_speech,
 )
 from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
 from stratum_e2e.android.uhid_keyboard import KEY_ENTER, KEY_RIGHT, KEY_UP, MOD_LALT, UhidKeyboard
@@ -59,7 +60,6 @@ MOVE_TO_START = "Move to the start"
 MOVE_TO_END = "Move to the end"
 ALL_MOVES = {MOVE_UP, MOVE_DOWN, MOVE_TO_START, MOVE_TO_END}
 WAIT_TIMEOUT_S = 10
-SPEECH_QUIET_S = 1.5
 
 ACTIONS_HINT = "Actions available"
 # What VoiceOver speaks in turn, item 1 to the last element on screen: each root row, the
@@ -142,22 +142,6 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
 def _focus_item(driver: Any, label: str) -> None:
     """Explore-by-touch: touch [label]'s item so TalkBack focuses and speaks it."""
     focus_by_touch(driver, driver.find_element(AppiumBy.ACCESSIBILITY_ID, label), label)
-
-
-def _settled_speech(talkback: TalkBackLog) -> list[str]:
-    """Return the utterances since the mark once there is speech and no new one for a quiet spell."""
-    seen = {"count": -1, "since": time.monotonic()}
-
-    def quiet() -> bool:
-        count = len(talkback.since_mark())
-        now = time.monotonic()
-        if count != seen["count"]:
-            seen.update(count=count, since=now)
-            return False
-        return count > 0 and now - seen["since"] >= SPEECH_QUIET_S
-
-    wait_until(quiet, "TalkBack speech to settle after the focus", timeout_s=WAIT_TIMEOUT_S)
-    return talkback.since_mark()
 
 
 def _offered_moves(keyboard: UhidKeyboard, talkback: TalkBackLog) -> set[str]:
@@ -278,7 +262,8 @@ def test_talkback_reads_a_root_row_with_its_role_moves_and_tap_at_one_stop(
 
     talkback.mark()
     _focus_item(driver, "Item 3")
-    spoken = _settled_speech(talkback)
+    spoken = settled_speech(talkback, FOCUS_TIMEOUT_S)
+    assert spoken, "TalkBack spoke nothing after the focus"
     node = driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 3")
 
     assert spoken[0].startswith("Item 3"), spoken
@@ -308,7 +293,8 @@ def test_talkback_reads_the_disabled_root_row_with_its_moves_and_no_tap(
 
     talkback.mark()
     _focus_item(driver, "Item 6")
-    spoken = _settled_speech(talkback)
+    spoken = settled_speech(talkback, FOCUS_TIMEOUT_S)
+    assert spoken, "TalkBack spoke nothing after the focus"
     node = driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 6")
 
     assert node.get_attribute("enabled") == "false"
