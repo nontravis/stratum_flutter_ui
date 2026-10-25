@@ -320,8 +320,8 @@ void main() {
         ]);
       });
 
-      // WebKitGTK erases the plugin's sender listener on `document.open()`,
-      // so the page's `bye` reaches the public handler with no metadata.
+      // The adapter passes a sender-less `bye` to the session, which still
+      // revokes the proof, because a revoke opens nothing.
       if (platform == TargetPlatform.linux) {
         test('co01_02/us03/fr04/e14, co01_02/us06/fr01/e04: a bye with no '
             'main-frame flag revokes the proof, so the next send is refused '
