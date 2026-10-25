@@ -117,6 +117,8 @@ def _run_once(
     except RoundEnvError as error:
         return env_files(plan, error.reason)
     since = backends.now()
+    # The target's first run keeps the device log from its boot on, so the boot's settle window is in it.
+    since = state.boot_starts.pop(target.name, since)
     outcome = backends.run_plan(
         plan, target, record, backends.booter_for(target), state.app_dir, run_dir, backends.runner,
         state.lane.run_timeout_minutes * 60, backends.port_dir, flutter_version=version,

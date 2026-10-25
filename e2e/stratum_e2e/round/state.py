@@ -94,6 +94,8 @@ class RoundState:
         # Targets whose `round_target` failed: every item of theirs fails alike, so none is retried.
         self.down: set[str] = set()
         self.live: dict[str, RoundTarget] = {}
+        # target -> when its bring-up began; its first run takes the entry as the start of its device log.
+        self.boot_starts: dict[str, datetime] = {}
         self.app_builds: dict[tuple[str, bool], Path] = {}
         # (platform, wasm) -> the app build that failed twice, raised again for the platform's later items.
         self.build_failures: dict[tuple[str, bool], BuildFailure] = {}

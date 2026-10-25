@@ -1,7 +1,9 @@
-"""Unit tests for how `runs._run_once` records a run's launches in the summary's builds; no round, no device."""
+"""Unit tests for how `runs._run_once` records a run's launches in the summary's builds and where its device log
+starts; no round, no device."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -32,7 +34,7 @@ def run_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: RunOutcom
     round_dir: Any = SimpleNamespace(item_dir=lambda target, name: tmp_path / name)
     state: Any = SimpleNamespace(
         open_round_dir=lambda now: round_dir, run_dirs={}, flutter_version="3.47.7", recorder=recorder,
-        linux_built=set(), app_dir=tmp_path, lane=SimpleNamespace(run_timeout_minutes=1),
+        linux_built=set(), app_dir=tmp_path, lane=SimpleNamespace(run_timeout_minutes=1), boot_starts={},
     )
     backends: Any = SimpleNamespace(
         now=lambda: 0.0, run_plan=lambda *args, **kwargs: outcome, booter_for=lambda target: None, runner=None,
@@ -73,3 +75,29 @@ def test_a_single_launch_run_records_its_argv_and_seconds(tmp_path: Path, monkey
     recorder = run_once(tmp_path, monkeypatch, RunOutcome(argv, 2.5, dict.fromkeys(FILES, PASS), exit_status=0))
 
     assert recorder.builds == [("linux", argv, 2.5, False, True)]
+
+
+def test_a_targets_first_run_saves_its_device_log_from_the_boot_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    boot = datetime(2026, 10, 24, 1, 0, 0, tzinfo=UTC)
+    starts = iter([datetime(2026, 10, 24, 1, 9, 0, tzinfo=UTC), datetime(2026, 10, 24, 1, 20, 0, tzinfo=UTC)])
+    plan = RunPlan("sequence-0000abcd", "linux", None, "sequence", FILES, {}, 1, sequence="s")
+    round_dir: Any = SimpleNamespace(item_dir=lambda target, name: tmp_path / name)
+    state: Any = SimpleNamespace(
+        open_round_dir=lambda now: round_dir, run_dirs={}, flutter_version="3.47.7", recorder=Recorder(),
+        linux_built=set(), app_dir=tmp_path, lane=SimpleNamespace(run_timeout_minutes=1), boot_starts={"linux": boot},
+    )
+    outcome = RunOutcome(("docker", "run", "one"), 1.0, dict.fromkeys(FILES, PASS), exit_status=0)
+    backends: Any = SimpleNamespace(
+        now=lambda: next(starts), run_plan=lambda *args, **kwargs: outcome, booter_for=lambda target: None,
+        runner=None, port_dir=tmp_path,
+    )
+    saved: list[datetime] = []
+    monkeypatch.setattr(runs, "save_device_log", lambda runner, record, since, path: saved.append(since))
+    round_target: Any = SimpleNamespace(target=LINUX, record=None)
+
+    runs._run_once(state, backends, round_target, plan)
+    runs._run_once(state, backends, round_target, plan)
+
+    assert saved == [boot, datetime(2026, 10, 24, 1, 20, 0, tzinfo=UTC)]
