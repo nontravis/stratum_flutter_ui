@@ -25,7 +25,8 @@ from stratum_e2e.round.android_traps import (
     settings_restore_argv,
     settle_reasons,
 )
-from stratum_e2e.round.boot import Booter, BootRecord
+from stratum_e2e.round.boot import Booter, BootLog, BootRecord
+from stratum_e2e.round.capture import keep_boot_log
 from stratum_e2e.round.catalog import LaneConfig, Target
 from stratum_e2e.round.errors import CatalogError, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
@@ -84,14 +85,17 @@ class AndroidBooter(Booter):
         """Whether the AVD of `target` already runs, so `boot` reuses it and the memory gate is skipped."""
         return self.running_serial(_avd(target)) is not None
 
-    def boot(self, target: Target, log: Path) -> BootRecord:
-        """Reuse the running AVD of `target` after the rtt check, else cold boot it with emulator output in `log`."""
+    def boot(self, target: Target, log: Path, device_log: BootLog | None = None) -> BootRecord:
+        """Reuse the running AVD of `target` after the rtt check, else cold boot it with emulator output in `log`.
+
+        A cold boot saves its logcat to `device_log` once settled, or, when the boot fails, before the emulator ends.
+        """
         avd = _avd(target)
         attached = self._attached()
         serial = self._serial_of(avd, attached)
         if serial is not None:
             return self._reuse(target, serial)
-        return self._cold_boot(target, avd, attached, log)
+        return self._cold_boot(target, avd, attached, log, device_log)
 
     def before_file(self, record: BootRecord) -> None:
         """Give a serial not in state `device` one `adb reconnect offline`, wait until ready, then clear an ANR.
@@ -153,7 +157,9 @@ class AndroidBooter(Booter):
             )
         return BootRecord(target=target.name, platform=_PLATFORM, device_id=serial, reused=True)
 
-    def _cold_boot(self, target: Target, avd: str, attached: Mapping[str, str], log: Path) -> BootRecord:
+    def _cold_boot(
+        self, target: Target, avd: str, attached: Mapping[str, str], log: Path, device_log: BootLog | None
+    ) -> BootRecord:
         avd_info(avd, self._avd_home)
         taken = {port for port in map(_console_port, attached) if port is not None}
         reservation = reserve_port(*CONSOLE_PORTS, taken, self._port_dir)
@@ -175,8 +181,11 @@ class AndroidBooter(Booter):
             self._spawned[serial] = _Spawned(process=process, avd=avd, log=log)
             record.pid = process.pid
             self._bring_up(record)
+            keep_boot_log(self._runner, record, device_log)
         except BaseException:
             try:
+                if record.pid is not None:
+                    keep_boot_log(self._runner, record, device_log)
                 self.shutdown(record)
             finally:
                 reservation.release()

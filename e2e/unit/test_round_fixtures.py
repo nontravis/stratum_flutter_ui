@@ -180,8 +180,11 @@ class FakeBooter:
     def is_running(self, target):
         return target.platform in HOST_PLATFORMS or target.name in SCENARIO.get("running", [])
 
-    def boot(self, target, log):
+    def boot(self, target, log, device_log=None):
         event(f"boot {target.name}")
+        if device_log is not None:
+            where = f"{device_log.path.parent.name}/{device_log.path.name}"
+            event(f"device log {target.name} {where} {device_log.since.isoformat()}")
         left = self._failures.get(target.name, 0)
         if left:
             self._failures[target.name] = left - 1
@@ -683,6 +686,18 @@ def test_lane_busy_reports_env_on_every_item_of_that_target_and_moves_on(
     assert _events(root, "lane busy ") == ["lane busy chrome"]
     assert "boot chrome" not in _events(root)
     assert "boot mac" in _events(root)
+
+
+def test_each_boot_attempt_gets_its_own_device_log_in_the_target_dir(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_A, {"boot_fail": {"mac": 1}})
+    result = _round(pytester, "--target", "mac")
+    result.assert_outcomes(passed=3)
+    assert _events(root, "device log") == [
+        "device log mac mac/boot.log 2026-10-24T01:02:03+00:00",
+        "device log mac mac/boot-2.log 2026-10-24T01:02:03+00:00",
+    ]
 
 
 def test_boot_env_retries_once_then_blocks_the_target(

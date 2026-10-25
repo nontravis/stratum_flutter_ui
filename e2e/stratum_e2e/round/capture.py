@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final
 
-from stratum_e2e.round.boot import BootRecord
+from stratum_e2e.round.boot import BootLog, BootRecord
 from stratum_e2e.round.runner import Runner
 
 _LOG_TIMEOUT_S: Final = 60.0
@@ -58,6 +58,12 @@ def save_device_log(runner: Runner, record: BootRecord, since: datetime, path: P
     if argv is None:
         return False
     return runner.run(argv, timeout_s=_LOG_TIMEOUT_S, log=path).status == 0
+
+
+def keep_boot_log(runner: Runner, record: BootRecord, device_log: BootLog | None) -> None:
+    """Save the device log of a boot the caller ran, when it asked for one; a failed capture is never an error."""
+    if device_log is not None:
+        save_device_log(runner, record, device_log.since, device_log.path)
 
 
 def save_screenshot(runner: Runner, record: BootRecord, path: Path) -> bool:

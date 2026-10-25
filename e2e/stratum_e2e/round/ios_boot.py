@@ -13,7 +13,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from stratum_e2e.round.boot import Booter, BootRecord
+from stratum_e2e.round.boot import Booter, BootLog, BootRecord
+from stratum_e2e.round.capture import keep_boot_log
 from stratum_e2e.round.catalog import LaneConfig, Target
 from stratum_e2e.round.errors import CatalogError, RoundEnvError
 from stratum_e2e.round.runner import Completed, Runner
@@ -126,10 +127,12 @@ class IosBooter(Booter):
         """Whether the simulator of `target`'s pair is `Booted`, so `boot` reuses it and the memory gate is skipped."""
         return self._pair(target).state == _BOOTED
 
-    def boot(self, target: Target, log: Path) -> BootRecord:
+    def boot(self, target: Target, log: Path, device_log: BootLog | None = None) -> BootRecord:
         """Reuse a `Booted` simulator, else boot it and wait for `bootstatus`; then pin the soft keyboard either way.
 
-        A reused simulator is left running, with only its keyboard preference changed.
+        A reused simulator is left running, with only its keyboard preference changed. A simulator this call booted
+        saves its simulator log to `device_log` once booted; a failed boot saves none, since `simctl spawn` cannot
+        read a simulator that is not up.
 
         Appends each attempt's `simctl boot` stderr, `bootstatus` output, pin read-back, and error to `log`. One
         deadline of `boot_timeout_minutes` covers `simctl boot` and `bootstatus`. Any failure or interrupt of
@@ -140,12 +143,12 @@ class IosBooter(Booter):
         self._attempts[log] = attempt
         _note(log, f"boot attempt {attempt}: {target.name}")
         try:
-            return self._boot(target, log)
+            return self._boot(target, log, device_log)
         except BaseException as error:
             _note(log, f"boot attempt {attempt} failed: {error!r}")
             raise
 
-    def _boot(self, target: Target, log: Path) -> BootRecord:
+    def _boot(self, target: Target, log: Path, device_log: BootLog | None) -> BootRecord:
         pair = self._pair(target)
         if pair.state == _BOOTED:
             self._pin_soft_keyboard(pair.udid, log)
@@ -177,7 +180,10 @@ class IosBooter(Booter):
             if not reused:
                 self._end_quietly(pair.udid)
             raise
-        return BootRecord(target=target.name, platform=_PLATFORM, device_id=pair.udid, reused=reused)
+        record = BootRecord(target=target.name, platform=_PLATFORM, device_id=pair.udid, reused=reused)
+        if not reused:
+            keep_boot_log(self._runner, record, device_log)
+        return record
 
     def before_file(self, record: BootRecord) -> None:
         """Nothing to ready: a booted simulator needs no per-file check."""
@@ -271,7 +277,7 @@ class HostBooter(Booter):
         _require_host(target)
         return True
 
-    def boot(self, target: Target, log: Path) -> BootRecord:
+    def boot(self, target: Target, log: Path, device_log: BootLog | None = None) -> BootRecord:
         """Record the target by name, which is today's `--device` value (`mac`, `chrome`, `chrome_wasm`, `linux`)."""
         _require_host(target)
         return BootRecord(target=target.name, platform=target.platform, device_id=target.name, reused=True)
