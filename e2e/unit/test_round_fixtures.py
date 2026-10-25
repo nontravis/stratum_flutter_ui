@@ -11,7 +11,6 @@ import json
 import os
 import shutil
 import signal
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -90,7 +89,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import appium.webdriver
@@ -275,15 +274,6 @@ def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_t
     return RunOutcome(argv, 1.5, files, build_argv, 4.0 if build_argv else 0.0, exit_status=status)
 
 
-_ticks = [0]
-
-
-def _clock():
-    """`NOW`; with `now_step` in the scenario, a clock that moves that many seconds on each read."""
-    _ticks[0] += 1
-    return NOW + timedelta(seconds=SCENARIO.get("now_step", 0) * _ticks[0])
-
-
 @pytest.fixture(scope="session")
 def round_backends(request):
     runner = FakeRunner()
@@ -303,7 +293,7 @@ def round_backends(request):
         build=build,
         run_plan=run_plan,
         memory_reasons=lambda: host_memory_reasons(runner, request.config.stash[state.CATALOG_KEY].lane),
-        now=_clock,
+        now=lambda: NOW,
         port_dir=ROOT / "ports",
         sleep=lambda seconds: event("sleep"),
     )
@@ -802,20 +792,6 @@ def _round_with_sigint_ignored(pytester: pytest.Pytester, *args: str) -> pytest.
         return _round(pytester, *args)
     finally:
         signal.signal(signal.SIGINT, prior)
-
-
-def test_first_integration_run_saves_the_device_log_from_the_boot_start(
-    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    scenario = {"real_android": "Pixel_8_API_37", "reused_serial": REUSED_SERIAL, "now_step": 60}
-    root = _make_tree(pytester, monkeypatch, ANDROID_A, scenario)
-    result = _round(pytester, "--target", "pixel_8")
-    result.assert_outcomes(passed=3)
-    logcats = _events(root, f"run adb -s {REUSED_SERIAL} logcat")
-    since = [float(line.split()[-1]) for line in logcats]
-    assert len(since) >= 2, logcats
-    # Clock reads: the round dir's name, then the bring-up (tick 2, the boot start), then the run's own start (tick 3).
-    assert since[0] == (datetime(2026, 10, 24, 1, 2, 3, tzinfo=UTC) + timedelta(seconds=60 * 2)).timestamp()
 
 
 def test_sigint_mid_round_restores_and_kills(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:

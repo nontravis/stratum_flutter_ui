@@ -58,7 +58,6 @@ def bring_up(state: RoundState, backends: Backends, target: Target) -> Iterator[
         stack.callback(_tear_down, state, target, "lane release", _take_lane(state, backends, target).release)
         booter = backends.booter_for(target)
         boot_dir = round_dir.item_dir(target.name, _BOOT_DIR)
-        state.boot_starts[target.name] = backends.now()
         record = _boot(state, backends, booter, target, boot_dir / "boot.log")
         # Runs after shutdown, which adds the settings that failed to restore.
         stack.callback(_record_target, state, target, record, finished=True)
