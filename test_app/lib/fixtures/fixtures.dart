@@ -5,6 +5,7 @@ import 'common/ink_well.dart';
 import 'common/modal_layout.dart';
 import 'common/page_drawer.dart';
 import 'common/page_layout.dart';
+import 'common/page_layout_loading.dart';
 import 'common/reorderable_list_view_layout.dart';
 import 'common/split_layout.dart';
 import 'common/web_view.dart';
@@ -21,6 +22,7 @@ final Map<String, FixtureBuilder> fixtures = <String, FixtureBuilder>{
   'common/modal_layout': (context) => const ModalLayoutFixture(),
   'common/page_drawer': (context) => const PageDrawerFixture(),
   'common/page_layout': (context) => const PageLayoutFixture(),
+  'common/page_layout_loading': (context) => const PageLayoutLoadingFixture(),
   'common/reorderable_list_view_layout': (context) =>
       const ReorderableListViewLayoutFixture(),
   'common/split_layout': (context) => const SplitLayoutFixture(),
