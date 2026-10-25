@@ -1,2 +1,0 @@
-platform=android
-sdk=35

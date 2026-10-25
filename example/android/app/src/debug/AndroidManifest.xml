@@ -4,7 +4,4 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Cleartext to 127.0.0.1 and localhost only, for the web view device
-         test's page server (F-01 US-08). -->
-    <application android:networkSecurityConfig="@xml/network_security_config"/>
 </manifest>
