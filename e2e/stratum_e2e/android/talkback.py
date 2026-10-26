@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import re
-import subprocess
 import time
 from types import TracebackType
 
+from stratum_e2e.android.adb import (
+    AVD_NAME,
+    adb,
+    avd_name,
+    delete_secure,
+    get_secure,
+    put_secure,
+    restore_secure,
+)
 from stratum_e2e.android.tree import labels_with
 
-AVD_NAME = "E2E_TalkBack_API_35"
+__all__ = ["AVD_NAME", "avd_name"]
 TALKBACK_SERVICE = (
     "com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
 )
@@ -24,7 +32,6 @@ IDLE_POLL_INTERVAL_S = 0.25
 
 _SERVICES_SETTING = "enabled_accessibility_services"
 _ENABLED_SETTING = "accessibility_enabled"
-_UNSET = "null"
 _UTTERANCE = re.compile(r'Speaking fragment text="([^"]*)"')
 _STARTED = re.compile(r'Speaking fragment text="[^"]*", utteranceId=(\S+?),')
 _FINISHED = re.compile(r'Received callback for "([^"]+)"')
@@ -40,12 +47,6 @@ class TalkBackStuck(RuntimeError):
 
 class TalkBackNotIdle(RuntimeError):
     """TalkBack still held a started utterance, or kept starting new ones, after the idle timeout."""
-
-
-def avd_name(serial: str) -> str:
-    """Return the AVD name of emulator [serial], or an empty string when it has none."""
-    lines = _adb(serial, "emu", "avd", "name").splitlines()
-    return lines[0].strip() if lines else ""
 
 
 def utterances(logcat: str) -> list[str]:
@@ -86,7 +87,7 @@ class TalkBackLog:
         started_count = -1
         quiet_since = time.monotonic()
         while True:
-            log = _adb(self._serial, "logcat", "-d")
+            log = adb(self._serial, "logcat", "-d")
             started = _STARTED.findall(log)
             pending = set(started) - set(_FINISHED.findall(log))
             now = time.monotonic()
@@ -103,7 +104,7 @@ class TalkBackLog:
 
     def since_mark(self) -> list[str]:
         """Return the utterances spoken since the last `mark`, in order."""
-        return utterances(_adb(self._serial, "logcat", "-d"))
+        return utterances(adb(self._serial, "logcat", "-d"))
 
 
 class TalkBackSession:
@@ -126,14 +127,11 @@ class TalkBackSession:
             raise ValueError(
                 f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {AVD_NAME!r}"
             )
-        self._saved = {
-            setting: _get_secure(self._serial, setting)
-            for setting in (_SERVICES_SETTING, _ENABLED_SETTING)
-        }
+        self._saved = _read_accessibility_settings(self._serial)
         try:
             return self._enable()
         except BaseException:
-            self._restore()
+            _restore_secure(self._serial, self._saved)
             raise
 
     def __exit__(
@@ -142,32 +140,21 @@ class TalkBackSession:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        self._restore()
+        _restore_secure(self._serial, self._saved)
 
     def _enable(self) -> TalkBackLog:
-        self._stop()
+        _stop_talkback(self._serial)
         log = TalkBackLog(self._serial)
         _clear_logcat(self._serial)  # TalkBack is off here: nothing to wait for
-        _put_secure(self._serial, _SERVICES_SETTING, TALKBACK_SERVICE)
-        _put_secure(self._serial, _ENABLED_SETTING, "1")
+        put_secure(self._serial, _SERVICES_SETTING, TALKBACK_SERVICE)
+        put_secure(self._serial, _ENABLED_SETTING, "1")
         self._wait_first_utterance()
         log.mark()
         return log
 
-    def _stop(self) -> None:
-        _put_secure(self._serial, _ENABLED_SETTING, "0")
-        _adb(self._serial, "shell", "settings", "delete", "secure", _SERVICES_SETTING)
-        deadline = time.monotonic() + UNBIND_TIMEOUT_S
-        while _talkback_bound(self._serial):
-            if time.monotonic() >= deadline:
-                raise TalkBackStuck(
-                    f"TalkBack still bound on {self._serial} after {UNBIND_TIMEOUT_S} s"
-                )
-            time.sleep(POLL_INTERVAL_S)
-
     def _wait_first_utterance(self) -> None:
         deadline = time.monotonic() + FIRST_UTTERANCE_TIMEOUT_S
-        while not utterances(_adb(self._serial, "logcat", "-d")):
+        while not utterances(adb(self._serial, "logcat", "-d")):
             if time.monotonic() >= deadline:
                 raise TalkBackSilent(
                     f"no TalkBack utterance in {FIRST_UTTERANCE_TIMEOUT_S} s: "
@@ -175,37 +162,69 @@ class TalkBackSession:
                 )
             time.sleep(POLL_INTERVAL_S)
 
-    def _restore(self) -> None:
-        for setting, value in self._saved.items():
-            if value == _UNSET:
-                _adb(self._serial, "shell", "settings", "delete", "secure", setting)
-            else:
-                _put_secure(self._serial, setting, value)
+
+class TalkBackOff:
+    """Turns TalkBack off for the block, so one console tap focuses a field.
+
+    The e2e AVD runs touch exploration at baseline, so a tap only moves accessibility
+    focus while TalkBack is on; with it off the tap reaches the field (t49-e04-probe-c2
+    line 19). Writes the two accessibility settings `TalkBackSession` touches, waits
+    until TalkBack unbinds, and restores both on success and on an exception; raises
+    ValueError unless [serial] is the AVD named AVD_NAME, and TalkBackStuck when
+    TalkBack stays bound for 10 s (after restoring).
+    """
+
+    def __init__(self, serial: str) -> None:
+        self._serial = serial
+        self._saved: dict[str, str] = {}
+
+    def __enter__(self) -> None:
+        name = avd_name(self._serial)
+        if name != AVD_NAME:
+            raise ValueError(
+                f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {AVD_NAME!r}"
+            )
+        self._saved = _read_accessibility_settings(self._serial)
+        try:
+            _stop_talkback(self._serial)
+        except BaseException:
+            _restore_secure(self._serial, self._saved)
+            raise
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        _restore_secure(self._serial, self._saved)
+
+
+def _read_accessibility_settings(serial: str) -> dict[str, str]:
+    return {
+        setting: get_secure(serial, setting)
+        for setting in (_SERVICES_SETTING, _ENABLED_SETTING)
+    }
+
+
+def _restore_secure(serial: str, saved: dict[str, str]) -> None:
+    for setting, value in saved.items():
+        restore_secure(serial, setting, value)
+
+
+def _stop_talkback(serial: str) -> None:
+    put_secure(serial, _ENABLED_SETTING, "0")
+    delete_secure(serial, _SERVICES_SETTING)
+    deadline = time.monotonic() + UNBIND_TIMEOUT_S
+    while _talkback_bound(serial):
+        if time.monotonic() >= deadline:
+            raise TalkBackStuck(f"TalkBack still bound on {serial} after {UNBIND_TIMEOUT_S} s")
+        time.sleep(POLL_INTERVAL_S)
 
 
 def _talkback_bound(serial: str) -> bool:
-    return "label=TalkBack" in _adb(serial, "shell", "dumpsys", "accessibility")
+    return "label=TalkBack" in adb(serial, "shell", "dumpsys", "accessibility")
 
 
 def _clear_logcat(serial: str) -> None:
-    _adb(serial, "logcat", "-c")
-
-
-def _get_secure(serial: str, setting: str) -> str:
-    return _adb(serial, "shell", "settings", "get", "secure", setting).strip()
-
-
-def _put_secure(serial: str, setting: str, value: str) -> None:
-    _adb(serial, "shell", "settings", "put", "secure", setting, value)
-
-
-def _adb(serial: str, *args: str) -> str:
-    result = subprocess.run(
-        ["adb", "-s", serial, *args],
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return result.stdout
+    adb(serial, "logcat", "-c")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 
 import pytest
@@ -11,6 +12,7 @@ from stratum_e2e.android.talkback import (
     TALKBACK_SERVICE,
     TalkBackLog,
     TalkBackNotIdle,
+    TalkBackOff,
     TalkBackSession,
     TalkBackSilent,
     TalkBackStuck,
@@ -20,6 +22,7 @@ from stratum_e2e.android.talkback import (
 )
 
 MODULE = "stratum_e2e.android.talkback"
+ADB_MODULE = "stratum_e2e.android.adb"
 SERIAL = "emulator-5554"
 SERVICES = "enabled_accessibility_services"
 ENABLED = "accessibility_enabled"
@@ -101,7 +104,11 @@ class FakeAdb:
         if args[:4] == ["shell", "settings", "get", "secure"]:
             return self.settings.get(args[4], "null") + "\n"
         if args[:4] == ["shell", "settings", "put", "secure"]:
-            self.settings[args[4]] = args[5]
+            # `adb shell` joins its arguments into one remote shell line: an empty
+            # argument vanishes there, so `settings put` is left with no value.
+            values = shlex.split(" ".join(args[5:]))
+            assert len(values) == 1, f"settings put needs exactly one value, got {values}"
+            self.settings[args[4]] = values[0]
             self._apply_settings()
         elif args[:4] == ["shell", "settings", "delete", "secure"]:
             self.settings.pop(args[4], None)
@@ -153,7 +160,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
 def fake_adb(monkeypatch: pytest.MonkeyPatch, clock: FakeClock) -> FakeAdb:
     del clock  # requested for its time patches only
     adb = FakeAdb()
-    monkeypatch.setattr(f"{MODULE}.subprocess.run", adb)
+    monkeypatch.setattr(f"{ADB_MODULE}.subprocess.run", adb)
     return adb
 
 
@@ -322,6 +329,61 @@ def test_session_raises_stuck_when_talkback_never_unbinds_and_restores(
     assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}
 
 
+def test_off_refuses_a_shared_avd(fake_adb: FakeAdb) -> None:
+    fake_adb.avd = "Pixel_8_API_37"
+
+    with pytest.raises(ValueError, match="Pixel_8_API_37"), TalkBackOff(SERIAL):
+        pytest.fail("the body must not run")
+
+    assert fake_adb.writes() == []
+
+
+def test_off_turns_talkback_off_and_waits_for_unbind_before_the_body(fake_adb: FakeAdb) -> None:
+    fake_adb.start_bound()
+    fake_adb.unbind_after_polls = 1
+
+    with TalkBackOff(SERIAL):
+        assert not fake_adb.bound
+        calls = fake_adb.calls
+        off = calls.index(["shell", "settings", "put", "secure", ENABLED, "0"])
+        delete = calls.index(["shell", "settings", "delete", "secure", SERVICES])
+        unbound = [i for i, c in enumerate(calls) if c == ["shell", "dumpsys", "accessibility"]]
+        assert off < delete < unbound[0] < unbound[-1]
+
+    assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}
+
+
+def test_off_deletes_settings_that_were_unset(fake_adb: FakeAdb) -> None:
+    with TalkBackOff(SERIAL):
+        assert fake_adb.settings == {ENABLED: "0"}
+
+    assert fake_adb.settings == {}
+
+
+def test_off_restores_on_exception(fake_adb: FakeAdb) -> None:
+    fake_adb.start_bound()
+    fake_adb.unbind_after_polls = 1
+
+    with pytest.raises(RuntimeError, match="boom"), TalkBackOff(SERIAL):
+        raise RuntimeError("boom")
+
+    assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}
+
+
+def test_off_raises_stuck_when_talkback_never_unbinds_and_restores(
+    fake_adb: FakeAdb, clock: FakeClock
+) -> None:
+    fake_adb.start_bound()
+    fake_adb.never_unbinds = True
+
+    with pytest.raises(TalkBackStuck, match="still bound") as raised, TalkBackOff(SERIAL):
+        pytest.fail("the body must not run")
+
+    assert isinstance(raised.value, RuntimeError)
+    assert 10 <= clock.now < 11
+    assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}
+
+
 def test_wait_idle_returns_once_every_utterance_finished_and_the_log_was_quiet(
     fake_adb: FakeAdb, clock: FakeClock
 ) -> None:
@@ -378,3 +440,24 @@ def test_mark_waits_for_an_idle_queue_before_it_clears_the_log(fake_adb: FakeAdb
     reads = [call for call in fake_adb.calls if call[0] == "logcat"]
     assert reads[-1] == ["logcat", "-c"]
     assert reads[:-1] and all(call == ["logcat", "-d"] for call in reads[:-1])
+
+
+def test_session_restores_an_empty_services_setting(fake_adb: FakeAdb) -> None:
+    fake_adb.settings.update({SERVICES: "", ENABLED: "0"})
+    fake_adb.speak_after_polls = 1
+
+    with TalkBackSession(SERIAL):
+        pass
+
+    assert fake_adb.settings == {SERVICES: "", ENABLED: "0"}
+    assert ["shell", "settings", "put", "secure", SERVICES, "''"] in fake_adb.writes()
+
+
+def test_off_restores_an_empty_services_setting(fake_adb: FakeAdb) -> None:
+    fake_adb.settings.update({SERVICES: "", ENABLED: "0"})
+
+    with TalkBackOff(SERIAL):
+        pass
+
+    assert fake_adb.settings == {SERVICES: "", ENABLED: "0"}
+    assert ["shell", "settings", "put", "secure", SERVICES, "''"] in fake_adb.writes()

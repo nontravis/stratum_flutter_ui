@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'common/focus_builder.dart';
 import 'common/ink_well.dart';
+import 'common/keyboard_visibility_scope.dart';
 import 'common/modal_layout.dart';
 import 'common/page_drawer.dart';
 import 'common/page_layout.dart';
@@ -47,6 +48,9 @@ final Map<String, FixtureEntry> fixtures = <String, FixtureEntry>{
     builder: (context) => const FocusBuilderFixture(),
   ),
   'common/ink_well': FixtureEntry(builder: (context) => const InkWellFixture()),
+  'common/keyboard_visibility_scope': FixtureEntry(
+    builder: (context) => const KeyboardVisibilityScopeFixture(),
+  ),
   'common/modal_layout': FixtureEntry(
     builder: (context) => const ModalLayoutFixture(),
   ),
