@@ -346,10 +346,10 @@ beside `style`, which draws the box.
 ## Keyboard visibility
 
 - `context.deviceWindow.isKeyboardVisible` is true while the OS of an Android or iOS device reports the on-screen
-  keyboard shown, even while `keyboardHeight` reads 0, as it does inside a `Scaffold` body. It is false in Android's
-  floating or split keyboard mode and with a hardware keyboard. On web, macOS, Windows, Linux, and in `flutter test`
-  it is always false and asks the OS nothing. A reader rebuilds only on open or close. To get the screen area the
-  keyboard covers, read `keyboardHeight`.
+  keyboard shown, even while `keyboardHeight` reads 0, as it does inside a `Scaffold` body, Android's floating or
+  split keyboard mode included. With a hardware keyboard it is false only while the OS hides the on-screen keyboard.
+  On web, macOS, Windows, Linux, and in `flutter test` it is always false and asks the OS nothing. A reader rebuilds
+  only on open or close. To get the screen area the keyboard covers, read `keyboardHeight`.
 - Under `StratumThemeApplication`, and so under `StratumApplication`, the app writes no setup for the scope. An app
   with neither wraps itself: `MaterialApp(builder: (context, child) => KeyboardVisibilityScope(child: child!))`. A
   read with no scope throws "No KeyboardVisibilityScope found in context".

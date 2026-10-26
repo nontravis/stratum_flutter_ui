@@ -11,8 +11,9 @@ import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 ///   the value.
 /// - `StratumThemeApplication` inserts one when none is above.
 /// - On an Android or iOS host the value is the OS flag. It reads true even
-///   while `context.deviceWindow.keyboardHeight` reads 0. It reads false in
-///   Android's floating or split keyboard mode and with a hardware keyboard.
+///   while `context.deviceWindow.keyboardHeight` reads 0, Android's floating
+///   or split keyboard mode included. With a hardware keyboard it reads false
+///   only while the OS hides the on-screen keyboard.
 /// - On web, macOS, Windows, Linux, and the `flutter test` host the value is
 ///   `false`, and no platform channel opens.
 /// - Dependents rebuild only on open or close.
