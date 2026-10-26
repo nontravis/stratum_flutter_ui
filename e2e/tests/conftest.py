@@ -39,12 +39,14 @@ from stratum_e2e.android.talkback import (
 )
 from stratum_e2e.android.uhid_keyboard import UhidKeyboard
 from stratum_e2e.appium_server import AppiumServer, AppiumStartError
+from stratum_e2e.host_load import write_baseline, write_failure_snapshot
 from stratum_e2e.ios.session import WDA_DERIVED_DATA, install_app, ios_capabilities
 from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.macos.session import mac_capabilities
 from stratum_e2e.ports import free_port
 from stratum_e2e.round.collect import item_target
 from stratum_e2e.round.errors import RoundEnvError
+from stratum_e2e.round.results import _segment
 from stratum_e2e.round.runner import Runner
 from stratum_e2e.round.state import ROUND_KEY, RoundTarget
 from stratum_e2e.selection import skip_reason
@@ -53,6 +55,8 @@ from stratum_e2e.web.server import StaticServer
 TESTS_DIR = Path(__file__).resolve().parent
 _CONSOLE_LOCKED = re.compile(r'"CGSSessionScreenIsLocked"\s*=\s*Yes')
 _IOREG_TIMEOUT_S = 30.0
+# The targets whose baseline host-load snapshot is written, so a session writes one per target.
+_HOST_LOAD_BASELINES: set[str] = set()
 
 
 def _required_option(config: pytest.Config, name: str) -> str:
@@ -286,16 +290,48 @@ def _set_up[T](stack: contextlib.ExitStack, tool: contextlib.AbstractContextMana
         raise RoundEnvError(f"{what} failed: {_first_line(str(error))}") from error
 
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip a tests/ item --platform does not run; a round selects its own items, so this stays out of one."""
+    if config.stash.get(ROUND_KEY, None) is not None:
+        return
+    platform = config.getoption("--platform")
+    for item in items:
+        if TESTS_DIR not in Path(str(item.path)).resolve().parents:
+            continue
+        markers = {marker.name for marker in item.iter_markers()}
+        reason = skip_reason(markers, platform)
+        if reason is not None:
+            item.add_marker(pytest.mark.skip(reason=reason))
+
+
+def _host_load_target(item: pytest.Item) -> str | None:
+    """The round target of `item` when its round dir exists; `None` outside a round."""
+    from stratum_e2e.round.state import STATE_KEY
+
+    state = item.config.stash.get(STATE_KEY, None)
+    if state is None or state.round_dir is None:
+        return None
+    target = item_target(item)
+    return target.name if target is not None else None
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Skip a `talkback_avd` test unless --device (in a round, the item's target) is the AVD named AVD_NAME.
+    """Skip a `talkback_avd` test on the wrong AVD.
 
-    Runs before the driver fixture, so a shared target never gets an Appium session.
+    Runs before the driver fixture, so a shared target never gets an Appium session. The baseline
+    write lives in `pytest_runtest_makereport`, not here: this hook runs before the fixtures, and
+    `round_target`'s bring-up — which creates the round dir — runs after it, so a target whose
+    first item is also its last (a `-k` round) would never see a round dir and never write one.
     """
     if TESTS_DIR not in Path(str(item.path)).resolve().parents:
         return
-    if item.get_closest_marker("talkback_avd") is None or item.get_closest_marker("skip"):
-        return
+    if item.get_closest_marker("talkback_avd") is not None and item.get_closest_marker("skip") is None:
+        _skip_unless_talkback_avd(item)
+
+
+def _skip_unless_talkback_avd(item: pytest.Item) -> None:
+    """Skip `item` unless --device (in a round, the item's target) is the AVD named AVD_NAME."""
     target = item_target(item)
     if target is not None:
         if target.avd != AVD_NAME:
@@ -309,15 +345,48 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         pytest.skip(f"talkback_avd: {device} is AVD {name!r}, not {AVD_NAME!r}")
 
 
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip a tests/ item --platform does not run; a round selects its own items, so this stays out of one."""
-    if config.stash.get(ROUND_KEY, None) is not None:
-        return
-    platform = config.getoption("--platform")
-    for item in items:
-        if TESTS_DIR not in Path(str(item.path)).resolve().parents:
-            continue
-        markers = {marker.name for marker in item.iter_markers()}
-        reason = skip_reason(markers, platform)
-        if reason is not None:
-            item.add_marker(pytest.mark.skip(reason=reason))
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
+    """Write the target's baseline host load after its first item's setup, and a failure snapshot on a failed setup
+    or call phase.
+
+    The baseline lives here, not in `pytest_runtest_setup`: that hook runs before the fixtures, and
+    `round_target`'s bring-up — which creates the round dir — runs after it, so a target whose first
+    item is also its last (a `-k` round) would never see a round dir and never write one.
+    """
+    report = yield
+    if TESTS_DIR not in Path(str(item.path)).resolve().parents:
+        return report
+    if report.when == "setup" and not report.failed:
+        name = _host_load_target(item)
+        if name is not None and name not in _HOST_LOAD_BASELINES:
+            _HOST_LOAD_BASELINES.add(name)
+            from stratum_e2e.round.state import STATE_KEY
+
+            write_baseline(item.config.stash[STATE_KEY].round_dir.path / _segment(name))
+    if report.when not in ("setup", "call") or not report.failed:
+        return report
+    name = _host_load_target(item)
+    if name is None:
+        return report
+    from stratum_e2e.round.state import STATE_KEY
+
+    state = item.config.stash[STATE_KEY]
+    if state.round_dir is None:
+        return report
+    folder = state.round_dir.item_dir(name, _host_load_test_name(item, name))
+    write_failure_snapshot(folder)
+    return report
+
+
+def _host_load_test_name(item: pytest.Item, target_name: str) -> str:
+    """The item's summary name, so its host_load.txt lands beside its device.log."""
+    from stratum_e2e.round.items import _test_name  # type: ignore[attr-defined]
+
+    target = item_target(item)
+    if target is not None:
+        return _test_name(item, target)
+    return getattr(item, "originalname", item.name)
+
+
+

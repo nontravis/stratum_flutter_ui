@@ -129,8 +129,20 @@ def run_action(keyboard: UhidKeyboard, talkback: TalkBackLog, name: str) -> None
     raise AssertionError(f"{name!r} was not offered in {MENU_STEPS} steps")
 
 
-def focus_by_touch(driver: Any, element: Any, label: str) -> None:
-    """Explore-by-touch: touch the centre of [element] and wait until TalkBack holds focus on [label]."""
+def focus_by_touch(driver: Any, element: Any, label: str, talkback: TalkBackLog) -> None:
+    """Explore-by-touch: touch the centre of [element] and wait until TalkBack holds focus on [label].
+
+    The touch waits until a node holds accessibility focus and TalkBack is idle from handling
+    the new window: TalkBack drops a touch that arrives while it still runs its initial
+    ensure-focus (the touch ends with no explore and focus stays where it was), so touching
+    before that loses the tap and the wait below never sees [label].
+    """
+    wait_until(
+        lambda: a11y_focused(driver.page_source),
+        "a11y focus to land",
+        timeout_s=FOCUS_TIMEOUT_S,
+    )
+    talkback.wait_idle()
     x, y = emu_mouse.center(element.rect)
     emu_mouse.tap(str(driver.capabilities["udid"]), x, y)
     wait_until(

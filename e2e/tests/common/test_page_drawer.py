@@ -31,7 +31,7 @@ from stratum_e2e.android.screen_reader import focus_by_touch, settled_speech, st
 from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
 from stratum_e2e.android.tree import bounds, parent_attributes
 from stratum_e2e.android.uhid_keyboard import UhidKeyboard
-from stratum_e2e.fixtures import open_fixture
+from stratum_e2e.fixtures import open_fixture_and_wait
 from stratum_e2e.ios.voiceover import VoiceOver, matches_prefix
 from stratum_e2e.ios.tree import labels
 from stratum_e2e.locate import NODE_NOT_FOUND, by_id, by_label, click, is_displayed
@@ -63,12 +63,13 @@ def _link_a_on_screen(driver: Any, platform: str) -> bool:
 
 def _open_fixture(driver: Any, platform: str, app_id: str, opener: str) -> None:
     """Cold-start the fixture and wait until the button [opener] is on screen."""
-    open_fixture(driver, platform, app_id, FIXTURE_ID)
-    wait_until(
+    open_fixture_and_wait(
+        driver,
+        platform,
+        app_id,
+        FIXTURE_ID,
         lambda: is_displayed(by_label(driver, platform, opener, exact=True), platform),
         f"the {opener!r} button on screen",
-        timeout_s=WAIT_TIMEOUT_S,
-        catch=NODE_NOT_FOUND,
     )
 
 
@@ -111,7 +112,7 @@ def test_talkback_reads_the_drawer_and_its_scrim_and_never_the_page(
     opening = settled_speech(talkback, FOCUS_TIMEOUT_S)
 
     talkback.mark()
-    focus_by_touch(driver, by_id(driver, platform, LINK_A_ID), "Drawer link A")
+    focus_by_touch(driver, by_id(driver, platform, LINK_A_ID), "Drawer link A", talkback)
     touched = settled_speech(talkback, FOCUS_TIMEOUT_S)
     talkback.mark()
     heard, path = step_through(driver, keyboard, talkback, STEPS)

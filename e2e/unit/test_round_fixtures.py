@@ -1242,7 +1242,8 @@ def test_second_appium_failure_on_a_module_blocks_the_target(
     assert len(_events(root, "run screencapture")) == 2  # both runs of driver_a; a blocked item captures nothing
     round_dir = _round_dirs(pytester)[-1]
     blocked_dir = (round_dir / cells["test_e2e.py::test_mac_driver_b"]["mac"]["log"]).parent
-    assert sorted(path.name for path in blocked_dir.iterdir()) == ["pytest.log"]
+    # `host_load.txt` joins pytest.log: a blocked item's setup failed, so the host-load hook fired too.
+    assert sorted(path.name for path in blocked_dir.iterdir()) == ["host_load.txt", "pytest.log"]
 
 
 ANDROID_DRIVER = """\

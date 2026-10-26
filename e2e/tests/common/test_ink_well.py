@@ -104,7 +104,7 @@ def test_talkback_speaks_the_button_and_offers_show_menu_on_the_node_it_focuses(
     _open(driver, platform, app_id)
 
     talkback.mark()
-    focus_by_touch(driver, by_label(driver, platform, BUTTON_LABEL), BUTTON_LABEL)
+    focus_by_touch(driver, by_label(driver, platform, BUTTON_LABEL), BUTTON_LABEL, talkback)
     wait_until(
         lambda: any(text.startswith(BUTTON_LABEL) for text in talkback.since_mark()),
         f"TalkBack to speak {BUTTON_LABEL}",

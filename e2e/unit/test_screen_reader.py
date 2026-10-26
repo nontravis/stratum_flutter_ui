@@ -49,11 +49,15 @@ class ScriptedDevice:
         self.replies = list(replies)
         self.presses: list[tuple[int, int]] = []
         self.marks = 0
+        self.idles = 0
         self._spoken: list[str] = []
 
     def press(self, usage: int, mods: int = 0) -> None:
         self.presses.append((usage, mods))
         self._spoken = self.replies.pop(0) if self.replies else []
+
+    def wait_idle(self) -> None:
+        self.idles += 1
 
     def mark(self) -> None:
         self.marks += 1
@@ -271,10 +275,58 @@ def test_focus_by_touch_taps_the_centre_and_waits_for_the_label(
 ) -> None:
     taps: list[tuple[str, int, int]] = []
     monkeypatch.setattr(f"{MODULE}.emu_mouse.tap", lambda s, x, y: taps.append((s, x, y)))
+    talkback = ScriptedDevice([])
 
-    focus_by_touch(FakeDriver(["Menu target"]), FakeElement(), "Menu target")
+    focus_by_touch(FakeDriver(["Menu target"]), FakeElement(), "Menu target", talkback)  # type: ignore[arg-type]
 
     assert taps == [(SERIAL, 120, 210)]
+    assert talkback.idles == 1
+
+
+def test_focus_by_touch_waits_for_idle_before_it_taps(
+    clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The touch lands only once a node holds focus and TalkBack finished the window's speech."""
+    order: list[str] = []
+
+    class LateFocusDriver:
+        capabilities = {"udid": SERIAL}
+
+        def __init__(self, label: str) -> None:
+            self._label = label
+
+        @property
+        def page_source(self) -> str:
+            order.append("page_source")
+            return f'<hierarchy><node content-desc="{self._label}" a11y-focused="true"/></hierarchy>'
+
+    class RecordingTalkBack(ScriptedDevice):
+        def wait_idle(self) -> None:  # type: ignore[override]
+            order.append("wait_idle")
+            super().wait_idle()
+
+    def tap(serial: str, x: int, y: int) -> None:
+        order.append("tap")
+
+    monkeypatch.setattr(f"{MODULE}.emu_mouse.tap", tap)
+    talkback = RecordingTalkBack([])
+    driver = LateFocusDriver("Menu target")
+
+    focus_by_touch(driver, FakeElement(), "Menu target", talkback)  # type: ignore[arg-type]
+
+    assert order == ["page_source", "wait_idle", "tap", "page_source"]
+
+
+def test_focus_by_touch_times_out_when_no_node_ever_holds_focus(
+    clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(f"{MODULE}.emu_mouse.tap", lambda s, x, y: pytest.fail("tapped before focus"))
+    talkback = ScriptedDevice([])
+    driver = FakeDriver(["", "", "", "", ""])
+
+    with pytest.raises(AssertionError, match="a11y focus to land"):
+        focus_by_touch(driver, FakeElement(), "Menu target", talkback)  # type: ignore[arg-type]
+    assert talkback.idles == 0
 
 
 def test_focus_by_touch_times_out_when_another_node_holds_focus(
@@ -283,4 +335,6 @@ def test_focus_by_touch_times_out_when_another_node_holds_focus(
     monkeypatch.setattr(f"{MODULE}.emu_mouse.tap", lambda s, x, y: None)
 
     with pytest.raises(AssertionError, match="TalkBack focus on Menu target"):
-        focus_by_touch(FakeDriver(["Elsewhere"]), FakeElement(), "Menu target")
+        focus_by_touch(
+            FakeDriver(["Elsewhere"]), FakeElement(), "Menu target", ScriptedDevice([])
+        )  # type: ignore[arg-type]

@@ -39,7 +39,7 @@ from stratum_e2e.android.screen_reader import (
 )
 from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
 from stratum_e2e.android.uhid_keyboard import KEY_ENTER, KEY_RIGHT, KEY_UP, MOD_LALT, UhidKeyboard
-from stratum_e2e.fixtures import open_fixture
+from stratum_e2e.fixtures import open_fixture_and_wait
 from stratum_e2e.ios import tree as ios_tree
 from stratum_e2e.ios.focus_order import focus_order, matches_order
 from stratum_e2e.ios.voiceover import VoiceOver
@@ -131,17 +131,19 @@ def _app_log(driver: Any) -> str:
 
 def _open(driver: Any, platform: str, app_id: str) -> None:
     """Cold-start the fixture and wait until all six items are on screen."""
-    open_fixture(driver, platform, app_id, FIXTURE_ID)
-    wait_until(
+    open_fixture_and_wait(
+        driver,
+        platform,
+        app_id,
+        FIXTURE_ID,
         lambda: _order(driver, platform) == INITIAL_ORDER,
         "the six items on screen",
-        timeout_s=WAIT_TIMEOUT_S,
     )
 
 
-def _focus_item(driver: Any, label: str) -> None:
+def _focus_item(driver: Any, label: str, talkback: TalkBackLog) -> None:
     """Explore-by-touch: touch [label]'s item so TalkBack focuses and speaks it."""
-    focus_by_touch(driver, driver.find_element(AppiumBy.ACCESSIBILITY_ID, label), label)
+    focus_by_touch(driver, driver.find_element(AppiumBy.ACCESSIBILITY_ID, label), label, talkback)
 
 
 def _offered_moves(keyboard: UhidKeyboard, talkback: TalkBackLog) -> set[str]:
@@ -187,7 +189,7 @@ def test_talkback_takes_alt_up_before_the_app(
     driver: Any, platform: str, app_id: str, talkback: TalkBackLog, keyboard: UhidKeyboard
 ) -> None:
     _open(driver, platform, app_id)
-    _focus_item(driver, "Item 3")
+    _focus_item(driver, "Item 3", talkback)
 
     talkback.mark()
     keyboard.press(KEY_UP, MOD_LALT)
@@ -212,14 +214,14 @@ def test_talkback_offers_only_valid_moves(
 ) -> None:
     _open(driver, platform, app_id)
 
-    _focus_item(driver, "Item 1")
+    _focus_item(driver, "Item 1", talkback)
     first = _offered_moves(keyboard, talkback)
     assert MOVE_UP not in first
     assert MOVE_TO_START not in first
     assert {MOVE_DOWN, MOVE_TO_END} <= first
 
     _close_actions(driver, keyboard, talkback, returns_to="Item 1")
-    _focus_item(driver, "Item 3")
+    _focus_item(driver, "Item 3", talkback)
     middle = _offered_moves(keyboard, talkback)
     assert middle == ALL_MOVES
 
@@ -233,7 +235,7 @@ def test_talkback_move_up_moves_item_and_speaks_position(
     driver: Any, platform: str, app_id: str, talkback: TalkBackLog, keyboard: UhidKeyboard
 ) -> None:
     _open(driver, platform, app_id)
-    _focus_item(driver, "Item 3")
+    _focus_item(driver, "Item 3", talkback)
 
     run_action(keyboard, talkback, MOVE_UP)
     wait_until(
@@ -261,7 +263,7 @@ def test_talkback_reads_a_root_row_with_its_role_moves_and_tap_at_one_stop(
     _open(driver, platform, app_id)
 
     talkback.mark()
-    _focus_item(driver, "Item 3")
+    _focus_item(driver, "Item 3", talkback)
     spoken = settled_speech(talkback, FOCUS_TIMEOUT_S)
     assert spoken, "TalkBack spoke nothing after the focus"
     node = driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 3")
@@ -292,7 +294,7 @@ def test_talkback_reads_the_disabled_root_row_with_its_moves_and_no_tap(
     _open(driver, platform, app_id)
 
     talkback.mark()
-    _focus_item(driver, "Item 6")
+    _focus_item(driver, "Item 6", talkback)
     spoken = settled_speech(talkback, FOCUS_TIMEOUT_S)
     assert spoken, "TalkBack spoke nothing after the focus"
     node = driver.find_element(AppiumBy.ACCESSIBILITY_ID, "Item 6")

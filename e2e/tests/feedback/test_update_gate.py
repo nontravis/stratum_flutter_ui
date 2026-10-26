@@ -30,7 +30,7 @@ import pytest
 from stratum_e2e.android.screen_reader import focus_by_touch, step_through
 from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
 from stratum_e2e.android.uhid_keyboard import UhidKeyboard
-from stratum_e2e.fixtures import open_fixture
+from stratum_e2e.fixtures import open_fixture_and_wait
 from stratum_e2e.ios.focus_order import focus_order
 from stratum_e2e.ios.voiceover import VoiceOver, matches_prefix
 from stratum_e2e.locate import NODE_NOT_FOUND, by_id, by_label, click, is_displayed
@@ -62,12 +62,13 @@ def _starts_with_any(utterance: str, words: tuple[str, ...] | set[str]) -> bool:
 
 def _open_fixture(driver: Any, platform: str, app_id: str) -> None:
     """Cold-start the fixture and wait until the require button is on screen."""
-    open_fixture(driver, platform, app_id, FIXTURE_ID)
-    wait_until(
+    open_fixture_and_wait(
+        driver,
+        platform,
+        app_id,
+        FIXTURE_ID,
         lambda: is_displayed(by_label(driver, platform, REQUIRE_LABEL, exact=True), platform),
         f"the {REQUIRE_LABEL!r} button on screen",
-        timeout_s=FOCUS_TIMEOUT_S,
-        catch=NODE_NOT_FOUND,
     )
 
 
@@ -178,7 +179,7 @@ def test_talkback_reads_the_update_dialog_alone(
     )
 
     talkback.mark()
-    focus_by_touch(driver, by_id(driver, platform, DIALOG_TITLE_ID), DIALOG_TITLE)
+    focus_by_touch(driver, by_id(driver, platform, DIALOG_TITLE_ID), DIALOG_TITLE, talkback)
     heard, path = step_through(driver, keyboard, talkback, DIALOG_STEPS)
     assert not [text for text in heard if _starts_with_any(text, PAGE_WORDS)], (
         " | ".join(heard)

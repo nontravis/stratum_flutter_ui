@@ -143,7 +143,7 @@ def test_talkback_reads_the_divider_label_slider_and_percent(
 
     talkback.mark()
     screen_reader.focus_by_touch(
-        driver, _divider(driver, platform), f"{START_PERCENT}%, {DIVIDER_LABEL}"
+        driver, _divider(driver, platform), f"{START_PERCENT}%, {DIVIDER_LABEL}", talkback
     )
     wait_until(
         lambda: SLIDER_ROLE in talkback.since_mark(),
@@ -166,7 +166,7 @@ def test_talkback_increase_and_decrease_move_the_divider_and_speak_the_new_perce
 ) -> None:
     _open(driver, platform, app_id)
     screen_reader.focus_by_touch(
-        driver, _divider(driver, platform), f"{START_PERCENT}%, {DIVIDER_LABEL}"
+        driver, _divider(driver, platform), f"{START_PERCENT}%, {DIVIDER_LABEL}", talkback
     )
 
     talkback.mark()

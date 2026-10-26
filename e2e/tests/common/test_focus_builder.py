@@ -64,7 +64,7 @@ def test_talkback_reads_the_group_label_before_the_street_field(
 ) -> None:
     _open(driver, platform, app_id)
     talkback.mark()
-    focus_by_touch(driver, by_id(driver, platform, HEADING_ID), HEADING)
+    focus_by_touch(driver, by_id(driver, platform, HEADING_ID), HEADING, talkback)
     assert settled_speech(talkback, FOCUS_TIMEOUT_S), "TalkBack spoke nothing after the focus"
     talkback.mark()
 
