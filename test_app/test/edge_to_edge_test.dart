@@ -67,70 +67,67 @@ void main() {
     addTearDown(() => debugStratumWebViewPlatformFactory = null);
   });
 
-  testWidgets(
-    'every fixture that builds a PageLayout is hosted with no SafeArea above '
-    'it, and every edge-to-edge fixture gets none',
-    (tester) async {
-      // The theme preload reads assets, which needs real time, not fake
-      // async.
-      final theme = await tester.runAsync(
-        () => StratumThemeController.preload(googleFontsTimeout: Duration.zero),
+  testWidgets('every fixture that builds a PageLayout is hosted with no SafeArea above '
+      'it, and every edge-to-edge fixture gets none', (tester) async {
+    // The theme preload reads assets, which needs real time, not fake
+    // async.
+    final theme = await tester.runAsync(
+      () => StratumThemeController.preload(googleFontsTimeout: Duration.zero),
+    );
+    addTearDown(theme!.dispose);
+
+    // The fixtures the loop saw a PageLayout in: a fixture that mounted its
+    // PageLayout after the two pumps would be checked by nothing, so the
+    // known PageLayout fixtures must all be seen.
+    final withPageLayout = <String>{};
+    for (final entry in fixtures.entries) {
+      await tester.pumpWidget(
+        FixtureApp(fixtureId: entry.key, themeController: theme),
       );
-      addTearDown(theme!.dispose);
+      await tester.pump();
+      // A second pump lets fixtures whose first build awaits a load, such
+      // as page_layout over the settings store, mount their PageLayout.
+      await tester.pump();
 
-      // The fixtures the loop saw a PageLayout in: a fixture that mounted its
-      // PageLayout after the two pumps would be checked by nothing, so the
-      // known PageLayout fixtures must all be seen.
-      final withPageLayout = <String>{};
-      for (final entry in fixtures.entries) {
-        await tester.pumpWidget(
-          FixtureApp(fixtureId: entry.key, themeController: theme),
+      final hostSafeArea = find.descendant(
+        of: find.byType(Scaffold),
+        matching: find.byType(SafeArea),
+      );
+      if (entry.value.edgeToEdge) {
+        expect(
+          hostSafeArea.evaluate(),
+          isEmpty,
+          reason:
+              '${entry.key} declares edgeToEdge, so the host must add no '
+              'SafeArea around it.',
         );
-        await tester.pump();
-        // A second pump lets fixtures whose first build awaits a load, such
-        // as page_layout over the settings store, mount their PageLayout.
-        await tester.pump();
-
-        final hostSafeArea = find.descendant(
-          of: find.byType(Scaffold),
-          matching: find.byType(SafeArea),
-        );
-        if (entry.value.edgeToEdge) {
-          expect(
-            hostSafeArea.evaluate(),
-            isEmpty,
-            reason:
-                '${entry.key} declares edgeToEdge, so the host must add no '
-                'SafeArea around it.',
-          );
-        }
-
-        final pageLayout = find.byType(PageLayout);
-        if (pageLayout.evaluate().isNotEmpty) {
-          withPageLayout.add(entry.key);
-          expect(
-            find
-                .ancestor(of: pageLayout, matching: find.byType(SafeArea))
-                .evaluate(),
-            isEmpty,
-            reason:
-                '${entry.key} builds a PageLayout, so no SafeArea may sit above '
-                'it: PageLayout pads its own slots by the insets, and a host '
-                'SafeArea shrinks its box below the screen.',
-          );
-        }
-
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
       }
-      expect(
-        withPageLayout,
-        containsAll(<String>[
-          'common/page_layout',
-          'common/page_drawer',
-          'common/page_layout_loading',
-        ]),
-      );
-    },
-  );
+
+      final pageLayout = find.byType(PageLayout);
+      if (pageLayout.evaluate().isNotEmpty) {
+        withPageLayout.add(entry.key);
+        expect(
+          find
+              .ancestor(of: pageLayout, matching: find.byType(SafeArea))
+              .evaluate(),
+          isEmpty,
+          reason:
+              '${entry.key} builds a PageLayout, so no SafeArea may sit above '
+              'it: PageLayout pads its own slots by the insets, and a host '
+              'SafeArea shrinks its box below the screen.',
+        );
+      }
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    }
+    expect(
+      withPageLayout,
+      containsAll(<String>[
+        'common/page_layout',
+        'common/page_drawer',
+        'common/page_layout_loading',
+      ]),
+    );
+  });
 }
