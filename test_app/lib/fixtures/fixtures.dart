@@ -7,6 +7,7 @@ import 'common/page_drawer.dart';
 import 'common/page_layout.dart';
 import 'common/page_layout_loading.dart';
 import 'common/reorderable_list_view_layout.dart';
+import 'common/splash_screen.dart';
 import 'common/split_layout.dart';
 import 'common/web_view.dart';
 import 'smoke/semantics_id.dart';
@@ -62,6 +63,9 @@ final Map<String, FixtureEntry> fixtures = <String, FixtureEntry>{
   ),
   'common/reorderable_list_view_layout': FixtureEntry(
     builder: (context) => const ReorderableListViewLayoutFixture(),
+  ),
+  'common/splash_screen': FixtureEntry(
+    builder: (context) => const SplashScreenFixture(),
   ),
   'common/split_layout': FixtureEntry(
     builder: (context) => const SplitLayoutFixture(),
