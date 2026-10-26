@@ -5,11 +5,12 @@ from __future__ import annotations
 import copy
 import json
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from stratum_e2e.round.boot import BootRecord
+from stratum_e2e.round.boot import BootLog, BootRecord
 from stratum_e2e.round.catalog import LaneConfig, Target
 from stratum_e2e.round.errors import CatalogError, RoundEnvError
 from stratum_e2e.round.ios_boot import HostBooter, IosBooter, IosPair, PairError, resolve_pair
@@ -705,3 +706,37 @@ def test_host_targets_boot_nothing(target: Target, platform: str, device_id: str
 def test_host_booter_refuses_a_device_platform() -> None:
     with pytest.raises(CatalogError, match="pixel_8"):
         HostBooter().boot(Target(name="pixel_8", platform="android", avd="x"), Path("boot.log"))
+
+
+SINCE = datetime(2026, 10, 24, 1, 2, 3, 456000, tzinfo=UTC)
+
+
+def _simulator_log(udid: str) -> tuple[str, ...]:
+    return ("xcrun", "simctl", "spawn", udid, "log", "show", "--style", "compact", "--start", "@1792803723")
+
+
+def test_a_booted_simulator_saves_its_log_from_the_boot_start(tmp_path: Path) -> None:
+    udid = _pair().udid
+    booter, runner = _booter([*_boot_script(udid), (_simulator_log(udid), _done())])
+
+    booter.boot(IPHONE, Path("boot.log"), BootLog(tmp_path / "device.log", SINCE))
+
+    assert runner.calls[-1] == _simulator_log(udid)
+
+
+def test_a_reused_simulator_saves_no_log(tmp_path: Path) -> None:
+    udid = _pair().udid
+    booted = _with_state(_fixture(), udid, "Booted")
+    booter, runner = _booter([_listing(booted), *_pin_script(udid)])
+
+    booter.boot(IPHONE, Path("boot.log"), BootLog(tmp_path / "device.log", SINCE))
+
+    assert _simulator_log(udid) not in runner.calls
+
+
+def test_a_host_target_saves_no_log(tmp_path: Path) -> None:
+    path = tmp_path / "device.log"
+
+    HostBooter().boot(Target(name="mac", platform="macos"), Path("boot.log"), BootLog(path, SINCE))
+
+    assert not path.exists()

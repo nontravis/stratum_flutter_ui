@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -17,7 +18,7 @@ from stratum_e2e.round.android_traps import (
     settings_restore_argv,
     settle_reasons,
 )
-from stratum_e2e.round.boot import BootRecord
+from stratum_e2e.round.boot import BootLog, BootRecord
 from stratum_e2e.round.catalog import LaneConfig, Target
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.runner import Completed
@@ -782,3 +783,64 @@ def test_interrupt_during_the_ready_wait_kills_waits_and_releases(
     assert process.waits[0] is not None
     assert _changes_on(runner.calls, SERIAL) == []
     assert _port_is_free(avd_home, 5556)
+
+
+SINCE = datetime(2026, 10, 24, 1, 2, 3, 456000, tzinfo=UTC)
+LOGCAT = (
+    ADB, "-s", SERIAL, "logcat", "-d", "-b", "main,system,crash,events", "-v", "threadtime", "-T", "1792803723.456"
+)
+
+
+def _boot_log(tmp_path: Path) -> BootLog:
+    return BootLog(tmp_path / "boot.log", SINCE)
+
+
+def _logcat() -> list[Entry]:
+    return [(LOGCAT, _done("am_anr line\n"))]
+
+
+def test_cold_boot_saves_the_device_log_from_the_boot_start_once_settled(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    runner = EmulatorRunner([*_cold_boot(), *_logcat()])
+
+    record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log", _boot_log(tmp_path))
+
+    assert runner.calls.count(LOGCAT) == 1
+    assert runner.calls.index(LOGCAT) > runner.calls.index(_on(SERIAL, "shell", "dumpsys", "input_method"))
+    assert record.port is not None
+    record.port.release()
+
+
+def test_a_settle_failure_saves_the_device_log_before_the_emulator_ends_and_still_raises(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    lane = LaneConfig(20, 3, True, (), 30)
+    unsettled = _settle(load="3.50", focus=FOCUS_ANR, ime=IME_UNBOUND)
+    script = [
+        *_listing((OTHER, "Other_AVD")),
+        *_ready(),
+        *_confirm(),
+        *_rtt("12.3"),
+        *unsettled[:2],
+        (_force_stop(SYSTEMUI), _done()),
+        *unsettled[2:],
+        *unsettled * 3,
+        *_logcat(),
+        *_teardown(restore=False),
+    ]
+    runner = EmulatorRunner(script)
+
+    with pytest.raises(RoundEnvError, match="did not settle"):
+        _booter(runner, avd_home, clock, lane).boot(TARGET, tmp_path / "emulator.log", _boot_log(tmp_path))
+
+    assert runner.calls.count(LOGCAT) == 1
+    assert runner.calls.index(LOGCAT) < runner.calls.index(_on(SERIAL, "emu", "kill"))
+
+
+def test_a_reused_emulator_saves_no_device_log(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    runner = EmulatorRunner([*_listing((OTHER, "Other_AVD"), (SERIAL, AVD)), *_rtt("12.3")])
+
+    _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log", _boot_log(tmp_path))
+
+    assert not _has(runner.calls, "logcat")

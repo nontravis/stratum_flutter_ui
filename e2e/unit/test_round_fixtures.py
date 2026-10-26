@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,7 @@ FILE_A = "smoke/a_test.dart"
 FILE_B = "smoke/b_test.dart"
 MAC_APP_ID = "dev.stratum.stratumUiTestApp"
 REUSED_SERIAL = "emulator-5554"
+STOP_NOTICE = "stopping: tearing every target down; a further stop signal is ignored, SIGKILL forces"
 
 TARGETS_TOML = """\
 [apps.test_app]
@@ -87,8 +90,10 @@ FAKE_SOURCE = r'''
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import appium.webdriver
@@ -179,8 +184,11 @@ class FakeBooter:
     def is_running(self, target):
         return target.platform in HOST_PLATFORMS or target.name in SCENARIO.get("running", [])
 
-    def boot(self, target, log):
+    def boot(self, target, log, device_log=None):
         event(f"boot {target.name}")
+        if device_log is not None:
+            where = f"{device_log.path.parent.name}/{device_log.path.name}"
+            event(f"device log {target.name} {where} {device_log.since.isoformat()}")
         left = self._failures.get(target.name, 0)
         if left:
             self._failures[target.name] = left - 1
@@ -198,6 +206,10 @@ class FakeBooter:
         A target named in `shutdown_fail` raises instead: `env` a `RoundEnvError`, `os` an `OSError`.
         """
         event(f"shutdown {record.target}")
+        stop = SCENARIO.get("shutdown_signal", {}).get(record.target)
+        if stop:
+            os.kill(os.getpid(), getattr(signal, stop))
+            event(f"signal during shutdown {record.target}")
         count = _shutdowns[record.target] = _shutdowns.get(record.target, 0) + 1
         failures = SCENARIO.get("setting_failures", {}).get(record.target, [])
         if count <= len(failures):
@@ -273,6 +285,15 @@ def run_plan(plan, target, record, booter, app_dir, item_dir, runner, per_file_t
     return RunOutcome(argv, 1.5, files, build_argv, 4.0 if build_argv else 0.0, exit_status=status)
 
 
+_ticks = [0]
+
+
+def _clock():
+    """`NOW`; with `now_step` in the scenario, a clock that moves that many seconds on each read."""
+    _ticks[0] += 1
+    return NOW + timedelta(seconds=SCENARIO.get("now_step", 0) * _ticks[0])
+
+
 @pytest.fixture(scope="session")
 def round_backends(request):
     runner = FakeRunner()
@@ -292,7 +313,7 @@ def round_backends(request):
         build=build,
         run_plan=run_plan,
         memory_reasons=lambda: host_memory_reasons(runner, request.config.stash[state.CATALOG_KEY].lane),
-        now=lambda: NOW,
+        now=_clock,
         port_dir=ROOT / "ports",
         sleep=lambda seconds: event("sleep"),
     )
@@ -684,6 +705,19 @@ def test_lane_busy_reports_env_on_every_item_of_that_target_and_moves_on(
     assert "boot mac" in _events(root)
 
 
+def test_each_boot_attempt_logs_to_its_own_device_log_beside_boot_log(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_A, {"boot_fail": {"mac": 1}, "now_step": 60})
+    result = _round(pytester, "--target", "mac")
+    result.assert_outcomes(passed=3)
+    # Clock reads: the round dir's name, then each attempt's start.
+    assert _events(root, "device log") == [
+        "device log mac boot/device.log 2026-10-24T01:04:03+00:00",
+        "device log mac boot/device-2.log 2026-10-24T01:05:03+00:00",
+    ]
+
+
 def test_boot_env_retries_once_then_blocks_the_target(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -782,6 +816,153 @@ def test_mac_sigterm(round_target):
     assert events.index("shutdown mac") > events.index("item mac sigterm")
     assert events.index("release mac") > events.index("shutdown mac")
     assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+
+
+_SIGNALS_HELPER = """
+def _signals():
+    names = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
+    return " ".join(getattr(handler, "__name__", str(handler)) for handler in names)
+"""
+
+
+def _round_with_priors(
+    pytester: pytest.Pytester, sigterm: str, sigint: str, *args: str, plain: str = "tests"
+) -> pytest.RunResult:
+    """Run pytest in a child that starts with `sigterm` and `sigint` set to the given `signal` handler expressions.
+
+    `signal.SIG_IGN` on SIGINT is what every `&` command of a non-interactive shell starts with. The handlers are set
+    in the child, so the unit suite's own signals stay as they are.
+    """
+    code = (
+        "import signal, sys, pytest\n"
+        f"signal.signal(signal.SIGTERM, {sigterm})\n"
+        f"signal.signal(signal.SIGINT, {sigint})\n"
+        f'sys.exit(pytest.main(["{plain}", "-p", "no:cacheprovider", *sys.argv[1:]]))\n'
+    )
+    return pytester.run(sys.executable, "-c", code, *args)
+
+
+def test_sigint_mid_round_restores_and_kills(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    sigint = """\
+@pytest.mark.macos
+def test_mac_sigint(round_target):
+    event("item mac sigint")
+    os.kill(os.getpid(), signal.SIGINT)
+    time.sleep(10)
+    event("item mac survived")
+"""
+    root = _make_tree(pytester, monkeypatch, sigint)
+    result = _round_with_priors(pytester, "signal.SIG_DFL", "signal.SIG_IGN", "--target", "mac")
+    assert result.ret == pytest.ExitCode.INTERRUPTED
+    events = _events(root)
+    assert "item mac survived" not in events
+    assert events.index("shutdown mac") > events.index("item mac sigint")
+    assert events.index("release mac") > events.index("shutdown mac")
+    assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+
+
+def test_a_further_stop_signal_during_teardown_is_ignored_and_the_teardown_finishes(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sigint = """\
+@pytest.mark.macos
+def test_mac_sigint(round_target):
+    event("item mac sigint")
+    os.kill(os.getpid(), signal.SIGINT)
+    time.sleep(10)
+    event("item mac survived")
+"""
+    root = _make_tree(pytester, monkeypatch, sigint, {"shutdown_signal": {"mac": "SIGINT"}})
+    result = _round_with_priors(pytester, "signal.SIG_DFL", "signal.default_int_handler", "--target", "mac")
+    assert result.ret == pytest.ExitCode.INTERRUPTED
+    events = _events(root)
+    assert "item mac survived" not in events
+    assert "signal during shutdown mac" in events
+    assert events.index("release mac") > events.index("shutdown mac")
+    assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+    assert result.stderr.str().count(STOP_NOTICE) == 1
+
+
+def test_the_stop_raises_even_when_its_notice_cannot_be_written(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sigint = """\
+@pytest.mark.macos
+def test_mac_sigint(round_target):
+    import builtins
+
+    def closed(*args, **kwargs):
+        raise OSError("stderr is closed")
+
+    real_print, builtins.print = builtins.print, closed
+    try:
+        event("item mac sigint")
+        os.kill(os.getpid(), signal.SIGINT)
+        time.sleep(10)
+        event("item mac survived")
+    finally:
+        builtins.print = real_print
+"""
+    root = _make_tree(pytester, monkeypatch, sigint)
+    result = _round_with_priors(pytester, "signal.SIG_DFL", "signal.default_int_handler", "--target", "mac")
+    assert result.ret == pytest.ExitCode.INTERRUPTED
+    events = _events(root)
+    assert "item mac survived" not in events
+    assert events.index("release mac") > events.index("shutdown mac")
+    assert (_round_dirs(pytester)[-1] / "summary.json").is_file()
+
+
+@pytest.mark.parametrize(
+    ("sigterm", "sigint"),
+    [
+        ("SIG_DFL", "default_int_handler"),
+        ("SIG_IGN", "SIG_IGN"),
+        ("SIG_DFL", "SIG_DFL"),
+        ("default_int_handler", "SIG_IGN"),
+    ],
+)
+def test_round_signals_return_to_their_prior_handlers(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, sigterm: str, sigint: str
+) -> None:
+    probe = """\
+@pytest.mark.macos
+def test_mac_signals(round_target):
+    event(f"signals in round {_signals()}")
+"""
+    root = _make_tree(pytester, monkeypatch, probe)
+    with (root / "conftest.py").open("a") as conftest:
+        conftest.write(
+            "\nimport signal\n"
+            + _SIGNALS_HELPER
+            + """
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config):
+    from round_fake import event
+    event(f"signals after round {_signals()}")
+"""
+        )
+    # The item cannot see the conftest helper through the test module, so give the module the same one.
+    tests_module = root / "tests" / "test_e2e.py"
+    tests_module.write_text(tests_module.read_text() + "\n" + _SIGNALS_HELPER)
+    result = _round_with_priors(pytester, f"signal.{sigterm}", f"signal.{sigint}", "--target", "mac")
+    result.assert_outcomes(passed=3)
+    priors = (getattr(signal, sigterm), getattr(signal, sigint))
+    named = " ".join(getattr(handler, "__name__", str(handler)) for handler in priors)
+    assert _events(root, "signals") == ["signals in round _interrupt _interrupt", f"signals after round {named}"]
+
+
+def test_a_run_without_a_round_option_leaves_both_signals_alone(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch)
+    (root / "test_plain.py").write_text(
+        "import signal\n\n\ndef test_plain():\n"
+        "    assert signal.getsignal(signal.SIGTERM) is signal.SIG_IGN\n"
+        "    assert signal.getsignal(signal.SIGINT) is signal.SIG_IGN\n"
+    )
+    result = _round_with_priors(pytester, "signal.SIG_IGN", "signal.SIG_IGN", plain="test_plain.py")
+    result.assert_outcomes(passed=1)
 
 
 def test_round_dir_holds_summary_and_item_logs(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:

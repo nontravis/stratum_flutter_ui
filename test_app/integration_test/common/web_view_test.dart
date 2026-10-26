@@ -900,6 +900,358 @@ void main() {
       );
     }
   }, skip: kIsWeb);
+
+  // Group L runs on Linux alone: WebKitGTK names the sender of each message
+  // (CO-01-02 US-06 FR-01). Every "never arrives" case ends on a later message
+  // that does arrive, so the order proves the drop, and on a beacon the page
+  // sent to the server, which proves the page ran up to its post.
+  group('group L, Linux senders', () {
+    testWidgets(
+      'co01_02/us06/s1: an allowed page posts and the app gets one message '
+      'with the origin of that page',
+      (tester) async {
+        final controller = StratumWebViewController();
+        final recorder = await _showPage(
+          tester,
+          server.page('/bridge'),
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        final ready = await pumpUntil(
+          tester,
+          () => recorder.messages.contains('ready'),
+        );
+        // The echo is the later message: a second `ready` would sit before
+        // it.
+        if (ready) await controller.postMessage('ping');
+        final echoed =
+            ready &&
+            await pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:ping'),
+            );
+        recorder.logOrder('linux allowed page');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(ready, isTrue, reason: 'the page message "ready" never came');
+        expect(echoed, isTrue, reason: 'the page never echoed "ping"');
+        expect(recorder.messages, ['ready', 'echo:ping']);
+        expect(recorder.origins.map(_originText), [
+          _originText(server.origin),
+          _originText(server.origin),
+        ]);
+        expect(recorder.errors, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'co01_02/us06/s2, co01_02/us06/fr01/e02, co01_02/us06/fr01/e08: an '
+      'allowed page posts as the view moves to another allowed origin and '
+      'the message arrives with the first origin',
+      (tester) async {
+        // Both pages sit on loopback, so the move stays in one web process;
+        // the pass rule of the upstream-senders design D6 that lets a process
+        // swap drop the message does not apply.
+        final partner = await _PageServer.start();
+        addTearDown(partner.close);
+        final recorder = await _showPage(
+          tester,
+          _leavePage(server, partner.page('/bridge')),
+          allowedOrigins: {server.origin, partner.origin},
+        );
+        final landed = await pumpUntil(
+          tester,
+          () => _messageFrom(recorder, 'ready', partner) != null,
+        );
+        recorder.logOrder('linux allowed page leaves');
+        await tester.pumpWidget(const SizedBox());
+        final events = recorder.events;
+        final startedAt = _moveStartIndex(events);
+        final leavings = recorder.received
+            .where((message) => message.data.startsWith('leaving:'))
+            .toList();
+        expect(landed, isTrue, reason: 'the partner page never said "ready"');
+        expect(
+          startedAt,
+          isNonNegative,
+          reason: 'the move off the first page never started',
+        );
+        expect(leavings, isNotEmpty, reason: 'no message of the first page');
+        expect(leavings.map((message) => _originText(message.origin)).toSet(), {
+          _originText(server.origin),
+        }, reason: 'a message of the first page lost its sender origin');
+        // A message judged while the partner is the tracked page must still
+        // carry its sender's origin, not the partner's.
+        expect(
+          events
+              .skip(startedAt + 1)
+              .any((e) => e.startsWith('message leaving:')),
+          isTrue,
+          reason:
+              'every message of the first page arrived before the move '
+              'started, so the case cannot tell the sender from the tracked '
+              'page',
+        );
+        expect(
+          recorder.messages.where((data) => !data.startsWith('leaving:')),
+          ['ready'],
+        );
+        expect(recorder.errors, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'co01_02/us06/s3, co01_02/us06/fr01/e03: a page off the list posts as '
+      'the view moves to an allowed page and the message never arrives',
+      (tester) async {
+        // A server of its own keeps the beacons of the case above out of this
+        // record.
+        final offList = await _PageServer.start();
+        addTearDown(offList.close);
+        final partner = await _PageServer.start();
+        addTearDown(partner.close);
+        // The beacons join the ordered log, so the page's later posts show
+        // against the start of the move; the hook is set before the page
+        // loads, so no beacon is missed.
+        final recorder = _Recorder();
+        offList.onBeacon = (query) => recorder.note('beacon $query');
+        await _showPage(
+          tester,
+          _leavePage(offList, partner.page('/bridge')),
+          allowedOrigins: {partner.origin},
+          recorder: recorder,
+        );
+        final landed = await pumpUntil(
+          tester,
+          () => _messageFrom(recorder, 'ready', partner) != null,
+        );
+        recorder.logOrder('linux page off the list leaves');
+        await tester.pumpWidget(const SizedBox());
+        final events = recorder.events;
+        final startedAt = _moveStartIndex(events);
+        bool isBeacon(String event) => event.startsWith('beacon leaving:');
+        expect(
+          landed,
+          isTrue,
+          reason: 'the allowed page never said "ready", the later message',
+        );
+        expect(
+          startedAt,
+          isNonNegative,
+          reason: 'the move off the first page never started',
+        );
+        expect(
+          events.take(startedAt).any(isBeacon),
+          isTrue,
+          reason:
+              'the page off the list sent no beacon, so it never reached '
+              'its post and its silence proves nothing',
+        );
+        // A beacon follows its message in the same tick, so a beacon after
+        // the start shows the page kept posting past it.
+        expect(
+          events.skip(startedAt + 1).any(isBeacon),
+          isTrue,
+          reason:
+              'the page off the list posted nothing after the move started, '
+              'so the case cannot tell the sender from the tracked page',
+        );
+        expect(recorder.messages, ['ready']);
+        expect(recorder.origins.map(_originText), [
+          _originText(partner.origin),
+        ]);
+        expect(recorder.errors, isEmpty);
+      },
+    );
+
+    testWidgets('co01_02/us06/s4, co01_02/us06/fr01/e05: a same-origin and a '
+        'cross-origin iframe in an allowed page post and neither message '
+        'arrives', (tester) async {
+      // Both origins are on the list, so only the iframe's place in the
+      // page can stop the messages.
+      final partner = await _PageServer.start();
+      addTearDown(partner.close);
+      final same = Uri.encodeQueryComponent(
+        server.page('/linux-frame-child').toString(),
+      );
+      final cross = Uri.encodeQueryComponent(
+        partner.page('/linux-frame-child').toString(),
+      );
+      final recorder = await _showPage(
+        tester,
+        server.page('/linux-frames', query: 'same=$same&cross=$cross'),
+        allowedOrigins: {server.origin, partner.origin},
+      );
+      final topPosted = await pumpUntil(
+        tester,
+        () => recorder.messages.any((data) => data.startsWith('top:')),
+      );
+      recorder.logOrder('linux iframes');
+      await tester.pumpWidget(const SizedBox());
+      expect(
+        topPosted,
+        isTrue,
+        reason: 'the top page never posted, the later message',
+      );
+      expect(
+        recorder.messages,
+        ['top:child:present,child:present'],
+        reason:
+            'a frame message arrived, or a frame had no bridge and so '
+            'its silence proves nothing',
+      );
+      expect(recorder.origins.map(_originText), [_originText(server.origin)]);
+      expect(recorder.errors, isEmpty);
+    });
+
+    testWidgets('co01_02/us06/s5, co01_02/us06/fr01/e07: a page its server '
+        'sandboxes posts from an allowed address and the message never '
+        'arrives', (tester) async {
+      final controller = StratumWebViewController();
+      final recorder = await _showPage(
+        tester,
+        server.page('/linux-sandbox'),
+        controller: controller,
+        allowedOrigins: {server.origin},
+      );
+      final posted = await pumpUntil(
+        tester,
+        () => server.beacons.any((text) => text.startsWith('sandbox:')),
+      );
+      if (posted) await controller.loadUrl(server.page('/bridge'));
+      final landed =
+          posted &&
+          await pumpUntil(tester, () => recorder.messages.contains('ready'));
+      recorder.logOrder('linux sandboxed page');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      expect(posted, isTrue, reason: 'the sandboxed page sent no beacon');
+      expect(
+        landed,
+        isTrue,
+        reason: 'the plain page never said "ready", the later message',
+      );
+      expect(
+        server.beacons,
+        contains('sandbox:present'),
+        reason: 'the sandboxed page had no bridge, so its silence is empty',
+      );
+      expect(recorder.messages, ['ready']);
+      expect(recorder.errors, isEmpty);
+    });
+
+    testWidgets(
+      'co01_02/us06/s6, co01_02/us06/fr01/e06: a reply to a page the view '
+      'left for another allowed origin throws, and the page shown receives '
+      'nothing',
+      (tester) async {
+        final partner = await _PageServer.start();
+        addTearDown(partner.close);
+        final controller = StratumWebViewController();
+        final recorder = await _showPage(
+          tester,
+          server.page('/bridge'),
+          controller: controller,
+          allowedOrigins: {server.origin, partner.origin},
+        );
+        final readyA = await pumpUntil(
+          tester,
+          () => _messageFrom(recorder, 'ready', server) != null,
+        );
+        if (readyA) await controller.loadUrl(partner.page('/bridge'));
+        final readyB =
+            readyA &&
+            await pumpUntil(
+              tester,
+              () => _messageFrom(recorder, 'ready', partner) != null,
+            );
+        Object? refusal;
+        if (readyB) {
+          try {
+            await controller.reply(
+              _messageFrom(recorder, 'ready', server)!,
+              'late',
+            );
+          } on StateError catch (error) {
+            refusal = error;
+          }
+        }
+        // The control reply to page B is the later message: page B echoes
+        // it, so its listener works and its silence about `late` counts.
+        if (readyB) {
+          await controller.reply(
+            _messageFrom(recorder, 'ready', partner)!,
+            'control',
+          );
+        }
+        final controlled =
+            readyB &&
+            await pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:control'),
+            );
+        recorder.logOrder('linux reply after a move');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(readyA, isTrue, reason: 'page A never said "ready"');
+        expect(readyB, isTrue, reason: 'page B never said "ready"');
+        expect(
+          refusal,
+          isA<StateError>(),
+          reason: 'the reply to page A reached somewhere after the move',
+        );
+        expect(
+          controlled,
+          isTrue,
+          reason: 'page B never echoed "control", the later message',
+        );
+        expect(
+          recorder.messages,
+          isNot(contains('echo:late')),
+          reason: 'page B echoed the refused reply to page A',
+        );
+        expect(recorder.errors, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'co01_02/us06/fr01/e10: a URL page reopens its document, rebuilds it '
+      'with DOM calls, posts, and the message arrives with its origin',
+      (tester) async {
+        final recorder = await _showPage(
+          tester,
+          server.page('/linux-reopen'),
+          allowedOrigins: {server.origin},
+        );
+        final reopened = await pumpUntil(
+          tester,
+          () => server.beacons.any((text) => text.startsWith('reopen:')),
+        );
+        final posted =
+            reopened &&
+            await pumpUntil(tester, () => recorder.messages.contains('after'));
+        recorder.logOrder('linux document reopened');
+        await tester.pumpWidget(const SizedBox());
+        expect(reopened, isTrue, reason: 'the page never reopened itself');
+        expect(
+          server.beacons,
+          contains('reopen:present'),
+          reason: 'the bridge was gone after document.open()',
+        );
+        expect(
+          posted,
+          isTrue,
+          reason: 'the message after document.open() never arrived',
+        );
+        expect(recorder.messages, ['before', 'after']);
+        expect(recorder.origins.map(_originText), [
+          _originText(server.origin),
+          _originText(server.origin),
+        ]);
+        expect(recorder.errors, isEmpty);
+      },
+    );
+  }, skip: kIsWeb || defaultTargetPlatform != TargetPlatform.linux);
 }
 
 /// Shows [html], waits for its `ready:`, has it follow a link to [away] with
@@ -1038,6 +1390,14 @@ class _PageServer {
   /// Addresses of the flip pages that have answered once.
   final _answered = <String>{};
 
+  /// The query of each beacon a page sent to `/posted`, in arrival order: a
+  /// lasting proof that a page ran its script up to the beacon, which a
+  /// message the app drops cannot give (CO-01-02 US-06 group L).
+  final beacons = <String>[];
+
+  /// Called with the query of each beacon, as it arrives.
+  void Function(String query)? onBeacon;
+
   static Future<_PageServer> start() async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final pages = _PageServer._(server);
@@ -1091,6 +1451,29 @@ class _PageServer {
         _writePage(response, HttpStatus.ok, _bridgeProbeBody);
       case '/token-copy':
         _writePage(response, HttpStatus.ok, _tokenCopyBody);
+      case '/posted':
+        beacons.add(request.uri.query);
+        onBeacon?.call(request.uri.query);
+        response.statusCode = HttpStatus.noContent;
+      case '/linux-leave':
+        _writePage(response, HttpStatus.ok, _linuxLeaveBody);
+      case '/linux-frames':
+        _writePage(response, HttpStatus.ok, _linuxFramesBody);
+      case '/linux-frame-child':
+        // dart:io sends `X-Frame-Options: SAMEORIGIN` by default, which would
+        // block the cross-origin frame from rendering.
+        response.headers.removeAll('x-frame-options');
+        _writePage(response, HttpStatus.ok, _linuxFrameChildBody);
+      case '/linux-sandbox':
+        // CO-01-02 US-06 FR-01 E07: the server sandboxes the page, which
+        // gives its document an opaque origin.
+        response.headers.set(
+          'Content-Security-Policy',
+          'sandbox allow-scripts',
+        );
+        _writePage(response, HttpStatus.ok, _linuxSandboxBody);
+      case '/linux-reopen':
+        _writePage(response, HttpStatus.ok, _linuxReopenBody);
       default:
         // '/missing', '/gone', '/missing.png', and any favicon request.
         _writePage(response, HttpStatus.notFound, '<h1>Not found</h1>');
@@ -1213,6 +1596,136 @@ const _tokenCopyBody = '''
 </script>
 ''';
 
+/// A page that posts `leaving:<n>` on a 1 ms timer, each post followed by the
+/// beacon `leaving:<n>`, and starts a move to the address in its `to` query
+/// parameter after the timer began; the timer runs until the page unloads, so
+/// posts land both before and after the new page's start reaches the app
+/// (CO-01-02 US-06 Scenarios 2 and 3). The beacon reaches the server even when
+/// the app drops the message.
+const _linuxLeaveBody = '''
+<h1>Leaving</h1>
+<script>
+  window.addEventListener('load', function () {
+    var count = 0;
+    setInterval(function () {
+      count += 1;
+      StratumBridge.postMessage('leaving:' + count);
+      navigator.sendBeacon('/posted?leaving:' + count);
+    }, 1);
+    location.href = new URLSearchParams(location.search).get('to');
+  });
+</script>
+''';
+
+/// A page that holds two iframes, the addresses in its `same` and `cross`
+/// query parameters, and posts `top:<what the frames said>` only after both
+/// frames told it, through `window.postMessage`, whether their bridge exists.
+/// Each frame tells after its own post, so the top message is a sentinel that
+/// follows both frames' messages (CO-01-02 US-06 Scenario 4).
+const _linuxFramesBody = '''
+<h1>Frames</h1>
+<script>
+  var params = new URLSearchParams(location.search);
+  var said = [];
+  window.addEventListener('message', function (event) {
+    if (String(event.data).indexOf('child:') !== 0) return;
+    said.push(String(event.data));
+    if (said.length === 2) StratumBridge.postMessage('top:' + said.join(','));
+  });
+  ['same', 'cross'].forEach(function (name) {
+    var frame = document.createElement('iframe');
+    frame.src = params.get(name);
+    document.body.appendChild(frame);
+  });
+</script>
+''';
+
+/// An iframe page that posts `frame:<port>` when its bridge exists, then tells
+/// its parent through `window.postMessage` whether it did.
+const _linuxFrameChildBody = '''
+<h1>Frame</h1>
+<script>
+  var state = typeof StratumBridge === 'undefined' ? 'absent' : 'present';
+  if (state === 'present') StratumBridge.postMessage('frame:' + location.port);
+  parent.postMessage('child:' + state, '*');
+</script>
+''';
+
+/// A page that posts `sandboxed` when its bridge exists, then sends a beacon
+/// naming whether it did; the server runs it in a sandbox (CO-01-02 US-06
+/// Scenario 5).
+const _linuxSandboxBody = '''
+<h1>Sandbox</h1>
+<script>
+  var state = typeof StratumBridge === 'undefined' ? 'absent' : 'present';
+  if (state === 'present') StratumBridge.postMessage('sandboxed');
+  navigator.sendBeacon('/posted?sandbox:' + state);
+</script>
+''';
+
+/// A page that posts `before`, reopens its own document, rebuilds its tree
+/// with DOM calls, and posts `after` (CO-01-02 US-06 FR-01 E10). The beacon
+/// names whether the bridge still exists after the reopen.
+const _linuxReopenBody = '''
+<h1>Reopen</h1>
+<script>
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('before');
+    document.open();
+    var root = document.createElement('html');
+    var body = document.createElement('body');
+    body.textContent = 'Reopened';
+    root.appendChild(body);
+    document.appendChild(root);
+    var state = typeof StratumBridge === 'undefined' ? 'absent' : 'present';
+    navigator.sendBeacon('/posted?reopen:' + state);
+    if (state === 'present') StratumBridge.postMessage('after');
+  });
+</script>
+''';
+
+/// The `scheme://host:port` of [origin], or `null` when it names none, so two
+/// origins compare as text.
+String? _originText(Uri? origin) =>
+    origin == null ? null : '${origin.scheme}://${origin.host}:${origin.port}';
+
+/// The address of [from]'s `/linux-leave` page, which starts a move to [to].
+Uri _leavePage(_PageServer from, Uri to) => from.page(
+  '/linux-leave',
+  query: 'to=${Uri.encodeQueryComponent(to.toString())}',
+);
+
+/// The index in [events] of the start of the move off the first page, or -1:
+/// the first `started` event after the first `finished` event, whatever its
+/// address. On Linux that start carries the leaving page's own address, never
+/// the page the view moves to (`onPageStarted` names no address, CO-01-02
+/// US-01 FR-01).
+int _moveStartIndex(List<String> events) {
+  final firstFinish = events.indexWhere((e) => e.startsWith('finished '));
+  if (firstFinish < 0) return -1;
+  final started = events
+      .skip(firstFinish + 1)
+      .toList()
+      .indexWhere((e) => e.startsWith('started '));
+  return started < 0 ? -1 : firstFinish + 1 + started;
+}
+
+/// The first message in [recorder] with text [data] from [from]'s origin, or
+/// `null` when none has arrived.
+StratumWebViewMessage? _messageFrom(
+  _Recorder recorder,
+  String data,
+  _PageServer from,
+) {
+  for (final message in recorder.received) {
+    if (message.data == data &&
+        _originText(message.origin) == _originText(from.origin)) {
+      return message;
+    }
+  }
+  return null;
+}
+
 /// An address on a loopback port where nothing listens.
 Future<Uri> _closedPortPage() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -1299,6 +1812,13 @@ class _Recorder {
     _events.add('message ${message.data}');
   }
 
+  /// Every callback and noted line so far, in arrival order.
+  List<String> get events => List.unmodifiable(_events);
+
+  /// Adds [line] to the ordered log, for an event the web view does not
+  /// report.
+  void note(String line) => _events.add(line);
+
   /// Prints the callback order of [caseName]; the six cases of CO-01-02
   /// US-01 FR-01 E05 also assert it.
   void logOrder(String caseName) => debugPrint(
@@ -1338,21 +1858,25 @@ Future<_Recorder> _showPage(
   Uri page, {
   StratumWebViewController? controller,
   Set<Uri> allowedOrigins = const <Uri>{},
+  _Recorder? recorder,
 }) => _show(
   tester,
   StratumWebViewSource.url(page),
   controller: controller,
   allowedOrigins: allowedOrigins,
+  recorder: recorder,
 );
 
-/// Shows one StratumWebView on [source] that reports into a new recorder.
+/// Shows one StratumWebView on [source] that reports into [recorder], or into
+/// a new one when none is given.
 Future<_Recorder> _show(
   WidgetTester tester,
   StratumWebViewSource source, {
   StratumWebViewController? controller,
   Set<Uri> allowedOrigins = const <Uri>{},
+  _Recorder? recorder,
 }) async {
-  final recorder = _Recorder();
+  recorder ??= _Recorder();
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(

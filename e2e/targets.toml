@@ -113,6 +113,7 @@ repeat = 10                                             # ruling 2026-10-07; sma
 [lane]
 allow_level2 = true                                     # owner ruling 2026-10-18: memory pressure level 2 passes at 30% free
 run_timeout_minutes = 20                                # a hung launch (Android start timeout, DR6 2026-10-16) stalled 41 min at the 60 default; a per-file budget
-boot_settle_timeout_seconds = 420                       # owner ruling 2026-10-21: Pixel_8_API_37 (API 37 Play) post-boot storm held guest load > 2.0 for ~165 s and once past the 180 s default
+boot_settle_timeout_seconds = 300                       # owner ruling 2026-10-25 (was 420): the floor is the API 37 fact of 2026-10-21, Pixel_8_API_37 (API 37 Play) held guest load > 2.0 for ~165 s after boot and once passed the 180 s default
 heavy_processes = ["perf_abba", "perf_freeze"]
-lane_wait_minutes = 30                                  # how long a busy target's lock is awaited before its items report `env: lane busy`
+lane_wait_minutes = 10                                  # owner ruling 2026-10-25 (was 30): how long a busy target's lock is awaited before its items report `env: lane busy`
+boot_timeout_minutes = 5                                # owner ruling 2026-10-25 (code default 10): the boot of one emulator or simulator; with the wait and settle, 40 min worst case per target

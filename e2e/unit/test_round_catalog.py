@@ -105,7 +105,7 @@ def test_lane_values(catalog: Catalog) -> None:
         lane.heavy_processes,
         lane.lane_wait_minutes,
         lane.boot_timeout_minutes,
-    ) == (20, 420, True, ("perf_abba", "perf_freeze"), 30, 10)
+    ) == (20, 300, True, ("perf_abba", "perf_freeze"), 10, 5)
 
 
 def test_app_ids(catalog: Catalog) -> None:

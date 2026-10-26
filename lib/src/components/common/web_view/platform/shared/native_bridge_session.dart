@@ -281,8 +281,7 @@ final class NativeBridgeSession {
   /// HTML. No page start, URL, or arrival order decides HTML trust.
   ///
   /// With no sender, only a tagged `bye` counts: it revokes the proof as a
-  /// sender-bearing one does, because Linux loses the sender once the page
-  /// calls `document.open()`, and a revoke opens nothing. Every other
+  /// sender-bearing one does, because a revoke opens nothing. Every other
   /// sender-less message drops (US-03 FR-04 E14, US-05 FR-01 E04, US-06
   /// FR-01 E04).
   AcceptedMessage? acceptMessage(String data, {BridgeMessageSender? sender}) {

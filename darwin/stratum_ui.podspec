@@ -9,7 +9,6 @@ Pod::Spec.new do |s|
 Carries StratumWebView page messages with the sender frame WebKit names.
                        DESC
   s.homepage         = 'https://github.com/nontravis/stratum_flutter_ui'
-  s.license          = { :file => '../LICENSE' }
   s.author           = { 'Nonthawit Doungsodsri' => 'nonthawit.kub@gmail.com' }
   s.source           = { :path => '.' }
   s.source_files     = 'stratum_ui/Sources/stratum_ui/**/*.swift'

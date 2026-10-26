@@ -6,8 +6,8 @@ catalog, parametrizes nothing, leaves collection to the low-level `--platform` p
 low-level options as before. In a round every item under `tests/` is parametrized by `round_target`, the integration
 items by `integration_file` as well, and the pairs a target does not run are deselected. Items run target by target:
 `round_target` takes the target's lane and boots it before its first item, and pytest tears it down (shutdown, then
-lane release) before the next target's first item. The round dir is written when the session ends, after a SIGTERM
-too.
+lane release) before the next target's first item. The round dir is written when the session ends, after a SIGTERM or
+SIGINT too.
 
 The hooks and fixtures live here, since `pytest_plugins` registers this module; they build on `state` (keys and round
 state), `collect` (planning and selection), `bring_up` (lane, boot, backends), `runs` (resolve, build, integration
@@ -16,7 +16,9 @@ runs), and `items` (retry and recording).
 
 from __future__ import annotations
 
+import contextlib
 import signal
+import sys
 from collections.abc import Callable, Generator, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,7 +73,9 @@ from stratum_e2e.round.state import (
 
 _Handler = Callable[[int, FrameType | None], object] | int | None
 
-_SIGTERM_KEY: Final = pytest.StashKey[_Handler]()
+_STOP_SIGNALS: Final = (signal.SIGTERM, signal.SIGINT)
+STOP_NOTICE: Final = "stopping: tearing every target down; a further stop signal is ignored, SIGKILL forces"
+_PRIOR_HANDLERS_KEY: Final = pytest.StashKey[dict[signal.Signals, _Handler]]()
 _STOPPED_KEY: Final = pytest.StashKey[bool]()
 
 
@@ -101,8 +105,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Resolve the round and plan its integration runs; stay inert when no round option is given.
 
-    In a round, SIGTERM raises `KeyboardInterrupt`, so a watch-lane stop still tears every target down and writes the
-    round dir.
+    In a round, the first SIGTERM or SIGINT raises `KeyboardInterrupt`, so a watch-lane stop still tears every target
+    down and writes the round dir; a further stop signal is ignored until `pytest_unconfigure`. SIGINT needs its own
+    handler: a non-interactive shell starts every `&` command with SIGINT ignored, and Python keeps an inherited
+    ignore.
     """
     config.stash[ROUND_KEY] = None
     target_arg, mode_arg, repeat_arg = (config.getoption(name) for name in ("target", "mode", "repeat"))
@@ -121,17 +127,35 @@ def pytest_configure(config: pytest.Config) -> None:
     config.stash[CATALOG_KEY] = catalog
     config.stash[RUNS_KEY] = runs
     config.stash[STATE_KEY] = RoundState(config, round_plan, catalog, runs)
-    config.stash[_SIGTERM_KEY] = signal.signal(signal.SIGTERM, _interrupt)
+    interrupt = _stop_handler(config)
+    config.stash[_PRIOR_HANDLERS_KEY] = {stop: signal.signal(stop, interrupt) for stop in _STOP_SIGNALS}
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Give SIGTERM back the handler it had before the round."""
-    if _SIGTERM_KEY in config.stash:
-        signal.signal(signal.SIGTERM, config.stash[_SIGTERM_KEY])
+    """Give SIGTERM and SIGINT back the handlers they had before the round."""
+    for stop, handler in config.stash.get(_PRIOR_HANDLERS_KEY, {}).items():
+        signal.signal(stop, handler)
 
 
-def _interrupt(signum: int, frame: FrameType | None) -> NoReturn:
-    raise KeyboardInterrupt(f"signal {signum}")
+def _stop_handler(config: pytest.Config) -> Callable[[int, FrameType | None], NoReturn]:
+    """The handler of a round's stop signals; `pytest_unconfigure` gives the prior handlers back."""
+
+    def _interrupt(signum: int, frame: FrameType | None) -> NoReturn:
+        """Stop the round on its first stop signal and ignore the rest, so a second cannot cut the teardown short.
+
+        The notice bypasses pytest's capture, which would otherwise hold it back from the terminal. It is best effort:
+        the stop is raised whether or not the notice could be written.
+        """
+        for stop in _STOP_SIGNALS:
+            signal.signal(stop, signal.SIG_IGN)
+        try:
+            capture = config.pluginmanager.get_plugin("capturemanager")
+            with capture.global_and_fixture_disabled() if capture is not None else contextlib.nullcontext():
+                print(STOP_NOTICE, file=sys.stderr, flush=True)
+        finally:
+            raise KeyboardInterrupt(f"signal {signum}")
+
+    return _interrupt
 
 
 def _lost_or_fail(state: RoundState, target: Target, call: pytest.CallInfo[None]) -> tuple[str, str]:

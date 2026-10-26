@@ -70,7 +70,9 @@ abstract interface class NativeSenderChannel {
 /// channel.
 ///
 /// Dart calls `attach` and `detach` with `{webViewId}`, and
-/// `runThroughReplyProxy` with `{webViewId, replyProxy, script}`; the
+/// `runThroughReplyProxy` with `{webViewId, replyProxy, script}`; the first
+/// call of an isolate is `reset` with no arguments, which makes the platform
+/// drop what it holds for the web view ids of an earlier isolate. The
 /// platform calls `message` with
 /// `{webViewId, data, origin, isMainFrame, replyProxy}`, where `origin` is
 /// the sender's origin, or `null` for an opaque origin, and `replyProxy` is
@@ -87,9 +89,48 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     _channel.setMethodCallHandler(_handle);
   }
 
+  /// The `reset` call of this isolate, shared by every channel and caller.
+  ///
+  /// A hot restart starts a fresh isolate while the platform plugin lives on,
+  /// and the instance manager that issues the view ids starts empty, so an id
+  /// the platform still holds may belong to a view of the isolate before.
+  static Future<void>? _reset;
+
+  /// Whether the platform answered [_reset], or has no handler for it.
+  ///
+  /// Until then a `message` call may come from a view of the isolate before,
+  /// whose id a view of this isolate reuses, so [_handle] drops it.
+  static bool _resetAnswered = false;
+
+  /// Forgets that this isolate sent `reset`, so the next call sends it again.
+  @visibleForTesting
+  static void debugForgetReset() {
+    _reset = null;
+    _resetAnswered = false;
+  }
+
   final MethodChannel _channel;
   final int Function(wf.WebViewController controller) _webViewId;
   final Map<int, NativeSenderListener> _listeners = {};
+
+  /// Sends `reset` once per isolate and completes when the platform answered.
+  ///
+  /// A platform with no handler (`MissingPluginException`) holds no state, so
+  /// it counts as reset. Any other error leaves the next call to send it
+  /// again.
+  Future<void> _resetOnce() => _reset ??= _sendReset();
+
+  Future<void> _sendReset() async {
+    try {
+      await _channel.invokeMethod<void>('reset');
+    } on MissingPluginException {
+      // No handler: the platform holds nothing to drop.
+    } on Object {
+      _reset = null;
+      rethrow;
+    }
+    _resetAnswered = true;
+  }
 
   @override
   Future<bool> attach(
@@ -102,6 +143,7 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     _listeners[id] = onMessage;
     var attached = false;
     try {
+      await _resetOnce();
       attached =
           await _channel.invokeMethod<bool>('attach', <String, Object?>{
             'webViewId': id,
@@ -124,6 +166,7 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
   Future<void> detach(wf.WebViewController controller) async {
     final id = _webViewId(controller);
     _listeners.remove(id);
+    await _resetOnce();
     await _channel.invokeMethod<void>('detach', <String, Object?>{
       'webViewId': id,
     });
@@ -135,6 +178,7 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     BridgeReplyProxy replyProxy,
     String script,
   ) async {
+    await _resetOnce();
     final delivered = await _channel.invokeMethod<bool>(
       'runThroughReplyProxy',
       <String, Object?>{
@@ -146,13 +190,14 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     return delivered ?? false;
   }
 
-  /// Delivers a `message` call; a call with a missing or mistyped argument
-  /// is dropped.
+  /// Delivers a `message` call; a call with a missing or mistyped argument,
+  /// or one that arrives before the `reset` of this isolate is answered, is
+  /// dropped.
   ///
   /// An opaque origin crosses as `null`, also in the `"null"` form a
   /// serialized opaque origin takes.
   Future<void> _handle(MethodCall call) async {
-    if (call.method != 'message') return;
+    if (call.method != 'message' || !_resetAnswered) return;
     final arguments = call.arguments;
     if (arguments is! Map) return;
     final id = arguments['webViewId'];

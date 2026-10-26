@@ -13,11 +13,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final
 
-from stratum_e2e.round.boot import BootRecord
+from stratum_e2e.round.boot import BootLog, BootRecord
 from stratum_e2e.round.runner import Runner
 
 _LOG_TIMEOUT_S: Final = 60.0
 _SCREENSHOT_TIMEOUT_S: Final = 30.0
+# logcat's default buffers omit `events`, where the system writes `am_anr`; name every buffer an ANR leaves a line in.
+_LOGCAT_BUFFERS: Final = "main,system,crash,events"
 
 
 def device_log_argv(record: BootRecord, since: datetime) -> list[str] | None:
@@ -28,7 +30,8 @@ def device_log_argv(record: BootRecord, since: datetime) -> list[str] | None:
     if since.tzinfo is None:
         raise ValueError("a device log starts at a timezone-aware datetime")
     if record.platform == "android":
-        return ["adb", "-s", record.device_id, "logcat", "-d", "-v", "threadtime", "-T", f"{since.timestamp():.3f}"]
+        start = f"{since.timestamp():.3f}"
+        return ["adb", "-s", record.device_id, "logcat", "-d", "-b", _LOGCAT_BUFFERS, "-v", "threadtime", "-T", start]
     if record.platform == "ios":
         start = f"@{int(since.timestamp())}"
         return ["xcrun", "simctl", "spawn", record.device_id, "log", "show", "--style", "compact", "--start", start]
@@ -55,6 +58,25 @@ def save_device_log(runner: Runner, record: BootRecord, since: datetime, path: P
     if argv is None:
         return False
     return runner.run(argv, timeout_s=_LOG_TIMEOUT_S, log=path).status == 0
+
+
+def keep_boot_log(runner: Runner, record: BootRecord, device_log: BootLog | None) -> None:
+    """Append the device log of a boot the caller ran to `device_log.path`, when it asked for one.
+
+    A header line names the device first. The command writes a partial file that is appended when the command passed and
+    removed either way, so the lines of an earlier bring-up of the target stay, and a failed capture leaves the file as
+    it was and is never an error.
+    """
+    if device_log is None:
+        return
+    partial = device_log.path.with_name(f".{device_log.path.name}.partial")
+    partial.unlink(missing_ok=True)
+    saved = save_device_log(runner, record, device_log.since, partial)
+    if saved and partial.is_file():
+        with device_log.path.open("ab") as sink:
+            sink.write(f"--- device log of {record.device_id} since {device_log.since.isoformat()} ---\n".encode())
+            sink.write(partial.read_bytes())
+    partial.unlink(missing_ok=True)
 
 
 def save_screenshot(runner: Runner, record: BootRecord, path: Path) -> bool:

@@ -36,6 +36,7 @@ void main() {
     WebViewPlatform.instance = FakeWebViewFlutterPlatform();
     controller = wf.WebViewController();
     senders = MethodChannelNativeSenderChannel(webViewId: (_) => 7);
+    MethodChannelNativeSenderChannel.debugForgetReset();
   });
 
   /// Sends a `message` call from the platform side.
@@ -53,8 +54,126 @@ void main() {
     expect(await senders.attach(controller, (_, _) {}), isFalse);
     attachAnswer = null;
     expect(await senders.attach(controller, (_, _) {}), isFalse);
-    expect(calls.first.method, 'attach');
-    expect(calls.first.arguments, {'webViewId': 7});
+    final attach = calls.firstWhere((call) => call.method == 'attach');
+    expect(attach.arguments, {'webViewId': 7});
+  });
+
+  test('reset is the first call, sent once for every attach '
+      'after it', () async {
+    await senders.attach(controller, (_, _) {});
+    await senders.attach(controller, (_, _) {});
+    expect(calls.map((call) => call.method), ['reset', 'attach', 'attach']);
+    expect(calls.first.arguments, isNull);
+    // A second channel of the same isolate does not reset again.
+    final other = MethodChannelNativeSenderChannel(webViewId: (_) => 8);
+    await other.attach(controller, (_, _) {});
+    expect(calls.where((call) => call.method == 'reset'), hasLength(1));
+  });
+
+  test('two attaches that race share one reset, which the '
+      'platform answers before either attach is sent', () async {
+    final resetReply = Completer<void>();
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'reset') await resetReply.future;
+      return call.method == 'attach' ? true : null;
+    });
+    final first = senders.attach(controller, (_, _) {});
+    final second = senders.attach(controller, (_, _) {});
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.map((call) => call.method), ['reset']);
+    resetReply.complete();
+    await Future.wait([first, second]);
+    expect(calls.map((call) => call.method), ['reset', 'attach', 'attach']);
+  });
+
+  test('detach and runThroughReplyProxy also wait for the '
+      'reset when they are the first call', () async {
+    await senders.detach(controller);
+    expect(calls.map((call) => call.method), ['reset', 'detach']);
+    MethodChannelNativeSenderChannel.debugForgetReset();
+    calls.clear();
+    await senders.runThroughReplyProxy(
+      controller,
+      const BridgeReplyProxy(4),
+      'script',
+    );
+    expect(calls.map((call) => call.method), ['reset', 'runThroughReplyProxy']);
+  });
+
+  test('a platform with no handler for reset counts as '
+      'reset', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'reset') throw MissingPluginException();
+      return true;
+    });
+    expect(await senders.attach(controller, (_, _) {}), isTrue);
+    expect(await senders.attach(controller, (_, _) {}), isTrue);
+    expect(calls.where((call) => call.method == 'reset'), hasLength(1));
+  });
+
+  test('a message that arrives while reset is pending is dropped, and one '
+      'after the reset reply is delivered', () async {
+    final resetReply = Completer<void>();
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'reset') await resetReply.future;
+      return call.method == 'attach' ? true : null;
+    });
+    final received = <String>[];
+    final attach = senders.attach(controller, (data, _) => received.add(data));
+    await Future<void>.delayed(Duration.zero);
+    // A web view of the isolate before reuses id 7 and still posts.
+    await platformSends({
+      'webViewId': 7,
+      'data': 'stale',
+      'origin': null,
+      'isMainFrame': true,
+    });
+    resetReply.complete();
+    await attach;
+    await platformSends({
+      'webViewId': 7,
+      'data': 'fresh',
+      'origin': null,
+      'isMainFrame': true,
+    });
+    expect(received, ['fresh']);
+  });
+
+  test('a reset that fails with any error is sent again by the next '
+      'call', () async {
+    final failing = _FailingResetChannel();
+    final other = MethodChannelNativeSenderChannel(
+      channel: failing,
+      webViewId: (_) => 7,
+    );
+    await expectLater(
+      other.attach(controller, (_, _) {}),
+      throwsA(isA<StateError>()),
+    );
+    await other.attach(controller, (_, _) {});
+    expect(failing.resets, 2);
+  });
+
+  test('a reset the platform answers with an error fails the '
+      'attach and is sent again by the next one', () async {
+    var resets = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method != 'reset') return true;
+      resets += 1;
+      if (resets == 1) throw PlatformException(code: 'reset-failed');
+      return null;
+    });
+    await expectLater(
+      senders.attach(controller, (_, _) {}),
+      throwsA(isA<PlatformException>()),
+    );
+    expect(calls.map((call) => call.method), ['reset']);
+    expect(await senders.attach(controller, (_, _) {}), isTrue);
+    expect(calls.map((call) => call.method), ['reset', 'reset', 'attach']);
   });
 
   test('us03/fr01/e11: a failed attach removes the listener it registered '
@@ -354,4 +473,18 @@ void main() {
       throwsUnsupportedError,
     );
   });
+}
+
+/// Fails its first `reset` with a [StateError], the way a platform error that
+/// is not a [PlatformException] reaches the caller.
+class _FailingResetChannel extends MethodChannel {
+  new() : super('stratum_ui/web_view_bridge');
+
+  int resets = 0;
+
+  @override
+  Future<T?> invokeMethod<T>(String method, [Object? arguments]) async {
+    if (method == 'reset' && ++resets == 1) throw StateError('reset failed');
+    return null;
+  }
 }

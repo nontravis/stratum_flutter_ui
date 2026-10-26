@@ -27,8 +27,12 @@ import java.lang.ref.WeakReference
  * [JavaScriptReplyProxy], and `runThroughReplyProxy` runs a script through
  * that proxy, which the platform runs only in the document that sent it.
  *
- * Engine detach removes the `StratumBridge` listener from every WebView still
- * attached.
+ * `reset` is the first call of every Dart isolate. A hot restart starts a new
+ * isolate while this plugin lives on, and the ids `webview_flutter_android`
+ * issues start over, so `reset` removes the listener from every WebView still
+ * attached and drops every reply proxy before an id can be reused.
+ *
+ * Engine detach does the same.
  */
 class StratumUiPlugin :
     FlutterPlugin,
@@ -60,18 +64,21 @@ class StratumUiPlugin :
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        attached.values.mapNotNull { it.get() }.forEach(::detach)
-        attached.clear()
+        reset()
         channel?.setMethodCallHandler(null)
         channel = null
         this.binding = null
-        replyProxies.clear()
     }
 
     override fun onMethodCall(
         call: MethodCall,
         result: MethodChannel.Result,
     ) {
+        if (call.method == "reset") {
+            reset()
+            result.success(null)
+            return
+        }
         val id = call.argument<Number>("webViewId")?.toLong()
         if (id == null) {
             result.error("bad-arguments", "webViewId is missing.", null)
@@ -101,6 +108,23 @@ class StratumUiPlugin :
         }
     }
 
+    /**
+     * Forgets every WebView and reply proxy, removing the listener from each
+     * WebView still alive. Reply proxy ids keep counting up, so one handed
+     * out before never names a proxy after.
+     */
+    private fun reset() {
+        try {
+            // One WebView that refuses the removal must not keep the rest
+            // attached; the listener drops a post from a WebView it no
+            // longer names in `attached`.
+            attached.values.mapNotNull { it.get() }.forEach { runCatching { detach(it) } }
+        } finally {
+            attached.clear()
+            replyProxies.clear()
+        }
+    }
+
     private fun webView(id: Long): WebView? =
         binding?.let { WebViewFlutterAndroidExternalApi.getWebView(it, id) }
 
@@ -117,7 +141,10 @@ class StratumUiPlugin :
             webView,
             BRIDGE,
             setOf("*"),
-        ) { _, message, sourceOrigin, isMainFrame, replyProxy ->
+        ) { view, message, sourceOrigin, isMainFrame, replyProxy ->
+            // A listener a reset or a reused id left on an older WebView posts
+            // nothing under the id of the WebView now attached.
+            if (attached[id]?.get() !== view) return@addWebMessageListener
             if (message.type != WebMessageCompat.TYPE_STRING) return@addWebMessageListener
             channel?.invokeMethod(
                 "message",

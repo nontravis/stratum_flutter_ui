@@ -18,7 +18,7 @@ from stratum_e2e.android.talkback import AVD_NAME
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.android_host import port_directory, sdk_root
 from stratum_e2e.round.app_build import ensure_app_build, resolve_app_packages
-from stratum_e2e.round.boot import Booter, BootRecord
+from stratum_e2e.round.boot import Booter, BootLog, BootRecord
 from stratum_e2e.round.catalog import Catalog, LaneConfig, Target
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.integration_run import run_plan
@@ -34,7 +34,16 @@ from stratum_e2e.round.lane import (
     wait_for_memory,
 )
 from stratum_e2e.round.runner import Runner, SubprocessRunner
-from stratum_e2e.round.state import BLOCKED, CATALOG_KEY, E2E_APP, Backends, RoundState, RoundTarget, e2e_app_dir
+from stratum_e2e.round.state import (
+    BLOCKED,
+    CATALOG_KEY,
+    DEVICE_LOG,
+    E2E_APP,
+    Backends,
+    RoundState,
+    RoundTarget,
+    e2e_app_dir,
+)
 
 # The low-level options a round writes per target; `--app` stays the user's, since `round_app` supplies the app.
 _RESOLVED: Final = ("platform", "device", "app_id")
@@ -58,7 +67,7 @@ def bring_up(state: RoundState, backends: Backends, target: Target) -> Iterator[
         stack.callback(_tear_down, state, target, "lane release", _take_lane(state, backends, target).release)
         booter = backends.booter_for(target)
         boot_dir = round_dir.item_dir(target.name, _BOOT_DIR)
-        record = _boot(state, backends, booter, target, boot_dir / "boot.log")
+        record = _boot(state, backends, booter, target, boot_dir)
         # Runs after shutdown, which adds the settings that failed to restore.
         stack.callback(_record_target, state, target, record, finished=True)
         stack.callback(_tear_down, state, target, "shutdown", booter.shutdown, record)
@@ -98,15 +107,25 @@ def _take_lane(state: RoundState, backends: Backends, target: Target) -> Lease:
         raise RoundEnvError("lane busy") from error
 
 
-def _boot(state: RoundState, backends: Backends, booter: Booter, target: Target, log: Path) -> BootRecord:
-    """Boot `target`, passing the memory gate first on a cold boot; an `env` boot retries once, then blocks (C9)."""
+def _boot(state: RoundState, backends: Backends, booter: Booter, target: Target, boot_dir: Path) -> BootRecord:
+    """Boot `target`, passing the memory gate first on a cold boot; an `env` boot retries once, then blocks (C9).
+
+    The boot command's own log is `boot_dir/boot.log`. A booted device keeps its device log, from the boot command
+    through the end of the boot, in `boot_dir/device.log`; the retry's goes to `device-2.log`, so a failed attempt's
+    lines stay.
+    """
+    log = boot_dir / "boot.log"
+    attempt = 0
     while True:
         if not booter.is_running(target):
             reasons = wait_for_memory(backends.memory_reasons, state.lane.lane_wait_minutes * 60, sleep=backends.sleep)
             if reasons:
                 raise RoundEnvError(f"memory pressure: {'; '.join(reasons)}")
+        attempt += 1
+        name = DEVICE_LOG if attempt == 1 else f"{Path(DEVICE_LOG).stem}-{attempt}{Path(DEVICE_LOG).suffix}"
+        device_log = BootLog(boot_dir / name, backends.now())
         try:
-            return booter.boot(target, log)
+            return booter.boot(target, log, device_log)
         except RoundEnvError as error:
             # `boot` ends what it booted before it raises, so the retry starts from nothing.
             if state.ledger.record_env(target.name, _BOOT_KEY) == "block":

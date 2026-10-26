@@ -15,6 +15,11 @@ import WebKit
 /// document-start alias `window.StratumBridge` to the `WKWebView` that
 /// `webview_flutter_wkwebview` created for `webViewId`, and forwards every
 /// string message with the frame `WKScriptMessage.frameInfo` names.
+///
+/// `reset` is the first call of every Dart isolate. A hot restart starts a new
+/// isolate while this plugin lives on, and the ids `webview_flutter_wkwebview`
+/// issues start over, so `reset` removes the handler from every web view it
+/// is still installed on before an id can be reused.
 public final class StratumUiPlugin: NSObject, FlutterPlugin {
   private static let channelName = "stratum_ui/web_view_bridge"
   private static let bridgeName = "StratumBridge"
@@ -23,7 +28,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
 
   private let channel: FlutterMethodChannel
   private let registrar: FlutterPluginRegistrar
-  private var handlers: [Int64: BridgeMessageHandler] = [:]
+  private var handlers: [Int64: InstalledHandler] = [:]
   private var radiusProbe: StratumRadiusProbe?
 
   init(channel: FlutterMethodChannel, registrar: FlutterPluginRegistrar) {
@@ -44,6 +49,11 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    if call.method == "reset" {
+      reset()
+      result(nil)
+      return
+    }
     guard
       let arguments = call.arguments as? [String: Any],
       let id = (arguments["webViewId"] as? NSNumber)?.int64Value
@@ -60,12 +70,12 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
       attach(webView, id: id)
       result(true)
     case "detach":
-      // A web view that is already gone has nothing to detach.
-      if let webView = webView(forIdentifier: id) {
-        webView.configuration.userContentController
-          .removeScriptMessageHandler(forName: Self.bridgeName)
-      }
-      handlers[id] = nil
+      // Prefer the controller `attach` saved over a fresh lookup; a web view
+      // that is already gone, either way, has nothing to detach.
+      let controller =
+        handlers.removeValue(forKey: id)?.controller
+        ?? webView(forIdentifier: id)?.configuration.userContentController
+      controller?.removeScriptMessageHandler(forName: Self.bridgeName)
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
@@ -78,7 +88,17 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
     let handler = BridgeMessageHandler(id: id, channel: channel)
     controller.add(handler, name: Self.bridgeName)
     Self.installAlias(on: controller)
-    handlers[id] = handler
+    handlers[id] = InstalledHandler(controller: controller)
+  }
+
+  /// Removes the handler from every content controller it is still installed
+  /// on and forgets all of them. The document-start alias stays, as after
+  /// `detach`.
+  private func reset() {
+    for installed in handlers.values {
+      installed.controller?.removeScriptMessageHandler(forName: Self.bridgeName)
+    }
+    handlers.removeAll()
   }
 
   /// Adds the document-start alias `window.StratumBridge` for every frame to
@@ -150,6 +170,12 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
       return nil
     }
   #endif
+}
+
+/// The content controller `attach` installed the handler on, held weakly so a
+/// web view the app destroyed without a `detach` call does not live on here.
+private struct InstalledHandler {
+  weak var controller: WKUserContentController?
 }
 
 /// Forwards each string `StratumBridge` message of one web view.
