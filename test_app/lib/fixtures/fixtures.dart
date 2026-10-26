@@ -10,6 +10,7 @@ import 'common/reorderable_list_view_layout.dart';
 import 'common/splash_screen.dart';
 import 'common/split_layout.dart';
 import 'common/web_view.dart';
+import 'feedback/update_gate.dart';
 import 'smoke/semantics_id.dart';
 import 'themes/system_style.dart';
 
@@ -71,6 +72,9 @@ final Map<String, FixtureEntry> fixtures = <String, FixtureEntry>{
     builder: (context) => const SplitLayoutFixture(),
   ),
   'common/web_view': FixtureEntry(builder: (context) => const WebViewFixture()),
+  'feedback/update_gate': FixtureEntry(
+    builder: (context) => const UpdateGateFixture(),
+  ),
   'smoke/semantics_id': FixtureEntry(
     builder: (context) => const SmokeSemanticsIdFixture(),
   ),
