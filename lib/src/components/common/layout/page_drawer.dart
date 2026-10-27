@@ -55,7 +55,7 @@ double inlinePaneWidth(PageDrawerSide side, WindowSize window) {
 
 /// The drawer a [PageDrawerStage] draws: its `side`, that side's `config`
 /// and resolved `type`, its `width`, and whether it sits `atLeft`, on the
-/// physical left screen edge.
+/// physical left edge of the box.
 typedef _Drawn = ({
   PageDrawerSide side,
   PageSide config,
@@ -77,7 +77,7 @@ typedef _Drawn = ({
 /// screen, keeps focus in [focusNode], and closes by Esc; the scrim reads
 /// the dismiss label and closes by a tap; back closes it while [open]
 /// holds, before the route pops. A drag on the shown drawer, or one from a
-/// side's screen edge while [edgeSwipe] holds, reports through
+/// side's edge of the box while [edgeSwipe] holds, reports through
 /// [onDragStart], [onDragUpdate], and [onDragEnd]; on iOS the start edge of
 /// a page that can go back is left to the back swipe (US-19 FR-03 E03).
 class PageDrawerStage extends StatelessWidget {
@@ -115,7 +115,7 @@ class PageDrawerStage extends StatelessWidget {
   /// The end side's drawer; null when that side has no drawer.
   final PageSide? right;
 
-  /// Whether a swipe from a side's screen edge opens its drawer.
+  /// Whether a swipe from a side's edge of the box opens its drawer.
   final bool edgeSwipe;
 
   /// The focus scope the shown panel keeps focus in.
@@ -142,7 +142,7 @@ class PageDrawerStage extends StatelessWidget {
   /// The page.
   final Widget child;
 
-  /// The width of the strip on a screen edge that starts an edge swipe.
+  /// The width of the strip on a box edge that starts an edge swipe.
   static const double _edgeWidth = 20;
 
   @override
@@ -310,7 +310,7 @@ class PageDrawerStage extends StatelessWidget {
     );
   }
 
-  /// [drawn]'s panel on its screen edge, under the named route scope, the
+  /// [drawn]'s panel on its edge of the box, under the named route scope, the
   /// focus scope, and Esc; it moves in for `front` and `slide`, stays still
   /// for `back` and `permanent`, and only fades when [reduced] (US-19
   /// FR-02, FR-04, FR-05).
@@ -371,7 +371,7 @@ class PageDrawerStage extends StatelessWidget {
     );
   }
 
-  /// The strip on [side]'s screen edge that starts an edge swipe; an empty
+  /// The strip on [side]'s edge of the box that starts an edge swipe; an empty
   /// box where the side has no drawer, [edgeSwipe] is off, another side's
   /// drawer shows, or the iOS back swipe owns the edge (US-19 FR-03 E03 to
   /// E05).

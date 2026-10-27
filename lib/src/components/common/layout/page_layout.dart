@@ -278,8 +278,8 @@ class PageLayout extends StatefulWidget {
   /// pane, as [leftDividerBuilder] does for [left].
   final SplitDividerBuilder? rightDividerBuilder;
 
-  /// Whether a swipe in from a drawer's screen edge opens it; turn it off on
-  /// a page with sideways gestures of its own. On iOS the start edge of a
+  /// Whether a swipe in from a drawer's edge of the box opens it; turn it off
+  /// on a page with sideways gestures of its own. On iOS the start edge of a
   /// page that can go back stays with the back swipe either way.
   final bool edgeSwipe;
 

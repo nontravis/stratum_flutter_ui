@@ -1017,14 +1017,14 @@ beside `style`, which draws the box.
 - **Drawers** — below `drawerCut` (default `WindowSize.tablet`), `left` and `right` are drawers that take no space; at
   the cut and up they sit inline. Open one from a menu button with `PageLayout.of(context).openLeft()` (or
   `openRight()`), close it with `close()`, and listen with `onDrawerChanged:` (the side that opened, then null once it
-  closed); `openLeft()` on a side shown inline does nothing. The EndUser also opens one by a swipe from its screen edge
-  (never from the iOS start edge of a page that can go back, and never with `edgeSwipe: false`) and closes it by the
-  scrim, Esc, back, or a drag. `leftSide: PageSide(type: PageDrawerType.back, pageScale: 0.9, maxWidth: 320)` picks the
-  type (`front`, `back`, `slide`, `permanent`, or `page`; default `slide` on iOS, `front` elsewhere), the width bounds
-  (80% of the `PageLayout`'s own box, up to 360 by default, never wider than that box), an optional page scale, and
-  `semanticsLabel:`. A `page` drawer opens as a new page that sits outside the `PageLayout`, so close it with
-  `Navigator.pop`, never `PageLayout.of`. A drawer open when the window grows past the cut closes (`onDrawerChanged`
-  hears null after that frame) and the side shows inline.
+  closed); `openLeft()` on a side shown inline does nothing. The EndUser also opens one by a swipe from its edge of the
+  `PageLayout`'s own box (never from the iOS start edge of a page that can go back, and never with `edgeSwipe: false`)
+  and closes it by the scrim, Esc, back, or a drag. `leftSide: PageSide(type: PageDrawerType.back, pageScale: 0.9,
+  maxWidth: 320)` picks the type (`front`, `back`, `slide`, `permanent`, or `page`; default `slide` on iOS, `front`
+  elsewhere), the width bounds (80% of the `PageLayout`'s own box, up to 360 by default, never wider than that box), an
+  optional page scale, and `semanticsLabel:`. A `page` drawer opens as a new page that sits outside the `PageLayout`, so
+  close it with `Navigator.pop`, never `PageLayout.of`. A drawer open when the window grows past the cut closes
+  (`onDrawerChanged` hears null after that frame) and the side shows inline.
 - **Side panes** — at the cut and up, `left` and `right` sit beside the center column as `SplitLayout` panes the EndUser
   resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`; on either divider End widens
   the side pane to its maximum, Home narrows it to its minimum, and the slider reads its share, while the arrows move by
