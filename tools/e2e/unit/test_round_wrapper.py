@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from stratum_e2e.paths import E2E_ROOT, REPO_ROOT
+from stratum_e2e.paths import E2E_ROOT, PLAYWRIGHT_BROWSERS_DIR, REPO_ROOT
 
 WRAPPER = E2E_ROOT / "round"
 SUITE_PREFIX = re.compile(r"^.*?(?=(?:common|feedback|perf|smoke|themes|integration|unit)/)")
@@ -136,6 +136,12 @@ def test_setup_through_a_symlink_checks_its_own_toolchain(tmp_path: Path) -> Non
     linked = subprocess.run([str(link), "--check"], capture_output=True, text=True, timeout=120, check=False)
     assert linked.stdout == direct.stdout
     assert linked.returncode == direct.returncode
+
+
+def test_setup_installs_firefox_where_the_harness_points_playwright() -> None:
+    assert 'BROWSERS_DIR="${TOOLS_DIR}/ms-playwright"' in (E2E_ROOT / "setup.sh").read_text()
+    assert PLAYWRIGHT_BROWSERS_DIR == E2E_ROOT / ".tools" / "ms-playwright"
+    assert "/tools/e2e/.tools/ms-playwright/" in (REPO_ROOT / ".gitignore").read_text().splitlines()
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="macOS volumes are case-insensitive by default")

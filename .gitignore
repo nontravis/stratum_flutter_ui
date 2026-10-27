@@ -52,6 +52,7 @@ migrate_working_dir/
 /tools/e2e/.venv/
 /tools/e2e/.tools/node_modules/
 /tools/e2e/.tools/appium-home/
+/tools/e2e/.tools/ms-playwright/
 /tools/e2e/.wda-derived/
 **/__pycache__/
 /tools/e2e/.pytest_cache/

@@ -3,7 +3,8 @@
 # e2e toolchain setup for the stratum_ui e2e suite.
 # Plan task M2-T7; design section 4 (own environment) and section 16 (pinned versions).
 #
-# Everything lands inside tools/e2e/.venv (Python) and tools/e2e/.tools (Node, Appium, drivers) —
+# Everything lands inside tools/e2e/.venv (Python) and tools/e2e/.tools (Node, Appium, drivers,
+# Playwright's Firefox) —
 # nothing is installed globally. A plain run is idempotent: any step whose pinned
 # version is already present is skipped, so a second run installs nothing.
 #
@@ -32,6 +33,7 @@ SCRIPT_DIR="$(script_dir)"
 E2E_DIR="${SCRIPT_DIR}"
 VENV_DIR="${E2E_DIR}/.venv"
 TOOLS_DIR="${E2E_DIR}/.tools"
+BROWSERS_DIR="${TOOLS_DIR}/ms-playwright"
 APPIUM_HOME_DIR="${TOOLS_DIR}/appium-home"
 APPIUM_BIN="${TOOLS_DIR}/node_modules/.bin/appium"
 REQUIREMENTS="${E2E_DIR}/requirements.txt"
@@ -58,6 +60,29 @@ pip_pkg_version() { # $1: distribution name
 requirements_pin() { # $1: distribution name
   [[ -f "${REQUIREMENTS}" ]] || return 0
   sed -n "s/^${1}==\(.*\)\$/\1/p" "${REQUIREMENTS}" | head -n 1
+}
+
+# Print the folder name Playwright installs its pinned Firefox into (for example firefox-1555), or nothing.
+# The dry run reads the pin from the installed playwright package and downloads nothing.
+firefox_wanted() {
+  local plan line
+  [[ -x "${VENV_DIR}/bin/python" ]] || return 0
+  plan="$(PLAYWRIGHT_BROWSERS_PATH="${BROWSERS_DIR}" "${VENV_DIR}/bin/python" -m playwright install --dry-run firefox 2>/dev/null || true)"
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^[[:space:]]*Install\ location:[[:space:]]*(.+)$ ]]; then
+      basename -- "${BASH_REMATCH[1]}"
+      return 0
+    fi
+  done <<<"${plan}"
+}
+
+# Print the wanted Firefox folder name when that exact folder holds a complete install, or nothing.
+# Playwright writes an INSTALLATION_COMPLETE marker in a folder only after the download finished.
+firefox_installed() {
+  local wanted
+  wanted="$(firefox_wanted)"
+  [[ -n "${wanted}" && -f "${BROWSERS_DIR}/${wanted}/INSTALLATION_COMPLETE" ]] || return 0
+  printf '%s\n' "${wanted}"
 }
 
 # Print the version of the appium CLI, or nothing.
@@ -112,6 +137,16 @@ setup_venv() {
   "${VENV_DIR}/bin/python" -m pip install --disable-pip-version-check -r "${REQUIREMENTS}"
 }
 
+setup_browsers() {
+  local wanted
+  wanted="$(firefox_wanted)"
+  if [[ -n "${wanted}" && "$(firefox_installed)" == "${wanted}" ]]; then
+    log "firefox ${wanted} already installed"
+    return 0
+  fi
+  PLAYWRIGHT_BROWSERS_PATH="${BROWSERS_DIR}" "${VENV_DIR}/bin/python" -m playwright install firefox
+}
+
 setup_npm() {
   if [[ "$(appium_version)" == "${APPIUM_PIN}" ]]; then
     log "appium ${APPIUM_PIN} already installed; skipping npm ci"
@@ -148,11 +183,12 @@ run_setup() {
   require_commands
   require_python3
   setup_venv
+  setup_browsers
   setup_npm
   setup_drivers
   log "toolchain ready (appium ${APPIUM_PIN}, uiautomator2 ${UIA2_DRIVER_PIN}," \
     "xcuitest ${XCUITEST_DRIVER_PIN}, mac2 ${MAC2_DRIVER_PIN}," \
-    "playwright $(requirements_pin playwright))"
+    "playwright $(requirements_pin playwright), $(firefox_wanted))"
 }
 
 CHECK_FAILED=0
@@ -178,6 +214,7 @@ run_check() {
   check_tool Appium-Python-Client "$(pip_pkg_version Appium-Python-Client)" "${client_pin}"
   check_tool pytest "$(pip_pkg_version pytest)" "${pytest_pin}"
   check_tool playwright "$(pip_pkg_version playwright)" "${playwright_pin}"
+  check_tool firefox "$(firefox_installed || true)" "$(firefox_wanted)"
   exit "${CHECK_FAILED}"
 }
 
