@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from stratum_e2e.paths import (
     ROUNDS_ROOT,
     TESTS_DIR,
     in_round_scope,
+    scope_key,
     scope_root,
 )
 
@@ -49,3 +51,20 @@ def test_in_round_scope_is_true_only_under_a_scope_root() -> None:
     assert in_round_scope(TESTS_DIR / "perf" / "test_perf_abba.py")
     assert in_round_scope(INTEGRATION_ITEM_DIR / "test_integration.py")
     assert not in_round_scope(E2E_ROOT / "unit" / "test_paths.py")
+
+
+def test_e2e_holds_no_integration_folder() -> None:
+    # `integration/<file>` is the integration item's key; a folder of that name under e2e/ would share it.
+    assert not (TESTS_DIR / "integration").exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS volumes are case-insensitive by default")
+def test_scope_matches_a_path_typed_in_other_case() -> None:
+    typed = Path(str(REPO_ROOT).swapcase())
+    if not typed.exists() or not typed.samefile(REPO_ROOT):
+        pytest.skip("this volume is case-sensitive")
+    other_case = typed / "e2e" / "common" / "test_x.py"
+    integration = typed / "tools" / "e2e" / "integration" / "test_integration.py"
+    assert in_round_scope(other_case)
+    assert scope_key(other_case) == "common/test_x.py"
+    assert scope_key(integration) == "integration/test_integration.py"

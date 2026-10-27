@@ -10,14 +10,26 @@
 #
 # Path selection is pytest's own: the default suites are the `testpaths` ini value, which pytest applies only when
 # the command line holds no path argument and the run starts in the rootdir. The wrapper pins the rootdir to the
-# stratum_ui root and never guesses which arguments are paths, so an option value such as `--app /tmp/x.apk` cannot
-# suppress the defaults, whatever options a plugin adds later.
+# working directory (checked to be the stratum_ui root) and never guesses which arguments are paths, so an option
+# value such as `--app /tmp/x.apk` cannot suppress the defaults, whatever options a plugin adds later. `unit` swaps
+# the default suites for the unit folder the same way, so a path after it narrows the unit run.
 #
 # Exit code: pytest's; 1 when the toolchain is not set up or the run does not start in the stratum_ui root.
 
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# Print the physical folder of this script, following symlinks to it (Bash 3.2 has no `readlink -f`).
+script_dir() {
+  local source="${BASH_SOURCE[0]}" folder
+  while [[ -L "${source}" ]]; do
+    folder="$(cd -P -- "$(dirname -- "${source}")" && pwd -P)"
+    source="$(readlink -- "${source}")"
+    [[ "${source}" == /* ]] || source="${folder}/${source}"
+  done
+  cd -P -- "$(dirname -- "${source}")" && pwd -P
+}
+
+SCRIPT_DIR="$(script_dir)"
 readonly SCRIPT_DIR
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
 readonly REPO_ROOT
@@ -25,27 +37,39 @@ readonly VENV_PYTHON="${SCRIPT_DIR}/.venv/bin/python"
 
 # Relative to the rootdir (REPO_ROOT); free of spaces so the ini list splits cleanly.
 readonly DEFAULT_TESTPATHS="e2e tools/e2e/integration/test_integration.py"
+readonly UNIT_TESTPATHS="tools/e2e/unit"
 
 if [[ ! -x "${VENV_PYTHON}" ]]; then
   printf 'round: %s missing; run %s/setup.sh first\n' "${VENV_PYTHON}" "${SCRIPT_DIR}" >&2
   exit 1
 fi
 
-if [[ "$(pwd -P)" != "${REPO_ROOT}" ]]; then
+# Same-file test, not a string compare: bash keeps the case typed in `cd` on a case-insensitive volume, while pytest
+# reads the real case from the OS and would then ignore `testpaths`.
+if [[ ! "$(pwd -P)" -ef "${REPO_ROOT}" ]]; then
   printf 'round: run from the stratum_ui root (%s), not %s\n' "${REPO_ROOT}" "$(pwd -P)" >&2
   exit 1
 fi
 
-args=("$@")
-if [[ ${#args[@]} -gt 0 && "${args[0]}" == "unit" ]]; then
-  args[0]="tools/e2e/unit"
-fi
+# An empty argument is dropped: pytest reads "" as the working directory, which would suppress `testpaths`.
+testpaths="${DEFAULT_TESTPATHS}"
+args=()
+first=1
+for arg in "$@"; do
+  [[ -n "${arg}" ]] || continue
+  if [[ ${first} -eq 1 && "${arg}" == "unit" ]]; then
+    testpaths="${UNIT_TESTPATHS}"
+  else
+    args+=("${arg}")
+  fi
+  first=0
+done
 
 export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 # `${args[@]+...}` keeps an empty array from tripping `set -u` on Bash 3.2.
 exec "${VENV_PYTHON}" -m pytest \
   -c "${SCRIPT_DIR}/pytest.ini" \
-  --rootdir "${REPO_ROOT}" \
+  --rootdir . \
   -o "cache_dir=${SCRIPT_DIR}/.pytest_cache" \
-  -o "testpaths=${DEFAULT_TESTPATHS}" \
+  -o "testpaths=${testpaths}" \
   ${args[@]+"${args[@]}"}

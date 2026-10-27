@@ -17,10 +17,21 @@ APPIUM_HOME = E2E_ROOT / ".tools" / "appium-home"
 _KEY_BASES = {TESTS_DIR: TESTS_DIR, INTEGRATION_ITEM_DIR: E2E_ROOT}
 
 
+def _under(path: Path, root: Path) -> Path | None:
+    """Returns the parent of [path] that is the folder [root], else None; None too when [root] does not exist.
+
+    Compares by file identity, since a path typed in other case on a case-insensitive volume differs from [root] as a
+    string yet names the same folder.
+    """
+    if not root.exists():
+        return None
+    return next((parent for parent in path.parents if parent.exists() and parent.samefile(root)), None)
+
+
 def scope_root(path: Path) -> Path | None:
     """Returns the round-scope root holding [path], or None when [path] sits outside every root."""
-    parents = path.resolve().parents
-    return next((root for root in _KEY_BASES if root in parents), None)
+    resolved = path.resolve()
+    return next((root for root in _KEY_BASES if _under(resolved, root) is not None), None)
 
 
 def in_round_scope(path: Path) -> bool:
@@ -33,4 +44,6 @@ def scope_key(path: Path) -> str:
     root = scope_root(path)
     if root is None:
         return path.name
-    return path.resolve().relative_to(_KEY_BASES[root]).as_posix()
+    resolved = path.resolve()
+    inside_root = resolved.relative_to(_under(resolved, root))
+    return (root.relative_to(_KEY_BASES[root]) / inside_root).as_posix()

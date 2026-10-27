@@ -9,9 +9,9 @@ items by `integration_file` as well, and the pairs a target does not run are des
 lane release) before the next target's first item. The round dir is written when the session ends, after a SIGTERM or
 SIGINT too.
 
-The hooks and fixtures live here, since `pytest_plugins` registers this module; they build on `state` (keys and round
-state), `collect` (planning and selection), `bring_up` (lane, boot, backends), `runs` (resolve, build, integration
-runs), and `items` (retry and recording).
+The hooks and fixtures live here, since `-p` in `pytest.ini` registers this module; they build on `state` (keys and
+round state), `collect` (planning and selection), `bring_up` (lane, boot, backends), `runs` (resolve, build,
+integration runs), and `items` (retry and recording).
 """
 
 from __future__ import annotations
@@ -173,7 +173,8 @@ def _lost_or_fail(state: RoundState, target: Target, call: pytest.CallInfo[None]
 @pytest.fixture(scope="session")
 def round_backends(request: pytest.FixtureRequest) -> Backends:
     """The real backends: subprocesses, one booter per platform, the app build, the integration run, the host memory
-    gate, and the UTC clock. A unit test overrides this fixture in a conftest."""
+    gate, and the UTC clock. A unit test overrides this fixture in the `round_fake` plugin that `-p` loads last
+    (`unit/sandbox.py`); a sandbox conftest is never loaded."""
     return real_backends(request.config)
 
 

@@ -17,7 +17,18 @@
 
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# Print the physical folder of this script, following symlinks to it (Bash 3.2 has no `readlink -f`).
+script_dir() {
+  local source="${BASH_SOURCE[0]}" folder
+  while [[ -L "${source}" ]]; do
+    folder="$(cd -P -- "$(dirname -- "${source}")" && pwd -P)"
+    source="$(readlink -- "${source}")"
+    [[ "${source}" == /* ]] || source="${folder}/${source}"
+  done
+  cd -P -- "$(dirname -- "${source}")" && pwd -P
+}
+
+SCRIPT_DIR="$(script_dir)"
 E2E_DIR="${SCRIPT_DIR}"
 VENV_DIR="${E2E_DIR}/.venv"
 TOOLS_DIR="${E2E_DIR}/.tools"

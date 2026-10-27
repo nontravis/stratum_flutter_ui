@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,10 +24,10 @@ SUMMARY = re.compile(r"^\d+(?:/\d+)? tests? collected")
 BASELINE_DIR = os.environ.get("E2E_ROUND_BASELINE_DIR")
 
 
-def collect(*args: str) -> tuple[list[str], str]:
+def collect(*args: str, wrapper: Path = WRAPPER) -> tuple[list[str], str]:
     """Run the wrapper with `--collect-only -q`; return its node ids (prefix-normalised) and the summary line."""
     done = subprocess.run(
-        [str(WRAPPER), *args, "--collect-only", "-q"],
+        [str(wrapper), *args, "--collect-only", "-q"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -105,3 +106,51 @@ def test_node_id_path_arg_replaces_defaults() -> None:
     nodes, _ = collect("e2e/smoke", "--app", "/tmp/x.apk")
     assert nodes
     assert all(node.startswith("smoke/") for node in nodes)
+
+
+def test_unit_then_a_path_narrows_the_unit_dir() -> None:
+    nodes, _ = collect("unit", "tools/e2e/unit/test_paths.py")
+    assert nodes
+    assert all(node.startswith("unit/test_paths.py::") for node in nodes)
+
+
+def test_empty_string_argument_is_dropped() -> None:
+    # pytest reads "" as the cwd, which would suppress the default suites and add the unit suite.
+    _, summary = collect("")
+    _, default_summary = collect()
+    assert count_of(summary) == count_of(default_summary)
+
+
+def test_wrapper_through_a_symlink_finds_its_own_folder(tmp_path: Path) -> None:
+    link = tmp_path / "round"
+    link.symlink_to(WRAPPER)
+    nodes, summary = collect(wrapper=link)
+    assert any(node.startswith("common/test_") for node in nodes)
+    assert count_of(summary) == count_of(collect()[1])
+
+
+def test_setup_through_a_symlink_checks_its_own_toolchain(tmp_path: Path) -> None:
+    link = tmp_path / "setup.sh"
+    link.symlink_to(E2E_ROOT / "setup.sh")
+    direct = subprocess.run([str(E2E_ROOT / "setup.sh"), "--check"], capture_output=True, text=True, timeout=120, check=False)
+    linked = subprocess.run([str(link), "--check"], capture_output=True, text=True, timeout=120, check=False)
+    assert linked.stdout == direct.stdout
+    assert linked.returncode == direct.returncode
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS volumes are case-insensitive by default")
+def test_working_directory_typed_in_other_case_keeps_defaults() -> None:
+    # Bash keeps the typed case in `pwd -P` while pytest reads the real case from `os.getcwd()`.
+    typed = Path(str(REPO_ROOT).swapcase())
+    if not typed.exists() or not typed.samefile(REPO_ROOT):
+        pytest.skip("this volume is case-sensitive")
+    done = subprocess.run(
+        ["bash", "-c", 'cd "$1" && exec tools/e2e/round --collect-only -q', "bash", str(typed)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    summary = next(line for line in done.stdout.splitlines() if SUMMARY.match(line))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert count_of(summary) == count_of(collect()[1])
