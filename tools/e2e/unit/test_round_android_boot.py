@@ -159,8 +159,8 @@ class SpawnFailsRunner(FakeRunner):
         raise FileNotFoundError(2, "No such file or directory", argv[0])
 
 
-def _done(stdout: str = "", status: int = 0) -> Completed:
-    return Completed(argv=(), status=status, stdout=stdout, stderr="", timed_out=False)
+def _done(stdout: str = "", status: int = 0, *, timed_out: bool = False) -> Completed:
+    return Completed(argv=(), status=status, stdout=stdout, stderr="", timed_out=timed_out)
 
 
 def _on(serial: str, *args: str) -> tuple[str, ...]:
@@ -750,6 +750,95 @@ def test_clear_anr_names_the_packages_the_last_poll_listed_not_the_entry_ones(
     reason = caught.value.reason
     assert SYSTEMUI not in reason.split("still lists")[-1]
     assert "com.example.app" in reason
+
+
+def _failed_windows(status: int = 1, *, timed_out: bool = False) -> list[Entry]:
+    return [
+        (
+            _on(SERIAL, "shell", "dumpsys", "window", "windows"),
+            _done("error: dump failed\n", status, timed_out=timed_out),
+        )
+    ]
+
+
+def test_settle_holds_on_a_nonzero_window_dump_and_raises_at_the_deadline(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    lane = LaneConfig(20, 3, True, (), 30)
+    bad_poll = [
+        (_on(SERIAL, "shell", "uptime"), _done(" 14:10:01 up 1 day,  1:23,  0 users,  load average: 0.50, 0.40, 0.30\n")),
+        *_failed_windows(),
+        (_on(SERIAL, "shell", "dumpsys", "input_method"), _done(IME_BOUND)),
+    ]
+    script = [
+        *_listing((OTHER, "Other_AVD")),
+        *_ready(),
+        *_confirm(),
+        *_rtt("12.3"),
+        *bad_poll * 4,
+        *_teardown(restore=False),
+    ]
+    runner = EmulatorRunner(script)
+
+    error = _boot_fails(_booter(runner, avd_home, clock, lane), tmp_path)
+
+    assert "did not settle after boot within 3 s" in error.reason
+    assert "the window list is unreadable" in error.reason
+    assert not _has(runner.calls, "broadcast")
+
+
+def test_settle_holds_on_an_empty_window_dump_and_raises_at_the_deadline(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    lane = LaneConfig(20, 3, True, (), 30)
+    empty_poll = [
+        (_on(SERIAL, "shell", "uptime"), _done(" 14:10:01 up 1 day,  1:23,  0 users,  load average: 0.50, 0.40, 0.30\n")),
+        (_on(SERIAL, "shell", "dumpsys", "window", "windows"), _done("")),
+        (_on(SERIAL, "shell", "dumpsys", "input_method"), _done(IME_BOUND)),
+    ]
+    script = [
+        *_listing((OTHER, "Other_AVD")),
+        *_ready(),
+        *_confirm(),
+        *_rtt("12.3"),
+        *empty_poll * 4,
+        *_teardown(restore=False),
+    ]
+    runner = EmulatorRunner(script)
+
+    error = _boot_fails(_booter(runner, avd_home, clock, lane), tmp_path)
+
+    assert "the window list is unreadable" in error.reason
+
+
+def test_clear_anr_raises_after_the_wait_on_an_unreadable_window_list(
+    avd_home: Path, clock: FakeClock
+) -> None:
+    runner = FakeRunner([*_state("device"), *_ready(), *_failed_windows() * 17])
+    record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
+
+    with pytest.raises(RoundEnvError) as caught:
+        _booter(runner, avd_home, clock).before_file(record)
+
+    assert "the window list is unreadable" in caught.value.reason
+    assert not _has(runner.calls, "broadcast")
+    assert clock.now >= 15.0
+
+
+def test_clear_anr_raises_promptly_when_the_emulator_exits_mid_poll(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    still = [*_windows(FOCUS_ANR), (_close_dialogs(), _done())]
+    runner = EmulatorRunner(
+        [*_listing((OTHER, "Other_AVD")), *_ready(), *_confirm(), *_rtt("12.3"), *_settle(), *still],
+        exits_after=_close_dialogs(),
+    )
+    log = tmp_path / "emulator.log"
+
+    with pytest.raises(RoundEnvError) as caught:
+        _booter(runner, avd_home, clock).boot(TARGET, log)
+
+    assert "exited with status 1" in caught.value.reason
 
 
 def test_emulator_exiting_during_the_ready_wait_is_env_with_no_change_on_its_serial(

@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from stratum_e2e.android.window_list import live_window_blocks, window_title
 
 LOAD_LIMIT = 2.0
+UNREADABLE_WINDOW_LIST = "the window list is unreadable (dumpsys window windows)"
 
 BOOT_SETTINGS: tuple[tuple[str, str], ...] = (
     ("stylus_handwriting_enabled", "0"),
@@ -19,8 +20,8 @@ _CURRENT_ID = "mCurId="
 _BOUND_TO_METHOD = "mBoundToMethod=true"
 _UNKNOWN_PACKAGE = "unknown"
 _ANR_MARKERS = ("Application Not Responding", "isn't responding")
-_ANR_TITLE = re.compile(r"Application Not Responding: ([A-Za-z0-9_.]+)")
-_ANR_ISNT_RESPONDING = re.compile(r"([A-Za-z0-9_.]+) isn't responding")
+_ANR_TITLE = re.compile(r"Application Not Responding: ([A-Za-z0-9_.:]+)")
+_ANR_ISNT_RESPONDING = re.compile(r"([A-Za-z0-9_.:]+) isn't responding")
 _LOAD_AVERAGE = re.compile(r"load average: ([0-9]+\.[0-9]+)")
 _PING_TIME = re.compile(r"time=([0-9.]+)")
 _DRIVE_PREFIX = re.compile(r"^[VDIWEF]/flutter \([ \t]*[0-9]+\): ")
@@ -68,13 +69,16 @@ def guest_load(uptime_out: str) -> float:
     return float(match.group(1)) if match else math.inf
 
 
-def settle_reasons(load: float, anr_packages: Sequence[str], ime: bool) -> list[str]:
-    """One line per unmet settle gate (load above `LOAD_LIMIT`, an ANR window open, no IME bound); empty when settled."""
+def settle_reasons(load: float, anr_packages: Sequence[str] | None, ime: bool) -> list[str]:
+    """One line per unmet settle gate (load above `LOAD_LIMIT`, an ANR window open, an unreadable window
+    list, no IME bound); empty when settled."""
     reasons: list[str] = []
     if load > LOAD_LIMIT:
         shown = "unknown" if math.isinf(load) else f"{load:g}"
         reasons.append(f"guest load {shown} > {LOAD_LIMIT:g}")
-    if anr_packages:
+    if anr_packages is None:
+        reasons.append(UNREADABLE_WINDOW_LIST)
+    elif anr_packages:
         reasons.append(f"an ANR window is open: {', '.join(anr_packages)}")
     if not ime:
         reasons.append("no IME is bound (dumpsys input_method)")

@@ -110,6 +110,15 @@ def test_settle_reasons_name_an_anr_window_the_focus_line_misses() -> None:
     assert reasons == ["an ANR window is open: com.android.systemui"]
 
 
+def test_settle_reasons_hold_on_an_unreadable_window_list() -> None:
+    assert settle_reasons(0.5, None, True) == ["the window list is unreadable (dumpsys window windows)"]
+
+
+def test_anr_title_regex_reads_a_process_suffix_package() -> None:
+    assert anr_window_packages("  Window #0 Window{a1 u0 Application Not Responding: com.foo:bar}:\n") == ("com.foo:bar",)
+    assert anr_window_packages("  Window #0 Window{b2 u0 com.foo:bar isn't responding}:\n") == ("com.foo:bar",)
+
+
 def test_clock_jump_sign() -> None:
     assert clock_jumped(_fixture("ping_clock_jump.txt")) is True
     assert clock_jumped("64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=0.412 ms") is False

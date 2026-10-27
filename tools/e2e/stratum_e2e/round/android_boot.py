@@ -16,7 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from stratum_e2e.round.android_host import CONSOLE_PORTS, adb_path, avd_info, emulator_path, reserve_port
+from stratum_e2e.android.window_list import live_window_blocks, window_title
 from stratum_e2e.round.android_traps import (
+    UNREADABLE_WINDOW_LIST,
     anr_window_packages,
     clock_jumped,
     guest_load,
@@ -243,7 +245,11 @@ class AndroidBooter(Booter):
             self._sleep(_POLL_S)
 
     def _settle_wait(self, serial: str) -> None:
-        """Poll the settle gates; on each poll that lists an ANR window, broadcast CLOSE_SYSTEM_DIALOGS once."""
+        """Poll the settle gates; on each poll that lists an ANR window, broadcast CLOSE_SYSTEM_DIALOGS once.
+
+        An unreadable window list holds like any unmet gate: the broadcast goes out only when
+        packages are actually listed.
+        """
         limit = self._lane.boot_settle_timeout_seconds
         deadline = self._monotonic() + limit
         while True:
@@ -263,18 +269,25 @@ class AndroidBooter(Booter):
         """Broadcast CLOSE_SYSTEM_DIALOGS, then poll until no ANR window lists or the wait runs out.
 
         The broadcast maps to FORCE_CLOSE on the ANR dialog's receiver for any package, focused or not,
-        so no package name is needed; each poll that still lists an ANR window sends it again.
+        so no package name is needed; each poll that still lists an ANR window sends it again. An
+        unreadable window list never reads as cleared: it keeps polling to the wait, then raises.
         """
         deadline = self._monotonic() + _ANR_CLOSE_WAIT_S
-        packages = self._anr_packages(serial)
-        while packages:
-            self._close_anr_dialogs(serial)
-            if self._monotonic() >= deadline:
-                raise RoundEnvError(
-                    f"{serial}: an ANR window of {', '.join(packages)} still lists after CLOSE_SYSTEM_DIALOGS"
-                )
-            self._sleep(_POLL_S)
+        while True:
+            self._check_alive(serial)
             packages = self._anr_packages(serial)
+            if packages is None:
+                if self._monotonic() >= deadline:
+                    raise RoundEnvError(f"{serial}: {UNREADABLE_WINDOW_LIST} for {_ANR_CLOSE_WAIT_S:g} s")
+            elif not packages:
+                return
+            else:
+                self._close_anr_dialogs(serial)
+                if self._monotonic() >= deadline:
+                    raise RoundEnvError(
+                        f"{serial}: an ANR window of {', '.join(packages)} still lists after CLOSE_SYSTEM_DIALOGS"
+                    )
+            self._sleep(_POLL_S)
 
     def _write_settings(self, record: BootRecord, argvs: Sequence[list[str]]) -> None:
         """Run each `settings` row; a failed row never fails the boot or the shutdown, it lands on the record."""
@@ -306,8 +319,18 @@ class AndroidBooter(Booter):
     def _clock_jumped(self, serial: str) -> bool:
         return clock_jumped(self._on(serial, *_RTT_ARGS).stdout)
 
-    def _anr_packages(self, serial: str) -> tuple[str, ...]:
-        return anr_window_packages(self._on(serial, "shell", "dumpsys", "window", "windows").stdout)
+    def _anr_packages(self, serial: str) -> tuple[str, ...] | None:
+        """Packages of every live ANR window, or None when the window list cannot be read.
+
+        None on a failed, timed-out, or window-less answer: a live device always lists windows,
+        so an unreadable list holds the gate rather than reading as "no ANR".
+        """
+        done = self._on(serial, "shell", "dumpsys", "window", "windows")
+        if done.status != 0 or done.timed_out:
+            return None
+        if not any(window_title(block) for block in live_window_blocks(done.stdout)):
+            return None
+        return anr_window_packages(done.stdout)
 
     def _state(self, serial: str) -> str:
         return self._on(serial, "get-state").stdout.strip() or "none"
