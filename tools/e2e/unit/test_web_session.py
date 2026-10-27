@@ -10,7 +10,10 @@ from stratum_e2e import fixtures, locate
 from stratum_e2e.web import session
 from stratum_e2e.web.session import (
     accessibility_snapshot,
+    field_text,
+    focused_name,
     requested_resources,
+    settle_frames,
     slider_value_text,
     web_page,
 )
@@ -30,6 +33,14 @@ class FakeLocator:
         self.page.calls.append(("get_attribute", (self.selector, name, options)))
         return "30%"
 
+    @property
+    def first(self) -> "FakeLocator":
+        return self
+
+    def input_value(self, **options: Any) -> str:
+        self.page.calls.append(("input_value", (self.selector, options)))
+        return "abc"
+
     def text_content(self, **options: Any) -> str:
         self.page.calls.append(("text_content", options))
         return f"text of {self.selector}"
@@ -41,6 +52,8 @@ class FakePage:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
         self.resources: list[str] = []
+        self.evaluated: Any = None
+        self.evaluate_args: tuple[Any, ...] = ()
 
     def goto(self, url: str) -> None:
         self.calls.append(("goto", url))
@@ -52,9 +65,10 @@ class FakePage:
         self.calls.append(("locator", selector))
         return FakeLocator(selector, self)
 
-    def evaluate(self, expression: str) -> list[str]:
+    def evaluate(self, expression: str, *args: Any) -> list[str]:
         self.calls.append(("evaluate", expression))
-        return self.resources
+        self.evaluate_args = args
+        return self.resources if self.evaluated is None else self.evaluated
 
 
 class FakeBrowser:
@@ -160,3 +174,62 @@ def test_slider_value_text_reads_aria_valuetext_of_the_slider_input() -> None:
         "get_attribute",
         ('flt-semantics input[role="slider"]', "aria-valuetext", {"timeout": session.READ_TIMEOUT_MS}),
     ) in page.calls
+
+
+def test_settle_frames_waits_in_the_page_for_the_given_number_of_frames() -> None:
+    page = FakePage()
+
+    settle_frames(page, 3)  # type: ignore[arg-type]  # stub, not a Page
+
+    (script,) = [args for name, args in page.calls if name == "evaluate"]
+    assert "requestAnimationFrame" in script
+    assert page.evaluate_args == (3,)
+
+
+def test_settle_frames_defaults_to_the_module_frame_count() -> None:
+    page = FakePage()
+
+    settle_frames(page)  # type: ignore[arg-type]  # stub, not a Page
+
+    assert page.evaluate_args == (session.SETTLE_FRAMES,)
+
+
+def test_focused_name_reads_the_page_once() -> None:
+    page = FakePage()
+    page.evaluated = "Undo"
+
+    assert focused_name(page) == "Undo"  # type: ignore[arg-type]  # stub, not a Page
+
+    assert [name for name, _ in page.calls] == ["evaluate"]
+
+
+def test_focused_name_names_the_node_by_its_text_when_the_dom_gives_no_label() -> None:
+    page = FakePage()
+    # Flutter web semantics names a button by the text inside its flt-semantics node, so the
+    # script falls back to the focused element's own text when aria-label is absent.
+    page.evaluated = "Undo"
+
+    assert focused_name(page) == "Undo"  # type: ignore[arg-type]  # stub, not a Page
+
+    (script,) = [args for name, args in page.calls if name == "evaluate"]
+    assert "textContent" in script
+    assert "closest" not in script
+
+
+def test_focused_name_is_empty_when_nothing_holds_focus() -> None:
+    page = FakePage()
+    page.evaluated = None
+    page.resources = []
+
+    assert focused_name(page) == ""  # type: ignore[arg-type]  # stub, not a Page
+
+
+def test_field_text_reads_the_field_named_label() -> None:
+    page = FakePage()
+
+    assert field_text(page, "Note") == "abc"  # type: ignore[arg-type]  # stub, not a Page
+
+    selector, options = next(args for name, args in page.calls if name == "input_value")
+    assert 'input[aria-label="Note"]' in selector
+    assert 'textarea[aria-label="Note"]' in selector
+    assert options == {"timeout": session.READ_TIMEOUT_MS}

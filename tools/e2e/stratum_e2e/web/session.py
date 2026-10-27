@@ -10,6 +10,23 @@ READY_TIMEOUT_MS = 30_000
 READ_TIMEOUT_MS = 1_000
 SLIDER_INPUT = 'flt-semantics input[role="slider"]'
 _BLANK_PAGE = "about:blank"
+# Flutter web puts a text field's label on its `<input>` or `<textarea>`.
+_FIELD_SELECTOR = 'input[aria-label="{label}"], textarea[aria-label="{label}"]'
+# Frames `settle_frames` waits by default: two covered the hand-off in a probe, ten leave room for a loaded host.
+SETTLE_FRAMES = 10
+_FRAMES_SCRIPT = (
+    "(n) => new Promise((resolve) => {"
+    " const tick = (left) => (left <= 0 ? resolve() : requestAnimationFrame(() => tick(left - 1)));"
+    " tick(n); })"
+)
+# The accessible name of the node holding focus: Flutter web semantics names a button by the
+# text inside its `flt-semantics` node, not by an `aria-label`, so the element's text is the
+# fallback; textContent, because a button's name is one short string with no nested nodes.
+_FOCUSED_NAME_SCRIPT = (
+    "(() => { const e = document.activeElement; if (!e) return '';"
+    " return e.getAttribute('aria-label')"
+    " || (e.textContent || '').trim() || ''; })()"
+)
 
 
 def open_fixture_route(page: Page, fixture_id: str) -> None:
@@ -51,3 +68,32 @@ def slider_value_text(page: Page) -> str | None:
     TimeoutError when no slider input is on the page.
     """
     return page.locator(SLIDER_INPUT).get_attribute("aria-valuetext", timeout=READ_TIMEOUT_MS)
+
+
+# WORKAROUND: Flutter web opens a field's text connection one to two frames after a click and shows no
+# DOM sign of it, so the leg waits frames; remove when the engine exposes a signal the leg can wait on.
+def settle_frames(page: Page, frames: int = SETTLE_FRAMES) -> None:
+    """Wait in [page] until it has drawn [frames] more animation frames.
+
+    A click returns once the browser has dispatched it, but Flutter web answers it over the next
+    frame or two: the framework takes focus and opens the field's text connection. A key sent
+    before then reaches the DOM input, yet the framework never reads it, so a typed "†" is lost.
+    The page's own frame clock is what the engine waits on, so a count of frames, not seconds,
+    is the end of that hand-off.
+    """
+    page.evaluate(_FRAMES_SCRIPT, frames)
+
+
+def focused_name(page: Page) -> str:
+    """Return the accessible name of the node holding keyboard focus in [page]; `""` when none does."""
+    name: str | None = page.evaluate(_FOCUSED_NAME_SCRIPT)
+    return name or ""
+
+
+def field_text(page: Page, label: str) -> str:
+    """Return the text the field named [label] holds in [page].
+
+    Raises playwright's TimeoutError when no field has that label.
+    """
+    selector = _FIELD_SELECTOR.format(label=label)
+    return page.locator(selector).first.input_value(timeout=READ_TIMEOUT_MS)
