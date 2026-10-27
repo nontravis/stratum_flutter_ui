@@ -51,9 +51,24 @@ void main() {
       expect(find.bySemanticsLabel(_showLabel), findsOneWidget);
       expect(find.text(_message), findsNothing);
       expect(find.text(_actionLabel), findsNothing);
+      expect(find.text('Echo: '), findsOneWidget);
       handle.dispose();
     },
   );
+
+  testWidgets('the echo line follows the text typed into the field', (
+    tester,
+  ) async {
+    await _openFixture(tester);
+
+    await tester.enterText(find.byType(EditableText), _typed);
+    await tester.pump();
+    expect(find.text('Echo: $_typed'), findsOneWidget);
+
+    await tester.enterText(find.byType(EditableText), '');
+    await tester.pump();
+    expect(find.text('Echo: '), findsOneWidget);
+  });
 
   testWidgets('Show notice shows Note saved with its Undo action', (
     tester,
@@ -99,6 +114,7 @@ void main() {
 
         expect(_focusIsInside(find.text(_actionLabel)), isTrue);
         expect(_fieldText(tester), _typed);
+        expect(find.text('Echo: $_typed'), findsOneWidget);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pumpAndSettle();
