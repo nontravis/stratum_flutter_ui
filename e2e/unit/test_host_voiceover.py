@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from stratum_e2e.macos.host_voiceover import (
+    ACTIONS_MENU_MAX_ENTRIES,
     POLL_INTERVAL_SECONDS,
     READY_TIMEOUT_SECONDS,
     RUN_TIMEOUT_SECONDS,
@@ -16,6 +17,7 @@ from stratum_e2e.macos.host_voiceover import (
     HostVoiceOverError,
     HostVoiceOverNotReady,
     HostVoiceOverNotStopped,
+    HostVoiceOverSilent,
     osascript_args,
 )
 
@@ -24,6 +26,9 @@ STOP = 'tell application "VoiceOver" to quit'
 MOVE_NEXT = 'tell application "VoiceOver" to tell vo cursor to move right'
 LAST_PHRASE = 'tell application "VoiceOver" to return content of last phrase'
 PGREP = ["pgrep", "-x", "VoiceOver"]
+PERFORM_ACTIONS = 'tell application "VoiceOver" to perform command "actions"'
+MOVE_DOWN = 'tell application "VoiceOver" to tell vo cursor to move down'
+CLOSE_MENU = 'tell application "VoiceOver" to close menu'
 
 
 class FakeClock:
@@ -47,7 +52,8 @@ class FakeRunner:
     `outputs` answers an osascript script's stdout. `failing` maps a script to the stderr of
     an exit-1 run. `fail_first` makes a script fail that many times before it works. `raises`
     makes a script raise. `pgrep` feeds `pgrep -x VoiceOver` stdout in order, the last answer
-    repeating.
+    repeating. `phrases` feeds the last-phrase reads in order, the last one repeating, in place
+    of `outputs` for that script.
     """
 
     def __init__(
@@ -57,12 +63,14 @@ class FakeRunner:
         fail_first: dict[str, int] | None = None,
         raises: dict[str, BaseException] | None = None,
         pgrep: list[str] | None = None,
+        phrases: list[str] | None = None,
     ) -> None:
         self.outputs = outputs or {}
         self.failing = failing or {}
         self.fail_first = dict(fail_first or {})
         self.raises = raises or {}
         self.pgrep = list(pgrep or [""])
+        self.phrases = list(phrases or [])
         self.calls: list[list[str]] = []
         self.kwargs: list[dict[str, Any]] = []
 
@@ -73,6 +81,9 @@ class FakeRunner:
             answer = self.pgrep.pop(0) if len(self.pgrep) > 1 else self.pgrep[0]
             return subprocess.CompletedProcess(args, 0 if answer else 1, stdout=answer, stderr="")
         script = args[-1]
+        if script == LAST_PHRASE and self.phrases:
+            phrase = self.phrases.pop(0) if len(self.phrases) > 1 else self.phrases[0]
+            return subprocess.CompletedProcess(args, 0, stdout=phrase, stderr="")
         if script in self.raises:
             raise self.raises[script]
         if self.fail_first.get(script, 0) > 0:
@@ -322,3 +333,88 @@ def test_error_1743_names_the_automation_privacy_setting() -> None:
     message = str(raised.value)
     assert "System Settings > Privacy & Security > Automation" in message
     assert "-1743" in message
+
+
+def _stable(phrases: list[str]) -> list[str]:
+    """Serve each phrase twice, so quiet reads agree: speech holds still between utterances."""
+    return [phrase for phrase in phrases for _ in range(2)]
+
+
+def test_actions_menu_opens_walks_the_entries_and_closes() -> None:
+    runner = FakeRunner(phrases=_stable(["Item 1", "Actions", "Move down", "Move to the end"]))
+
+    entries = make(runner).actions_menu()
+
+    assert entries == ["Actions", "Move down", "Move to the end"]
+    assert runner.scripts().count(PERFORM_ACTIONS) == 1
+    assert runner.scripts().index(PERFORM_ACTIONS) < runner.scripts().index(MOVE_DOWN)
+    assert runner.scripts().count(MOVE_DOWN) == 3
+    assert runner.scripts()[-1] == CLOSE_MENU
+
+
+def test_actions_menu_that_never_speaks_raises_and_still_closes() -> None:
+    runner = FakeRunner(phrases=_stable(["Item 1"]))
+
+    with pytest.raises(HostVoiceOverSilent, match="actions"):
+        make(runner).actions_menu()
+
+    assert runner.scripts()[-1] == CLOSE_MENU
+
+
+def test_actions_menu_stops_at_the_entry_bound() -> None:
+    runner = FakeRunner(
+        phrases=_stable([f"Entry {n}" for n in range(ACTIONS_MENU_MAX_ENTRIES + 1)])
+    )
+
+    entries = make(runner).actions_menu()
+
+    assert len(entries) == ACTIONS_MENU_MAX_ENTRIES
+    assert runner.scripts()[-1] == CLOSE_MENU
+
+
+def test_actions_menu_skips_no_entry_when_speech_settles_late() -> None:
+    # A late landing hint reads back as its own phrase once, then holds: the entry list keeps
+    # every entry, one per settled phrase (N2, quiet reads).
+    runner = FakeRunner(
+        phrases=["Item 1", "Item 1", "Actions", "Actions", "Move up", "Move up", "Move down", "Move down"]
+    )
+
+    entries = make(runner).actions_menu()
+
+    assert entries == ["Actions", "Move up", "Move down"]
+
+
+def test_actions_menu_records_no_hint_that_lands_between_entries() -> None:
+    # The hint lands between two entries and repeats: the walk reads it, sees it settle, and
+    # takes it for the next entry only if it differs from the last recorded one (N2).
+    runner = FakeRunner(
+        phrases=[
+            "Item 1", "Item 1",
+            "Actions", "Actions",
+            "Actions available", "Actions available",
+            "Move up", "Move up",
+            "Move up", "Move up",
+        ]
+    )
+
+    entries = make(runner).actions_menu()
+
+    # "Actions available" is recorded as its own entry (a real utterance), then "Move up"
+    # repeats and ends the walk; neither the hint nor the entry was skipped (N2).
+    assert entries == ["Actions", "Actions available", "Move up"]
+
+
+def test_actions_menu_command_failure_surfaces_with_its_stderr() -> None:
+    runner = FakeRunner(failing={PERFORM_ACTIONS: "unknown command"})
+
+    with pytest.raises(HostVoiceOverError, match="unknown command"):
+        make(runner).actions_menu()
+
+
+def test_actions_menu_close_failure_after_a_clean_walk_raises() -> None:
+    runner = FakeRunner(
+        phrases=_stable(["Item 1", "Actions"]), failing={CLOSE_MENU: "no menu"}
+    )
+
+    with pytest.raises(HostVoiceOverError, match="no menu"):
+        make(runner).actions_menu()

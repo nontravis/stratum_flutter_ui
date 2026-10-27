@@ -26,12 +26,21 @@ _STOP = 'tell application "VoiceOver" to quit'
 _MOVE_NEXT = 'tell application "VoiceOver" to tell vo cursor to move right'
 _PGREP = ["pgrep", "-x", "VoiceOver"]
 _LAST_PHRASE = 'tell application "VoiceOver" to return content of last phrase'
+# The actions menu's command name: "actions" is the English name ScreenReader maps to
+# Global.showActionsMenu in /System/Library/PrivateFrameworks/ScreenReader.framework/Versions/A/
+# Resources/SCRStringsToCommandsMap.scrconfig; `perform command` takes it (sdef).
+_PERFORM_ACTIONS = 'tell application "VoiceOver" to perform command "actions"'
+_MOVE_MENU_ENTRY_DOWN = 'tell application "VoiceOver" to tell vo cursor to move down'
+_CLOSE_MENU = 'tell application "VoiceOver" to close menu'
 
 
 RUN_TIMEOUT_SECONDS = 10.0
 READY_TIMEOUT_SECONDS = 15.0
 STOP_TIMEOUT_SECONDS = 10.0
 POLL_INTERVAL_SECONDS = 0.25
+ACTIONS_MENU_MAX_ENTRIES = 30
+MENU_PHRASE_TIMEOUT_SECONDS = 3.0
+MENU_QUIET_SECONDS = 0.25
 
 
 class HostVoiceOverError(RuntimeError):
@@ -48,6 +57,10 @@ class HostVoiceOverNotReady(HostVoiceOverError):
 
 class HostVoiceOverNotStopped(HostVoiceOverError):
     """VoiceOver still ran after `quit` and the bounded wait."""
+
+
+class HostVoiceOverSilent(HostVoiceOverError):
+    """A driven step never changed what VoiceOver spoke within its bound."""
 
 
 def osascript_args(script: str) -> list[str]:
@@ -111,6 +124,58 @@ class HostVoiceOver:
         phrase = self._osascript(_LAST_PHRASE).strip()
         return "" if phrase == _MISSING_VALUE else phrase
 
+    def actions_menu(self) -> list[str]:
+        """Open VoiceOver's actions menu on the VO cursor's item and return its entries, spoken.
+
+        The menu opens with `perform command "actions"`. Every entry, the first included, is
+        taken with the quiet-read discipline (N2): two phrase reads MENU_QUIET_SECONDS apart
+        must agree before it is recorded and before the next move, so a hint that lands late is
+        neither recorded as an entry nor skips one. The walk ends at the first entry whose
+        settled phrase repeats, and `close menu` always runs; its failure after a broken walk is
+        suppressed, so it cannot mask the walk's error. Raises `HostVoiceOverSilent` when the
+        menu never opens, so a wrong command name fails loudly instead of reading the item's
+        own phrase back as one unchanging entry.
+        """
+        entries: list[str] = []
+        walk_error: BaseException | None = None
+        try:
+            before = self._quiet_phrase()
+            self._osascript(_PERFORM_ACTIONS)
+            entries.append(self._settled_new_phrase(before, "the actions menu to open"))
+            while len(entries) < ACTIONS_MENU_MAX_ENTRIES:
+                self._osascript(_MOVE_MENU_ENTRY_DOWN)
+                try:
+                    entry = self._settled_new_phrase(entries[-1], "the next menu entry")
+                except HostVoiceOverSilent:
+                    # The last entry repeats its phrase; a menu that does not wrap ends here.
+                    break
+                if entry == entries[-1]:
+                    break
+                entries.append(entry)
+        except BaseException as error:
+            walk_error = error
+            raise
+        finally:
+            try:
+                self._osascript(_CLOSE_MENU)
+            except HostVoiceOverError:
+                if walk_error is None:
+                    raise
+
+        return entries
+
+    def _quiet_phrase(self) -> str:
+        """Return the phrase once two reads MENU_QUIET_SECONDS apart agree, or the newest read."""
+        deadline = self._clock() + MENU_PHRASE_TIMEOUT_SECONDS
+        phrase = self.last_phrase()
+        while self._clock() + MENU_QUIET_SECONDS < deadline:
+            self._sleep(MENU_QUIET_SECONDS)
+            current = self.last_phrase()
+            if current == phrase:
+                break
+            phrase = current
+        return phrase
+
     def _wait_until_ready(self) -> None:
         """Poll a dictionary read until VoiceOver answers; raise NotReady on timeout."""
         last_error: HostVoiceOverError | None = None
@@ -129,6 +194,20 @@ class HostVoiceOver:
                 f"VoiceOver did not answer AppleScript within {READY_TIMEOUT_SECONDS:g}s; "
                 f"last failure: {last_error}"
             ) from last_error
+
+    def _settled_new_phrase(self, previous: str, what: str) -> str:
+        """Return the first settled phrase after [previous]; raise `HostVoiceOverSilent` if none."""
+        deadline = self._clock() + MENU_PHRASE_TIMEOUT_SECONDS
+        while True:
+            settled = self._quiet_phrase()
+            if settled != previous and settled != "":
+                return settled
+            if self._clock() >= deadline:
+                raise HostVoiceOverSilent(
+                    f"VoiceOver never spoke {what} within {MENU_PHRASE_TIMEOUT_SECONDS:g}s"
+                    f" (last phrase: {settled or previous!r})"
+                )
+            self._sleep(POLL_INTERVAL_SECONDS)
 
     def _stop(self) -> None:
         """Quit VoiceOver, then wait until no VoiceOver process remains."""
