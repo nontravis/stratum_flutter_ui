@@ -258,12 +258,20 @@ def _target(name: str, table: _Table, integration_dir: Path | None) -> Target:
     browser = table.opt_str("browser")
     if browser is not None and browser not in BROWSERS:
         raise CatalogError(f"{table.where}.browser '{browser}' is not one of {', '.join(BROWSERS)}")
+    if browser is not None and platform != "web":
+        raise CatalogError(f"{table.where}.browser '{browser}' needs platform = \"web\"; no other platform launches a browser")
     if browser == "firefox":
         # Flutter's integration_test driver launches Chrome only, so a firefox target runs e2e legs alone.
         if table.bool_("integration", True):
-            raise CatalogError(f"{table.where}: a firefox target needs integration = false")
+            raise CatalogError(
+                f"{table.where}: a firefox target needs integration = false; "
+                "integration runs drive Chrome through chromedriver only"
+            )
         if table.bool_("wasm", False):
-            raise CatalogError(f"{table.where}: a firefox target takes no wasm build")
+            raise CatalogError(
+                f"{table.where}: a firefox target takes no wasm build; "
+                "Flutter supports Firefox with the JavaScript build only"
+            )
 
     plain_name_table = table.table("plain_name")
     plain_name = {key: plain_name_table.str_(key) for key in plain_name_table.keys()}

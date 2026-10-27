@@ -86,8 +86,8 @@ wasm = true                                             # owner ruling 2026-10-1
 
 [targets.firefox]
 platform = "web"
-browser = "firefox"
-integration = false                                     # integration_test drives Chrome only; e2e legs only
+browser = "firefox"                                     # Playwright's bundled Firefox, headless (tools/e2e/setup.sh); never /Applications/Firefox.app
+integration = false                                     # flutter drive has no geckodriver path here; Flutter lists Firefox as JavaScript only, so no wasm
 
 [targets.linux]
 platform = "linux"                                      # image built from the host flutter version
@@ -113,7 +113,7 @@ repeat = 1
 
 [modes.full]
 targets = ["pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "firefox", "linux", "iphone_e2e", "e2e_talkback"]
-repeat = 10                                             # ruling 2026-10-07; small_phone, tablet 2026-10-16; chrome_wasm 2026-10-17 night
+repeat = 10                                             # ruling 2026-10-07; small_phone, tablet 2026-10-16; chrome_wasm 2026-10-17 night; firefox 2026-10-27 (O6)
 
 [lane]
 allow_level2 = true                                     # owner ruling 2026-10-18: memory pressure level 2 passes at 30% free
