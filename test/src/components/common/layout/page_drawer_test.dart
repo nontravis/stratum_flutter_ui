@@ -2821,5 +2821,82 @@ void main() {
         expect(_stageClip(tester), Clip.none);
       }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
     }
+
+    final edgeCases = <(String, TargetPlatform, PageSide)>[
+      ('iOS slide', TargetPlatform.iOS, const PageSide()),
+      (
+        'iOS back',
+        TargetPlatform.iOS,
+        const PageSide(type: PageDrawerType.back),
+      ),
+      (
+        'Android front',
+        TargetPlatform.android,
+        const PageSide(type: PageDrawerType.front),
+      ),
+    ];
+    for (final (type, platform, side) in edgeCases) {
+      Future<void> openInBox(WidgetTester tester) async {
+        await _pumpInBox(
+          tester,
+          _page(leftSide: side),
+          inset: const EdgeInsets.only(right: 84),
+        );
+        await _openMenu(tester);
+      }
+
+      testWidgets(
+        'NFR-U05: NFR-U09: fo06/us19/fr04: s03/inv83: a tap on the scrim at '
+        'the box edge closes the drawer: $type',
+        (tester) async {
+          await openInBox(tester);
+          await tester.tapAt(const Offset(380, 500));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsNothing);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+
+      testWidgets(
+        'NFR-U09: fo06/us19/fr04: s03/inv83: a drag that starts on the scrim '
+        'at the box edge closes the drawer: $type',
+        (tester) async {
+          await openInBox(tester);
+          await tester.dragFrom(const Offset(380, 500), const Offset(-260, 0));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsNothing);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+
+      testWidgets(
+        'fo06/us19/fr04: a tap inside the open panel keeps the drawer open: '
+        '$type',
+        (tester) async {
+          await openInBox(tester);
+          await tester.tapAt(const Offset(150, 500));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsOneWidget);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+    }
+
+    testWidgets('fo06/us19/fr04/e09: opening and closing a drawer in a box '
+        'remounts no page slot', (tester) async {
+      final made = [0];
+      await _pumpInBox(
+        tester,
+        _sides(body: _Kept(made)),
+        inset: const EdgeInsets.only(right: 84),
+      );
+      expect(find.text('right pane'), findsNothing);
+      await _openRight(tester);
+      expect(find.text('right pane'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('right pane'), findsNothing);
+      expect(made.single, 1);
+    });
   });
 }
