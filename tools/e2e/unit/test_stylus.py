@@ -25,12 +25,10 @@ FULL_KEYBOARD = (IME_FIXTURES / "api36_full_keyboard.txt").read_text()
 STYLUS_TOOLBAR = (IME_FIXTURES / "api36_stylus_toolbar.txt").read_text()
 GBOARD_ID = "mId=com.google.android.inputmethod.latin/"
 
+# Trimmed copies of two captures on Pixel_8_API_37 (Gboard 18.4.1, Settings search, 2026-10-28), real lines kept.
 # API 37 drops `mCurId=`, so the shown flag alone has to carry the read.
-IME_API37_SHOWN = (
-    "  mBindingController:\n"
-    "    mBoundToMethod=true\n"
-    "  mInputShown=true\n"
-)
+API37_SHOWN = (IME_FIXTURES / "api37_keyboard_shown.txt").read_text()
+API37_HIDDEN = (IME_FIXTURES / "api37_keyboard_hidden.txt").read_text()
 
 
 def _gboard_line_without_stylus(dump: str) -> str:
@@ -77,7 +75,8 @@ def test_ime_input_shown_is_false_once_the_captured_dump_reads_not_shown(dump: s
 @pytest.mark.parametrize(
     ("dump", "shown"),
     [
-        (IME_API37_SHOWN, True),
+        (API37_SHOWN, True),
+        (API37_HIDDEN, False),
         ("", False),
         ("no input method lines at all\n", False),
         ("  mInputShown=false\n  mBoundToMethod=true\n", False),
