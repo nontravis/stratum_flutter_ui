@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 7a50510:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
+// Frozen by tools/perf_freeze.dart from 7a50510:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // The import and call of reducesMotion are patched to the extension form;

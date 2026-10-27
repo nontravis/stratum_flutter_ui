@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/perf_freeze.dart' hide main;
+import '../../tools/perf_freeze.dart' hide main;
 
 const _row = '''
 import 'package:stratum_ui/src/src.dart';
@@ -103,7 +103,7 @@ void main() {
       expect(
         row,
         startsWith(
-          '// Frozen by tool/perf_freeze.dart from '
+          '// Frozen by tools/perf_freeze.dart from '
           'fd59ffa:lib/a/row_layout.dart.',
         ),
       );

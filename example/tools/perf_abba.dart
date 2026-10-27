@@ -62,9 +62,9 @@ const _builtApp = 'build/macos/Build/Products/Profile/stratum_ui_example.app';
 const _target = '--target=integration_test/layout_perf_test.dart';
 
 const _usage =
-    'usage: dart run tool/perf_abba.dart report\n'
-    '       dart run tool/perf_abba.dart run --runs <n> [--from <first>]\n'
-    '       dart run tool/perf_abba.dart run --trace-full <scene> --runs <n>';
+    'usage: dart run tools/perf_abba.dart report\n'
+    '       dart run tools/perf_abba.dart run --runs <n> [--from <first>]\n'
+    '       dart run tools/perf_abba.dart run --trace-full <scene> --runs <n>';
 
 /// The verdict of a scene or a comparison (spec section 9.5).
 enum Verdict { pass, fail, inconclusive, invalid }
@@ -108,16 +108,16 @@ typedef ConfidenceInterval = ({double lower, double upper});
 /// 9.5).
 ///
 /// Usage, from `example/`:
-/// - `dart run tool/perf_abba.dart run --runs 12` builds the profile app
+/// - `dart run tools/perf_abba.dart run --runs 12` builds the profile app
 ///   once and runs all 12 runs in one `flutter drive` invocation, writing
 ///   each trace's summary as the app prints it, then reports.
-/// - `dart run tool/perf_abba.dart run --from 13 --runs 12` adds the one
+/// - `dart run tools/perf_abba.dart run --from 13 --runs 12` adds the one
 ///   escalation, up to 24 runs (24 blocks per scene), for the scenes the
 ///   stored runs leave INCONCLUSIVE, plus S2-plain.
-/// - `dart run tool/perf_abba.dart run --trace-full <scene> --runs <n>`
+/// - `dart run tools/perf_abba.dart run --trace-full <scene> --runs <n>`
 ///   keeps the full timelines of one scene for at most 4 runs; it never
 ///   enters a verdict.
-/// - `dart run tool/perf_abba.dart report` judges the stored runs again.
+/// - `dart run tools/perf_abba.dart report` judges the stored runs again.
 ///
 /// Prints the report, writes it to `build/perf/abba/report.md`, and exits
 /// with 0 for PASS, 1 for FAIL or INVALID, and 2 for INCONCLUSIVE.

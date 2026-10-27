@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/perf/perf_scenes.dart' show perfScenes;
 import '../../integration_test/perf/perf_trace.dart' show runLine, summaryLine;
-import '../../tool/perf_abba.dart' hide main;
-import '../../tool/perf_abba.dart' as abba;
+import '../../tools/perf_abba.dart' hide main;
+import '../../tools/perf_abba.dart' as abba;
 
 TraceMetrics _metrics({
   double average = 0.25,

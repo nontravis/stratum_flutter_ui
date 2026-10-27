@@ -185,7 +185,7 @@ Future<void> Function(WidgetTester tester) _scroll({double distance = 4000}) {
 /// the crossAxisIntrinsic ABBA follow-up and `S7`, a reorder list at rest,
 /// for the identity sliver's ABBA (R51): the S2-plain null control first,
 /// so each run measures its own noise before the scenes it judges.
-/// `tool/perf_abba.dart` lists the same keys in its `catalog`.
+/// `tools/perf_abba.dart` lists the same keys in its `catalog`.
 final perfScenes = <PerfScene>[
   PerfScene(
     'S2-plain',

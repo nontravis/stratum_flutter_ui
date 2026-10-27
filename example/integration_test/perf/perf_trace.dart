@@ -6,11 +6,11 @@ import 'package:integration_test/integration_test.dart';
 import 'perf_host.dart';
 
 /// Opens the line the app prints when a run starts (spec section 9.4).
-/// `tool/perf_abba.dart` reads the same marker.
+/// `tools/perf_abba.dart` reads the same marker.
 const runMarker = 'PERF_RUN ';
 
 /// Opens the line the app prints after each trace (spec section 9.4).
-/// `tool/perf_abba.dart` reads the same marker.
+/// `tools/perf_abba.dart` reads the same marker.
 const summaryMarker = 'PERF_SUMMARY ';
 
 /// The line that opens run [run]: `PERF_RUN <run>`.

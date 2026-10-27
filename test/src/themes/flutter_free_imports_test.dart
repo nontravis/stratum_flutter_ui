@@ -90,10 +90,10 @@ void main() {
     expect(_refused('bin/stratum_theme.dart', refuseIo: false), isEmpty);
   });
 
-  test('fo03/us10/fr01/e04, s03/inv33: tool/gen_theme_tokens.dart reaches no '
+  test('fo03/us10/fr01/e04, s03/inv33: tools/gen_theme_tokens.dart reaches no '
       'Flutter, dart:ui, or src.dart barrel, so dart run regenerates the '
       'tokens', () {
-    expect(_refused('tool/gen_theme_tokens.dart', refuseIo: false), isEmpty);
+    expect(_refused('tools/gen_theme_tokens.dart', refuseIo: false), isEmpty);
   });
 
   test('minor5, s03/inv13: no file under '

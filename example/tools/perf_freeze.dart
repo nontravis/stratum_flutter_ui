@@ -20,7 +20,7 @@ final _directive = RegExp(r'^(?:library|part)\b', multiLine: true);
 /// Freezes baseline classes for the in-process benchmark (spec section 9.3).
 ///
 /// Usage, from `example/`:
-/// `dart run tool/perf_freeze.dart <commit> <path>...`
+/// `dart run tools/perf_freeze.dart <commit> <path>...`
 ///
 /// Each path is relative to the repository root. Replaces the content of
 /// `integration_test/baseline/` with one frozen file per path and a barrel
@@ -28,7 +28,7 @@ final _directive = RegExp(r'^(?:library|part)\b', multiLine: true);
 /// error there means the copy set misses a file.
 Future<void> main(List<String> args) async {
   if (args.length < 2) {
-    stderr.writeln('usage: dart run tool/perf_freeze.dart <commit> <path>...');
+    stderr.writeln('usage: dart run tools/perf_freeze.dart <commit> <path>...');
     exitCode = 64;
     return;
   }
@@ -129,7 +129,7 @@ String _importSiblings(String source, Map<String, String> siblings) {
 }
 
 String _header(String origin) {
-  return '// Frozen by tool/perf_freeze.dart from $origin. Do not edit; run\n'
+  return '// Frozen by tools/perf_freeze.dart from $origin. Do not edit; run\n'
       '// the tool again. Verbatim except this header, the baseline import,\n'
       '// and the $baselinePrefix prefix on the names the frozen files '
       'declare.\n';
