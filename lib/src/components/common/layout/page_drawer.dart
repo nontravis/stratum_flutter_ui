@@ -26,12 +26,13 @@ PageDrawerType defaultDrawerType(TargetPlatform platform) =>
 PageDrawerType resolveDrawerType(PageSide side, TargetPlatform platform) =>
     side.type ?? defaultDrawerType(platform);
 
-/// A drawer's width on a screen [screenWidth] wide: 80% of it, at most
-/// [max], else 360, and at least [min] (US-19 FR-04 E01 to E03).
-double drawerWidth(double screenWidth, {double? min, double? max}) {
+/// A drawer's width in a `PageLayout` box [boxWidth] wide: 80% of it, at
+/// most [max], else 360, and at least [min] (US-19 FR-04 E01 to E03, E09);
+/// the stage clamps it to the box (E10).
+double drawerWidth(double boxWidth, {double? min, double? max}) {
   final upper = max ?? 360;
   final lower = math.min(min ?? 0, upper);
-  return (screenWidth * 0.8).clamp(lower, upper);
+  return (boxWidth * 0.8).clamp(lower, upper);
 }
 
 /// The width of the right overlay drawer at [window]: 450 at
@@ -68,9 +69,11 @@ typedef _Drawn = ({
 /// invariants 65 to 69).
 ///
 /// While [shown] names a side, its panel from [panel] sits on that side's
-/// screen edge at the drawer width, and the page behind sits under the
-/// [Scrim]; [progress] moves them by the side's type, or only fades the
-/// panel under `context.reducesMotion`. The panel reads as its own named
+/// edge of `PageLayout`'s own box at the drawer width, and the page behind
+/// sits under the [Scrim]; [progress] moves them by the side's type, or only
+/// fades the panel under `context.reducesMotion`. While a drawer shows, the
+/// panel, the page, and the scrim stay inside that box (layout s03
+/// invariants 67 and 83). The panel reads as its own named
 /// screen, keeps focus in [focusNode], and closes by Esc; the scrim reads
 /// the dismiss label and closes by a tap; back closes it while [open]
 /// holds, before the route pops. A drag on the shown drawer, or one from a
@@ -146,41 +149,53 @@ class PageDrawerStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final platform = Theme.of(context).platform;
     final reduced = context.reducesMotion;
-    final drawn = _drawn(context, platform);
-    final behind =
-        drawn != null && !reduced && drawn.type == PageDrawerType.back;
-    final panel = drawn == null ? null : _panel(context, drawn, reduced);
     final canPop = ModalRoute.canPopOf(context) ?? false;
-    return PopScope<Object?>(
-      canPop: !open,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) onClose();
-      },
-      child: GestureDetector(
-        excludeFromSemantics: true,
-        onHorizontalDragStart: drawn == null
-            ? null
-            : (_) => onDragStart(drawn.side),
-        onHorizontalDragUpdate: drawn == null
-            ? null
-            : (details) => onDragUpdate(
-                (details.primaryDelta ?? 0) * _toward(drawn) / drawn.width,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final box = constraints.maxWidth;
+        final drawn = _drawn(context, platform, box);
+        final behind =
+            drawn != null && !reduced && drawn.type == PageDrawerType.back;
+        final panel = drawn == null ? null : _panel(context, drawn, reduced);
+        return PopScope<Object?>(
+          canPop: !open,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) onClose();
+          },
+          child: GestureDetector(
+            excludeFromSemantics: true,
+            onHorizontalDragStart: drawn == null
+                ? null
+                : (_) => onDragStart(drawn.side),
+            onHorizontalDragUpdate: drawn == null
+                ? null
+                : (details) => onDragUpdate(
+                    (details.primaryDelta ?? 0) * _toward(drawn) / drawn.width,
+                  ),
+            onHorizontalDragEnd: drawn == null
+                ? null
+                : (details) => onDragEnd(
+                    (details.primaryVelocity ?? 0) * _toward(drawn),
+                  ),
+            // The outermost ClipRect inside the stage: bounds the panel, the
+            // page, and the scrim to PageLayout's own box while a drawer
+            // shows (layout s03 invariants 67 and 83).
+            child: ClipRect(
+              clipBehavior: drawn == null ? Clip.none : Clip.hardEdge,
+              child: StackLayout(
+                fit: StackFit.expand,
+                children: [
+                  (behind ? panel : null) ?? const SizedBox.shrink(),
+                  _page(context, drawn, reduced),
+                  (behind ? null : panel) ?? const SizedBox.shrink(),
+                  _edge(context, PageDrawerSide.left, platform, canPop, box),
+                  _edge(context, PageDrawerSide.right, platform, canPop, box),
+                ],
               ),
-        onHorizontalDragEnd: drawn == null
-            ? null
-            : (details) =>
-                  onDragEnd((details.primaryVelocity ?? 0) * _toward(drawn)),
-        child: StackLayout(
-          fit: StackFit.expand,
-          children: [
-            (behind ? panel : null) ?? const SizedBox.shrink(),
-            _page(context, drawn, reduced),
-            (behind ? null : panel) ?? const SizedBox.shrink(),
-            _edge(context, PageDrawerSide.left, platform, canPop),
-            _edge(context, PageDrawerSide.right, platform, canPop),
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -191,13 +206,13 @@ class PageDrawerStage extends StatelessWidget {
 
   /// The drawer that shows; null when none shows or [shown] opens as a
   /// page.
-  _Drawn? _drawn(BuildContext context, TargetPlatform platform) {
+  _Drawn? _drawn(BuildContext context, TargetPlatform platform, double box) {
     final side = shown;
     final config = side == null ? null : _configOf(side);
     if (side == null || config == null) return null;
     final type = resolveDrawerType(config, platform);
     if (type == PageDrawerType.page) return null;
-    final place = _placeOf(context, side, config);
+    final place = _placeOf(context, side, config, box);
     return (
       side: side,
       config: config,
@@ -207,20 +222,21 @@ class PageDrawerStage extends StatelessWidget {
     );
   }
 
-  /// The drawer width of [side] and whether it sits on the physical left
-  /// screen edge.
+  /// The drawer width of [side] and whether it sits on the box's physical
+  /// left edge.
   ({double width, bool atLeft}) _placeOf(
     BuildContext context,
     PageDrawerSide side,
     PageSide config,
+    double box,
   ) {
-    // A drawer never runs past the screen, even the overlay drawer on a
-    // screen narrower than its width.
-    final screen = context.deviceWindow.width;
+    // A drawer never runs past PageLayout's own box, even the overlay
+    // drawer in a box narrower than its width (layout s03 invariants 67
+    // and 69).
     return (
       width: math.min(
-        drawerWidth(screen, min: config.minWidth, max: config.maxWidth),
-        screen,
+        drawerWidth(box, min: config.minWidth, max: config.maxWidth),
+        box,
       ),
       atLeft:
           (side == PageDrawerSide.left) ==
@@ -238,7 +254,11 @@ class PageDrawerStage extends StatelessWidget {
   /// Every frame keeps the same widgets around [child], so the page keeps
   /// its state as a drawer opens and closes. While a drawer shows, the page
   /// is its own semantics container, so the scrim hides only the page from
-  /// screen readers, even when a `back` panel paints under it.
+  /// screen readers, even when a `back` panel paints under it. The scrim's
+  /// dismiss label and action merge into this container's node, which sits
+  /// outside the page's transform, so a screen reader finds the dismiss at
+  /// every drawer width, a drawer as wide as the box included (layout s03
+  /// invariants 67 and 68; US-19 FR-05 E04).
   Widget _page(BuildContext context, _Drawn? drawn, bool reduced) {
     final motion =
         !reduced &&
@@ -360,6 +380,7 @@ class PageDrawerStage extends StatelessWidget {
     PageDrawerSide side,
     TargetPlatform platform,
     bool canPop,
+    double box,
   ) {
     final config = _configOf(side);
     // Flutter's iOS back swipe starts on the start edge, where `left` sits.
@@ -369,7 +390,7 @@ class PageDrawerStage extends StatelessWidget {
     if (!edgeSwipe || config == null || backSwipe || other) {
       return const SizedBox.shrink();
     }
-    final place = _placeOf(context, side, config);
+    final place = _placeOf(context, side, config, box);
     final toward = place.atLeft ? 1.0 : -1.0;
     return Positioned(
       top: 0,

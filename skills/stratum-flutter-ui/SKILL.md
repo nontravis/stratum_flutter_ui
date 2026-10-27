@@ -1021,19 +1021,20 @@ beside `style`, which draws the box.
   (never from the iOS start edge of a page that can go back, and never with `edgeSwipe: false`) and closes it by the
   scrim, Esc, back, or a drag. `leftSide: PageSide(type: PageDrawerType.back, pageScale: 0.9, maxWidth: 320)` picks the
   type (`front`, `back`, `slide`, `permanent`, or `page`; default `slide` on iOS, `front` elsewhere), the width bounds
-  (80% of the screen, up to 360 by default), an optional page scale, and `semanticsLabel:`. A `page` drawer opens as a
-  new page that sits outside the `PageLayout`, so close it with `Navigator.pop`, never `PageLayout.of`. A drawer open
-  when the window grows past the cut closes (`onDrawerChanged` hears null after that frame) and the side shows inline.
-- **Side panes** — at the cut and up, `left` and `right` sit beside the center column as `SplitLayout` panes the
-  EndUser resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`; on either divider
-  End widens the side pane to its maximum, Home narrows it to its minimum, and the slider reads its share, while
-  the arrows move by screen direction. Nothing paints
-  between a pane and the center column; paint a line with `leftDividerBuilder:` or `rightDividerBuilder:`, the same
-  `(context, state)` shape as `SplitLayout.dividerBuilder`. A pane opens at the controller's chosen width, else at
-  Figma's (`left` 280 and `right` 380 at `bigDesktop`; 260 and 320 below). The center column keeps at least
-  `minCenterWidth` (default 320): a divider stops there, and a narrow window narrows the panes first.
-  `rightAsOverlay: true` instead opens `right` at the cut and up as a front drawer over a scrim, 450 wide at
-  `bigDesktop` and 400 below (never wider than the screen), with a close button; open it with `openRight()`.
+  (80% of the `PageLayout`'s own box, up to 360 by default, never wider than that box), an optional page scale, and
+  `semanticsLabel:`. A `page` drawer opens as a new page that sits outside the `PageLayout`, so close it with
+  `Navigator.pop`, never `PageLayout.of`. A drawer open when the window grows past the cut closes (`onDrawerChanged`
+  hears null after that frame) and the side shows inline.
+- **Side panes** — at the cut and up, `left` and `right` sit beside the center column as `SplitLayout` panes the EndUser
+  resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`; on either divider End widens
+  the side pane to its maximum, Home narrows it to its minimum, and the slider reads its share, while the arrows move by
+  screen direction. Nothing paints between a pane and the center column; paint a line with `leftDividerBuilder:` or
+  `rightDividerBuilder:`, the same `(context, state)` shape as `SplitLayout.dividerBuilder`. A pane opens at the
+  controller's chosen width, else at Figma's (`left` 280 and `right` 380 at `bigDesktop`; 260 and 320 below). The center
+  column keeps at least `minCenterWidth` (default 320): a divider stops there, and a narrow window narrows the panes
+  first. `rightAsOverlay: true` instead opens `right` at the cut and up as a front drawer over a scrim, 450 wide at
+  `bigDesktop` and 400 below (never wider than the `PageLayout`'s own box), with a close button; open it with
+  `openRight()`.
 - **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`, which opens and closes its
   drawers; pass your own `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths, listen to
   it to save `leftWidth` and `rightWidth`, and set them from code. It notifies once per settled resize (a drag's end,
