@@ -12,6 +12,7 @@ import 'common/reorderable_list_view_layout.dart';
 import 'common/splash_screen.dart';
 import 'common/split_layout.dart';
 import 'common/web_view.dart';
+import 'feedback/toast_shortcut.dart';
 import 'feedback/update_gate.dart';
 import 'smoke/semantics_id.dart';
 import 'themes/system_style.dart';
@@ -82,6 +83,9 @@ final Map<String, FixtureEntry> fixtures = <String, FixtureEntry>{
     builder: (context) => const SplitLayoutFixture(),
   ),
   'common/web_view': FixtureEntry(builder: (context) => const WebViewFixture()),
+  'feedback/toast_shortcut': FixtureEntry(
+    builder: (context) => const ToastShortcutFixture(),
+  ),
   'feedback/update_gate': FixtureEntry(
     builder: (context) => const UpdateGateFixture(),
   ),
