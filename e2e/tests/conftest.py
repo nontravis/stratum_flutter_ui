@@ -295,11 +295,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     if config.stash.get(ROUND_KEY, None) is not None:
         return
     platform = config.getoption("--platform")
+    host_voiceover = bool(config.getoption("host_voiceover"))
     for item in items:
         if TESTS_DIR not in Path(str(item.path)).resolve().parents:
             continue
         markers = {marker.name for marker in item.iter_markers()}
-        reason = skip_reason(markers, platform)
+        reason = skip_reason(markers, platform, host_voiceover=host_voiceover)
         if reason is not None:
             item.add_marker(pytest.mark.skip(reason=reason))
 

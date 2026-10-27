@@ -4,12 +4,12 @@ The helper uses VoiceOver's AppleScript dictionary (`sdef /System/Library/CoreSe
 the `quit` command stops it, `move` with the `right` direction moves the VO cursor to the next
 item, and the `content` property of the `last phrase` object reads what it last spoke. The
 standard `launch` verb starts it. VoiceOver answers only when "Allow VoiceOver to be controlled
-with AppleScript" is on in VoiceOver Utility, a host setting this helper never changes.
+with AppleScript" is on in VoiceOver Utility, a host setting this helper never changes. When
+`quit` fails or VoiceOver outlives it, `pkill -x VoiceOver` stops it without an Apple event.
 """
 
 from __future__ import annotations
 
-import contextlib
 import subprocess
 import time
 from collections.abc import Callable
@@ -25,6 +25,7 @@ _START = 'tell application "VoiceOver" to launch'
 _STOP = 'tell application "VoiceOver" to quit'
 _MOVE_NEXT = 'tell application "VoiceOver" to tell vo cursor to move right'
 _PGREP = ["pgrep", "-x", "VoiceOver"]
+_PKILL = ["pkill", "-x", "VoiceOver"]
 _LAST_PHRASE = 'tell application "VoiceOver" to return content of last phrase'
 # The actions menu's command name: "actions" is the English name ScreenReader maps to
 # Global.showActionsMenu in /System/Library/PrivateFrameworks/ScreenReader.framework/Versions/A/
@@ -56,7 +57,7 @@ class HostVoiceOverNotReady(HostVoiceOverError):
 
 
 class HostVoiceOverNotStopped(HostVoiceOverError):
-    """VoiceOver still ran after `quit` and the bounded wait."""
+    """VoiceOver still ran after `quit`, `pkill`, and their bounded waits."""
 
 
 class HostVoiceOverSilent(HostVoiceOverError):
@@ -74,6 +75,8 @@ class HostVoiceOver:
     [runner] has the signature of `subprocess.run`; tests pass a fake so no real
     VoiceOver starts. [sleep] and [clock] pace the bounded waits for readiness and shutdown.
     The helper never takes over a VoiceOver that already runs: it raises before it touches it.
+    When the block or the start raises, a failure to stop VoiceOver is added to that exception
+    as a note instead of replacing it.
     """
 
     def __init__(
@@ -95,10 +98,8 @@ class HostVoiceOver:
         try:
             self._osascript(_START)
             self._wait_until_ready()
-        except BaseException:
-            # The start failure is the cause; a failing stop on top of it must not hide it.
-            with contextlib.suppress(HostVoiceOverError):
-                self._stop()
+        except BaseException as error:
+            self._stop_noting_failure_on(error)
             raise
         return self
 
@@ -108,12 +109,10 @@ class HostVoiceOver:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        try:
+        if exc is None:
             self._stop()
-        except HostVoiceOverError:
-            # A raising body is the cause; its exception must surface over a stop failure.
-            if exc_type is None:
-                raise
+        else:
+            self._stop_noting_failure_on(exc)
 
     def move_next(self) -> None:
         """Move the VO cursor to the next item."""
@@ -130,11 +129,12 @@ class HostVoiceOver:
         The menu opens with `perform command "actions"`. Every entry, the first included, is
         taken with the quiet-read discipline (N2): two phrase reads MENU_QUIET_SECONDS apart
         must agree before it is recorded and before the next move, so a hint that lands late is
-        neither recorded as an entry nor skips one. The walk ends at the first entry whose
-        settled phrase repeats, and `close menu` always runs; its failure after a broken walk is
-        suppressed, so it cannot mask the walk's error. Raises `HostVoiceOverSilent` when the
-        menu never opens, so a wrong command name fails loudly instead of reading the item's
-        own phrase back as one unchanging entry.
+        neither recorded as an entry nor skips one. The walk ends when a move down speaks no
+        new phrase (a menu that stops at its last entry) or settles on an entry it already
+        recorded (a menu that wraps to its first). `close menu` always runs; its failure after
+        a broken walk is suppressed, so it cannot mask the walk's error. Raises
+        `HostVoiceOverSilent` when the menu never opens, so a wrong command name fails loudly
+        instead of reading the item's own phrase back as one unchanging entry.
         """
         entries: list[str] = []
         walk_error: BaseException | None = None
@@ -149,7 +149,7 @@ class HostVoiceOver:
                 except HostVoiceOverSilent:
                     # The last entry repeats its phrase; a menu that does not wrap ends here.
                     break
-                if entry == entries[-1]:
+                if entry in entries:
                     break
                 entries.append(entry)
         except BaseException as error:
@@ -209,12 +209,53 @@ class HostVoiceOver:
                 )
             self._sleep(POLL_INTERVAL_SECONDS)
 
+    def _stop_noting_failure_on(self, cause: BaseException) -> None:
+        """Stop VoiceOver while [cause] propagates; a stop failure becomes a note on [cause]."""
+        try:
+            self._stop()
+        except HostVoiceOverError as error:
+            # [cause] broke the run, so it surfaces; a VoiceOver left on still leaves a trace.
+            cause.add_note(f"Stopping host VoiceOver also failed: {error}")
+
     def _stop(self) -> None:
-        """Quit VoiceOver, then wait until no VoiceOver process remains."""
-        self._osascript(_STOP)
-        if not self._wait_until(lambda: not self._is_running(), STOP_TIMEOUT_SECONDS):
+        """Stop VoiceOver and wait until no VoiceOver process remains.
+
+        Nothing runs when VoiceOver already exited. `quit` goes first; when it fails, or
+        VoiceOver outlives it by STOP_TIMEOUT_SECONDS, `pkill -x VoiceOver` follows. `pkill`
+        needs no Apple event, so it stops a VoiceOver that refuses AppleScript or waits on an
+        Automation consent prompt, and the process it ends is the helper's own: `__enter__`
+        never starts over a running VoiceOver.
+        """
+        if not self._is_running():
+            return
+        quit_error: HostVoiceOverError | None = None
+        try:
+            self._osascript(_STOP)
+        except HostVoiceOverError as error:
+            quit_error = error
+        if quit_error is None and self._wait_until_stopped():
+            return
+        self._pkill()
+        if not self._wait_until_stopped():
+            after_quit = (
+                f"quit failed: {quit_error}"
+                if quit_error is not None
+                else f"it outlived quit by {STOP_TIMEOUT_SECONDS:g}s"
+            )
             raise HostVoiceOverNotStopped(
-                f"VoiceOver still runs {STOP_TIMEOUT_SECONDS:g}s after quit"
+                f"VoiceOver still runs {STOP_TIMEOUT_SECONDS:g}s after pkill; {after_quit}"
+            ) from quit_error
+
+    def _wait_until_stopped(self) -> bool:
+        """Return whether VoiceOver exited within STOP_TIMEOUT_SECONDS."""
+        return self._wait_until(lambda: not self._is_running(), STOP_TIMEOUT_SECONDS)
+
+    def _pkill(self) -> None:
+        """Send VoiceOver SIGTERM through `pkill -x VoiceOver`; exit 1 (already gone) is fine."""
+        result = self._execute(_PKILL)
+        if result.returncode not in (0, 1):
+            raise HostVoiceOverError(
+                f"pkill exited {result.returncode}. stderr: {_text(result.stderr)}"
             )
 
     def _wait_until(self, done: Callable[[], bool], timeout: float) -> bool:

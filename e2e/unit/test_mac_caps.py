@@ -9,7 +9,7 @@ import pytest
 from appium.webdriver.common.appiumby import AppiumBy
 
 from stratum_e2e import fixtures, locate
-from stratum_e2e.macos.session import mac_capabilities
+from stratum_e2e.macos.session import NEW_COMMAND_TIMEOUT_S, mac_capabilities
 
 BUNDLE_ID = "dev.stratum.stratumUiTestApp"
 APP = Path("/builds/stratum_ui_test_app.app")
@@ -62,6 +62,14 @@ def test_mac_caps_copy_the_arguments_so_a_later_edit_does_not_leak_in() -> None:
     arguments.append("--b")
 
     assert caps["appium:arguments"] == ["--a"]
+
+
+def test_mac_caps_outlast_the_host_voiceover_walk() -> None:
+    """The host VoiceOver leg sends Mac2 nothing for minutes; Appium's default 60 s would end the session."""
+    caps = mac_capabilities(BUNDLE_ID, [], APP)
+
+    assert caps["appium:newCommandTimeout"] == NEW_COMMAND_TIMEOUT_S
+    assert NEW_COMMAND_TIMEOUT_S > 60
 
 
 def test_open_fixture_terminates_then_relaunches_on_the_route() -> None:

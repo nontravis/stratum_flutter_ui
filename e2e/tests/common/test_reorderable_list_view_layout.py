@@ -23,7 +23,7 @@ import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
@@ -51,7 +51,7 @@ from stratum_e2e.ios.focus_order import focus_order, matches_order
 from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.locate import by_id
 from stratum_e2e.macos import tree as mac_tree
-from stratum_e2e.macos.host_voiceover import HostVoiceOver, osascript_args
+from stratum_e2e.macos.host_voiceover import HostVoiceOver, HostVoiceOverError, osascript_args
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.waits import wait_until, wait_until_held
 from stratum_e2e.web import snapshot as web_snapshot
@@ -93,6 +93,9 @@ HOST_QUIET_S = 0.25
 # A stop counts as an item when `Item <n>` starts the phrase or follows a comma: a first stop
 # into a new group often carries the group's name first (edge F2).
 _HOST_ITEM_IN_PHRASE = re.compile(r"(?:^|,\s*)(Item \d+)")
+# The process name of the Chrome the web host leg launches (Playwright's `chrome` channel).
+_CHROME_PROCESS = "Google Chrome"
+_HOST_RUN_TIMEOUT_S = 10.0
 
 _ITEM_LABEL = re.compile(r"Item \d+")
 _BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
@@ -175,43 +178,93 @@ def _host_walk(voiceover: HostVoiceOver) -> tuple[dict[str, str], dict[str, set[
     so the label and the move list come from the same stop (N1); `stops` and `menus` share keys,
     so a menu read where no item label was spoken fails the walk's own contract. The walk ends
     at the sixth item, after HOST_SILENT_MOVES moves in a row spoke nothing new, or at the move
-    bound; every phrase seen, in order, comes back so a failure names the cause (edge F4,
-    finding 3).
+    bound; a move VoiceOver refuses (past the end of content) counts as silent. Every phrase
+    seen and every refusal, in order, comes back so a failure names the cause (edge F4, F8).
     """
     stops: dict[str, str] = {}
     menus: dict[str, set[str]] = {}
     phrases: list[str] = []
     silent = 0
-    phrase = _host_quiet_phrase(voiceover)
+    heard: list[str] = []
     for _ in range(HOST_MAX_MOVES):
-        phrases.append(phrase)
-        item = _HOST_ITEM_IN_PHRASE.search(phrase)
-        if item is not None:
-            label = item.group(1)
-            if label not in stops:
-                stops[label] = phrase
-                entries = voiceover.actions_menu()
-                phrases.append(f"[{label} actions] {', '.join(entries)}")
-                menus[label] = {move for move in ALL_MOVES if any(move in entry for entry in entries)}
-                phrase = _host_quiet_phrase(voiceover)
+        previous = _host_read_stop(voiceover, heard, stops, menus, phrases)
         if len(stops) == ITEM_COUNT:
             break
-        previous = _host_quiet_phrase(voiceover)
-        voiceover.move_next()
-        try:
-            wait_until(
-                lambda: voiceover.last_phrase() != previous,
-                "VoiceOver to speak the next stop",
-                timeout_s=HOST_SPEECH_TIMEOUT_S,
-            )
-        except AssertionError:
-            silent += 1
-            if silent >= HOST_SILENT_MOVES:
-                break
+        heard = _host_move(voiceover, previous, phrases)
+        if heard:
+            silent = 0
             continue
-        silent = 0
-        phrase = voiceover.last_phrase()
+        silent += 1
+        if silent >= HOST_SILENT_MOVES:
+            break
     return stops, menus, phrases
+
+
+def _host_read_stop(
+    voiceover: HostVoiceOver,
+    heard: list[str],
+    stops: dict[str, str],
+    menus: dict[str, set[str]],
+    phrases: list[str],
+) -> str:
+    """Find a new item at the cursor's stop and read its actions; return the phrase to move from.
+
+    A stop's label can be the move's first change, the read after it, or arrive only once speech
+    settles, after a group name or under a hint (finding 5), so [heard] is searched first and
+    then a quiet read, all before the next move.
+    """
+    label = _host_new_item(heard, stops, phrases)
+    if label is None:
+        settled = _host_quiet_phrase(voiceover)
+        label = _host_new_item([settled], stops, phrases)
+        if label is None:
+            return settled
+    entries = voiceover.actions_menu()
+    phrases.append(f"[{label} actions] {', '.join(entries)}")
+    menus[label] = {move for move in ALL_MOVES if any(move in entry for entry in entries)}
+    return _host_quiet_phrase(voiceover)
+
+
+def _host_new_item(candidates: list[str], stops: dict[str, str], phrases: list[str]) -> str | None:
+    """Log each of [candidates] into [phrases]; return the first label new to [stops], now added."""
+    for phrase in candidates:
+        if not phrases or phrases[-1] != phrase:
+            phrases.append(phrase)
+        item = _HOST_ITEM_IN_PHRASE.search(phrase)
+        if item is not None and item.group(1) not in stops:
+            stops[item.group(1)] = phrase
+            return item.group(1)
+    return None
+
+
+def _host_move(voiceover: HostVoiceOver, previous: str, phrases: list[str]) -> list[str]:
+    """Move the VO cursor right; return the phrases it spoke, or [] when it spoke nothing new.
+
+    The first phrase that differs from [previous] is kept, then one more read, since a hint can
+    replace the label between the two (finding 5). A refused move is logged into [phrases] and
+    returns [] (F8).
+    """
+    try:
+        voiceover.move_next()
+    except HostVoiceOverError as error:
+        phrases.append(f"[move refused] {error}")
+        return []
+    changed: list[str] = []
+
+    def spoke_something_new() -> bool:
+        phrase = voiceover.last_phrase()
+        if phrase == previous:
+            return False
+        changed.append(phrase)
+        return True
+
+    try:
+        wait_until(
+            spoke_something_new, "VoiceOver to speak the next stop", timeout_s=HOST_SPEECH_TIMEOUT_S
+        )
+    except AssertionError:
+        return []
+    return [*changed, voiceover.last_phrase()]
 
 
 def _host_quiet_phrase(voiceover: HostVoiceOver) -> str:
@@ -262,15 +315,18 @@ def _assert_host_actions(
 
 
 @contextlib.contextmanager
-def _host_chrome(base_url: str) -> Iterator[Any]:
+def _host_chrome(base_url: str, runner: Callable[..., Any] = subprocess.run) -> Iterator[Any]:
     """Yield a page of a visible Chrome on the fixture route, in front, closed afterwards.
 
     Headless Chrome has no window host VoiceOver can read, so this leg launches its own visible
     one instead of the suite's `driver` fixture, wraps a launch failure in `RoundEnvError` as the
     suite's own launch does (finding 5), and activates Chrome through the OS (`osascript
     activate`), since `bring_to_front` only raises a tab inside Chrome while the terminal can
-    still be the frontmost app (edge F5).
+    still be the frontmost app (edge F5). Playwright exposes no handle on the process it
+    launches, so activation goes by app name; the leg refuses to start beside another Chrome,
+    so that name can only mean the launched one. [runner] runs pgrep and osascript.
     """
+    _refuse_a_running_chrome(runner)
     with sync_playwright() as playwright:
         try:
             chrome = playwright.chromium.launch(channel="chrome", headless=False)
@@ -284,16 +340,62 @@ def _host_chrome(base_url: str) -> Iterator[Any]:
                 "the six items on screen",
                 timeout_s=WAIT_TIMEOUT_S,
             )
-            subprocess.run(
-                osascript_args('tell application "Google Chrome" to activate'),
-                capture_output=True,
-                timeout=10,
-                check=False,
-            )
+            _activate_chrome(runner)
             yield page
         finally:
             with contextlib.suppress(PlaywrightError):
                 chrome.close()
+
+
+def _refuse_a_running_chrome(runner: Callable[..., Any]) -> None:
+    """Raise `RoundEnvError` when a Google Chrome already runs on this Mac (finding 4).
+
+    Activation by app name could reach that instance instead of the launched one, and VoiceOver
+    would then walk the tester's own tabs.
+    """
+    result = _run_on_host(runner, ["pgrep", "-x", _CHROME_PROCESS])
+    if result.returncode == 0:
+        raise RoundEnvError(
+            f"{_CHROME_PROCESS} already runs (pid {_stream_text(result.stdout)}); quit it first: "
+            "the web host leg activates Chrome by name and could reach that instance"
+        )
+    if result.returncode != 1:
+        raise RoundEnvError(
+            f"pgrep exited {result.returncode}. stderr: {_stream_text(result.stderr)}"
+        )
+
+
+def _activate_chrome(runner: Callable[..., Any]) -> None:
+    """Bring the one running Chrome, the launched one, to the front, or raise `RoundEnvError`."""
+    activate = f'tell application "{_CHROME_PROCESS}" to activate'
+    result = _run_on_host(runner, osascript_args(activate))
+    if result.returncode != 0:
+        raise RoundEnvError(
+            f"Chrome activation failed: osascript exited {result.returncode}. "
+            f"stderr: {_stream_text(result.stderr)}"
+        )
+
+
+def _run_on_host(runner: Callable[..., Any], args: list[str]) -> Any:
+    """Run [args] through [runner]; a timeout or a missing program raises `RoundEnvError`."""
+    try:
+        return runner(
+            args, capture_output=True, encoding="utf-8", check=False, timeout=_HOST_RUN_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RoundEnvError(
+            f"{args[0]} timed out after {_HOST_RUN_TIMEOUT_S:g}s (a pending macOS Automation "
+            f"prompt can block osascript). stderr: {_stream_text(error.stderr)}"
+        ) from error
+    except FileNotFoundError as error:
+        raise RoundEnvError(f"{args[0]} not found") from error
+
+
+def _stream_text(stream: str | bytes | None) -> str:
+    """Return [stream] stripped; a timeout hands back bytes, and a missing stream reads empty."""
+    if isinstance(stream, bytes):
+        return stream.decode("utf-8", errors="replace").strip()
+    return (stream or "").strip()
 
 
 def _focus_item(driver: Any, label: str, talkback: TalkBackLog) -> None:
@@ -577,11 +679,13 @@ def test_host_voiceover_reads_the_items_and_their_moves_on_macos(
 ) -> None:
     """The Mac's own VoiceOver reads Item 1 to Item 6 in order, and their actions prove FR-03 E03.
 
-    Owner command only (`-m level2_host --platform macos`; ruling O1). Focus: the Mac2 session
-    already launched the build through `appPath`; `macos: activateApp` then puts its window in
-    front before VoiceOver starts, so the VO cursor begins in the Flutter window. Mac2 sends no
-    touch or read while VoiceOver walks. VoiceOver must have "Allow VoiceOver to be controlled
-    with AppleScript" on, or `HostVoiceOver` raises naming it.
+    Owner command only (`-m level2_host --host-voiceover --platform macos`; ruling O1); without
+    `--host-voiceover` it skips whatever `-m` selects. Focus: the Mac2 session already launched
+    the build through `appPath`; `macos: activateApp` then puts its window in front before
+    VoiceOver starts, so the VO cursor begins in the Flutter window. Mac2 sends no touch or read
+    while VoiceOver walks; its `newCommandTimeout` (macos/session.py NEW_COMMAND_TIMEOUT_S)
+    outlasts the walk's bounds, so the session survives it. VoiceOver must have "Allow
+    VoiceOver to be controlled with AppleScript" on, or `HostVoiceOver` raises naming it.
     Words: a stop counts as an item when `Item <n>` starts the phrase or follows a comma; what
     follows the label is VoiceOver's own role and state wording and is not pinned. E03's action
     lists come from `actions_menu`: Item 1 offers only `Move down` and `Move to the end`,
@@ -606,10 +710,12 @@ def test_host_voiceover_reads_the_items_and_their_moves_on_web(
 ) -> None:
     """The Mac's VoiceOver reads Item 1 to Item 6 in order in a visible Chrome, and their moves prove E03.
 
-    Owner command only (`-m level2_host --platform web`; ruling O1). Browser: Chrome, as the
-    level 1 web leg, but visible (`headless=False`), since headless Chrome has no window for
-    VoiceOver; `_host_chrome` activates Chrome itself (`osascript`), since `bring_to_front`
-    only raises a tab while the terminal can stay the frontmost app. Semantics: the test_app
+    Owner command only (`-m level2_host --host-voiceover --platform web`; ruling O1); without
+    `--host-voiceover` it skips whatever `-m` selects. Browser: Chrome, as the level 1 web leg,
+    but visible (`headless=False`), since headless Chrome has no window for VoiceOver;
+    `_host_chrome` refuses to start while another Chrome runs, then activates the launched one
+    itself (`osascript`), since `bring_to_front` only raises a tab while the terminal can stay
+    the frontmost app. Semantics: the test_app
     calls `SemanticsBinding.ensureSemantics` at start, so Flutter's semantics tree exists with
     no placeholder click, and `_host_chrome` waits for the six items (held) before VoiceOver
     starts; Chrome builds its accessibility tree for VoiceOver once VoiceOver runs, which the
