@@ -59,6 +59,11 @@ final class _EmptyPlatformWebView implements PlatformStratumWebView {
   void dispose() {}
 }
 
+/// The fixtures that keep the host `SafeArea` above their `PageLayout` on
+/// purpose, to prove a drawer stays inside the smaller box (FO-06 US-19 FR-04
+/// E09).
+const _keepsHostSafeArea = {'common/page_drawer_in_safe_area'};
+
 void main() {
   setUp(() {
     SharedPreferencesAsyncPlatform.instance =
@@ -67,7 +72,8 @@ void main() {
     addTearDown(() => debugStratumWebViewPlatformFactory = null);
   });
 
-  testWidgets('every fixture that builds a PageLayout is hosted with no SafeArea above '
+  testWidgets('every fixture that builds a PageLayout, except the one that '
+      'proves a drawer inside a smaller box, is hosted with no SafeArea above '
       'it, and every edge-to-edge fixture gets none', (tester) async {
     // The theme preload reads assets, which needs real time, not fake
     // async.
@@ -106,16 +112,28 @@ void main() {
       final pageLayout = find.byType(PageLayout);
       if (pageLayout.evaluate().isNotEmpty) {
         withPageLayout.add(entry.key);
-        expect(
-          find
-              .ancestor(of: pageLayout, matching: find.byType(SafeArea))
-              .evaluate(),
-          isEmpty,
-          reason:
-              '${entry.key} builds a PageLayout, so no SafeArea may sit above '
-              'it: PageLayout pads its own slots by the insets, and a host '
-              'SafeArea shrinks its box below the screen.',
+        final safeAreas = find.ancestor(
+          of: pageLayout,
+          matching: find.byType(SafeArea),
         );
+        if (_keepsHostSafeArea.contains(entry.key)) {
+          expect(
+            safeAreas,
+            findsOneWidget,
+            reason:
+                '${entry.key} keeps the host SafeArea on purpose, so exactly '
+                'one must sit above its PageLayout.',
+          );
+        } else {
+          expect(
+            safeAreas.evaluate(),
+            isEmpty,
+            reason:
+                '${entry.key} builds a PageLayout, so no SafeArea may sit '
+                'above it: PageLayout pads its own slots by the insets, and a '
+                'host SafeArea shrinks its box below the screen.',
+          );
+        }
       }
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -126,6 +144,7 @@ void main() {
       containsAll(<String>[
         'common/page_layout',
         'common/page_drawer',
+        'common/page_drawer_in_safe_area',
         'common/page_layout_loading',
       ]),
     );
