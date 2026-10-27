@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Sequence
+
+from stratum_e2e.android.window_list import live_window_blocks, window_title
 
 LOAD_LIMIT = 2.0
 
@@ -14,7 +17,6 @@ BOOT_SETTINGS: tuple[tuple[str, str], ...] = (
 
 _CURRENT_ID = "mCurId="
 _BOUND_TO_METHOD = "mBoundToMethod=true"
-_CURRENT_FOCUS = "mCurrentFocus="
 _UNKNOWN_PACKAGE = "unknown"
 _ANR_MARKERS = ("Application Not Responding", "isn't responding")
 _ANR_TITLE = re.compile(r"Application Not Responding: ([A-Za-z0-9_.]+)")
@@ -41,18 +43,23 @@ def ime_bound(dumpsys_input_method: str) -> bool:
     return _BOUND_TO_METHOD in dumpsys_input_method
 
 
-def focused_anr_package(dumpsys_window: str) -> str | None:
-    """The package named by an ANR dialog that holds window focus; None when no ANR dialog has focus.
+def anr_window_packages(dumpsys_window: str) -> tuple[str, ...]:
+    """Packages named by every live ANR window, in window order, deduped; empty when no ANR window is open.
 
-    Reads the first `mCurrentFocus=` line only and matches both AOSP titles: `Application Not Responding: <pkg>` and
-    `<pkg> isn't responding`. An ANR title that names no package returns `"unknown"`, so the device still reads as
-    unsettled.
+    Reads each `Window #N` header in the live WINDOWS section, focused or not: on API 35 the System UI ANR dialog
+    window exists in the window list seconds before it takes focus. Matches both AOSP titles: `Application Not
+    Responding: <pkg>` and `<pkg> isn't responding`. An ANR title that names no package yields `"unknown"`, so the
+    device still reads as unsettled.
     """
-    focus = _first_line_with(dumpsys_window, _CURRENT_FOCUS)
-    if focus is None or not any(marker in focus for marker in _ANR_MARKERS):
-        return None
-    match = _ANR_TITLE.search(focus) or _ANR_ISNT_RESPONDING.search(focus)
-    return match.group(1) if match else _UNKNOWN_PACKAGE
+    packages: list[str] = []
+    for title in (title for block in live_window_blocks(dumpsys_window) if (title := window_title(block))):
+        if not any(marker in title for marker in _ANR_MARKERS):
+            continue
+        match = _ANR_TITLE.search(title) or _ANR_ISNT_RESPONDING.search(title)
+        package = match.group(1) if match else _UNKNOWN_PACKAGE
+        if package not in packages:
+            packages.append(package)
+    return tuple(packages)
 
 
 def guest_load(uptime_out: str) -> float:
@@ -61,14 +68,14 @@ def guest_load(uptime_out: str) -> float:
     return float(match.group(1)) if match else math.inf
 
 
-def settle_reasons(load: float, anr_package: str | None, ime: bool) -> list[str]:
-    """One line per unmet settle gate (load above `LOAD_LIMIT`, an ANR window focused, no IME bound); empty when settled."""
+def settle_reasons(load: float, anr_packages: Sequence[str], ime: bool) -> list[str]:
+    """One line per unmet settle gate (load above `LOAD_LIMIT`, an ANR window open, no IME bound); empty when settled."""
     reasons: list[str] = []
     if load > LOAD_LIMIT:
         shown = "unknown" if math.isinf(load) else f"{load:g}"
         reasons.append(f"guest load {shown} > {LOAD_LIMIT:g}")
-    if anr_package is not None:
-        reasons.append(f"an ANR window holds focus: {anr_package}")
+    if anr_packages:
+        reasons.append(f"an ANR window is open: {', '.join(anr_packages)}")
     if not ime:
         reasons.append("no IME is bound (dumpsys input_method)")
     return reasons

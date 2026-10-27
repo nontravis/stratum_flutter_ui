@@ -9,8 +9,8 @@ import pytest
 from stratum_e2e.round.android_traps import (
     BOOT_SETTINGS,
     LOAD_LIMIT,
+    anr_window_packages,
     clock_jumped,
-    focused_anr_package,
     guest_load,
     ime_bound,
     settings_apply_argv,
@@ -50,22 +50,36 @@ def test_ime_bound_prefers_the_mcurid_line_over_mboundtomethod() -> None:
     assert ime_bound("mCurId=null\nmBoundToMethod=true\n") is False
 
 
-def test_focused_anr_package() -> None:
-    assert focused_anr_package(_fixture("anr_title_shape.txt")) == "com.android.systemui"
-    assert focused_anr_package(_fixture("anr_isnt_responding_shape.txt")) == "com.android.systemui"
-    assert focused_anr_package(_fixture("focus_normal.txt")) is None
+def test_anr_window_packages() -> None:
+    assert anr_window_packages(_fixture("anr_title_shape.txt")) == ("com.android.systemui",)
+    assert anr_window_packages(_fixture("anr_isnt_responding_shape.txt")) == ("com.android.systemui",)
+    assert anr_window_packages(_fixture("focus_normal.txt")) == ()
+    assert anr_window_packages("") == ()
 
 
-def test_focused_anr_package_reports_unknown_for_an_anr_title_without_a_package() -> None:
-    package = focused_anr_package(_fixture("anr_no_package.txt"))
-    assert package == "unknown"
-    assert settle_reasons(0.5, package, True) != []
+def test_anr_window_packages_see_an_unfocused_anr_window() -> None:
+    unfocused = _fixture("windows_anr_unfocused_api35.txt")
+    focused = _fixture("windows_anr_focused_api35.txt")
+    assert anr_window_packages(unfocused) == ("com.android.systemui",)
+    assert anr_window_packages(focused) == ("com.android.systemui",)
 
 
-def test_focused_anr_package_reads_only_the_first_focus_line() -> None:
-    dump = _fixture("focus_normal.txt") + _fixture("anr_title_shape.txt")
-    assert focused_anr_package(dump) is None
-    assert focused_anr_package("") is None
+def test_anr_window_packages_report_unknown_for_an_anr_title_without_a_package() -> None:
+    packages = anr_window_packages(_fixture("anr_no_package.txt"))
+    assert packages == ("unknown",)
+    assert settle_reasons(0.5, packages, True) != []
+
+
+def test_anr_window_packages_skip_a_stale_last_anr_section() -> None:
+    assert anr_window_packages(_fixture("anr_stale_lastanr.txt")) == ()
+
+
+def test_anr_window_packages_list_every_anr_window_deduped_in_window_order() -> None:
+    assert anr_window_packages(_fixture("anr_two_windows.txt")) == ("com.android.systemui", "com.example.app")
+
+
+def test_anr_window_packages_count_an_exiting_anr_window() -> None:
+    assert anr_window_packages(_fixture("anr_exiting.txt")) == ("com.android.systemui",)
 
 
 def test_guest_load_from_uptime() -> None:
@@ -77,17 +91,23 @@ def test_guest_load_is_infinite_when_unreadable() -> None:
 
 
 def test_settle_reasons_name_every_unmet_gate() -> None:
-    assert len(settle_reasons(2.4, "com.x", False)) == 3
-    assert settle_reasons(1.9, None, True) == []
-    assert settle_reasons(LOAD_LIMIT, None, True) == []
+    assert len(settle_reasons(2.4, ("com.x",), False)) == 3
+    assert settle_reasons(1.9, (), True) == []
+    assert settle_reasons(LOAD_LIMIT, (), True) == []
 
 
 def test_settle_reasons_name_the_value_behind_each_gate() -> None:
-    load, anr, ime = settle_reasons(2.4, "com.x", False)
+    load, anr, ime = settle_reasons(2.4, ("com.x", "com.y"), False)
     assert "2.4" in load and "2" in load
-    assert "com.x" in anr
+    assert anr == "an ANR window is open: com.x, com.y"
     assert "IME" in ime
-    assert "unknown" in settle_reasons(float("inf"), None, True)[0]
+    assert "unknown" in settle_reasons(float("inf"), (), True)[0]
+
+
+def test_settle_reasons_name_an_anr_window_the_focus_line_misses() -> None:
+    unfocused = _fixture("windows_anr_unfocused_api35.txt")
+    reasons = settle_reasons(1.27, anr_window_packages(unfocused), True)
+    assert reasons == ["an ANR window is open: com.android.systemui"]
 
 
 def test_clock_jump_sign() -> None:

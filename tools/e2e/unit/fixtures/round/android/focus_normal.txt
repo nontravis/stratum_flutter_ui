@@ -1,1 +1,1 @@
-  mCurrentFocus=Window{ab1 u0 com.example/com.example.MainActivity}
+  Window #0 Window{ab1 u0 com.example/com.example.MainActivity}:

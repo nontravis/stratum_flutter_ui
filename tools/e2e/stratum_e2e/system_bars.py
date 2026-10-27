@@ -12,6 +12,8 @@ import struct
 import zlib
 from typing import Final, Literal
 
+from stratum_e2e.android.window_list import live_window_blocks, window_title
+
 Brightness = Literal["light", "dark"]
 Bar = Literal["statusBars", "navigationBars"]
 Rgb = tuple[int, int, int]
@@ -263,32 +265,6 @@ _IMMERSIVE_MODE_CONFIRMATION: Final = "ImmersiveModeConfirmation"
 _STARTING_WINDOW_TYPE: Final = "APPLICATION_STARTING"
 
 
-def _live_windows_section(window_dump: str) -> str:
-    """Slices the dump to its ``WINDOW MANAGER WINDOWS`` section.
-
-    Only that section holds live per-window fields. The ``LAST ANR`` section after
-    an app ANR repeats the app's ``package=`` frozen at the ANR instant, and must
-    never be read. A dump with no such header is returned unchanged.
-    """
-    m = re.search(r"^WINDOW MANAGER WINDOWS\b.*$", window_dump, re.MULTILINE)
-    if m is None:
-        return window_dump
-    start = m.end()
-    m2 = re.search(r"^WINDOW MANAGER \S", window_dump[start:], re.MULTILINE)
-    end = start + m2.start() if m2 else len(window_dump)
-    return window_dump[start:end]
-
-
-def _live_window_blocks(window_dump: str) -> list[str]:
-    return re.split(r"(?=^ *Window #\d+)", _live_windows_section(window_dump), flags=re.MULTILINE)
-
-
-def _window_title(block: str) -> str | None:
-    """Returns the title in a block's ``Window{<hash> u<user> <title>}`` header."""
-    m = re.match(r" *Window #\d+ Window\{\S+ u\d+ (.*)\}:", block)
-    return m.group(1) if m else None
-
-
 def _app_window_block(window_dump: str, package: str) -> str | None:
     """Returns the app's activity ``Window #N`` block, or ``None``.
 
@@ -298,10 +274,10 @@ def _app_window_block(window_dump: str, package: str) -> str | None:
     """
     matches = [
         block
-        for block in _live_window_blocks(window_dump)
-        if (title := _window_title(block)) is not None and title.startswith(package + "/")
+        for block in live_window_blocks(window_dump)
+        if (title := window_title(block)) is not None and title.startswith(package + "/")
     ]
-    live = [block for block in matches if not (_window_title(block) or "").endswith(" EXITING")]
+    live = [block for block in matches if not (window_title(block) or "").endswith(" EXITING")]
     return (live or matches or [None])[0]
 
 
@@ -311,9 +287,9 @@ def _starting_window_title(window_dump: str) -> str | None:
     Any application window over the status bar, starting windows included, can drive
     the status-bar appearance region, and a task snapshot window owns ``package=android``.
     """
-    for block in _live_window_blocks(window_dump):
+    for block in live_window_blocks(window_dump):
         if re.search(rf"\bty={_STARTING_WINDOW_TYPE}\b", block):
-            return _window_title(block) or _STARTING_WINDOW_TYPE
+            return window_title(block) or _STARTING_WINDOW_TYPE
     return None
 
 

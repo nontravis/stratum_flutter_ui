@@ -1,0 +1,7 @@
+WINDOW MANAGER LAST ANR (dumpsys window lastanr)
+  Window #0 Window{deadbee u0 Application Not Responding: com.android.systemui}:
+    package=com.android.systemui
+
+WINDOW MANAGER WINDOWS (dumpsys window windows)
+  Window #0 Window{24f3999 u0 com.android.settings/com.android.settings.FallbackHome}:
+    mOwnerUid=1000 package=com.android.settings

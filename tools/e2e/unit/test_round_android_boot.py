@@ -53,6 +53,8 @@ LANE = LaneConfig(
 FOCUS_NORMAL = (FIXTURES / "focus_normal.txt").read_text()
 FOCUS_ANR = (FIXTURES / "anr_title_shape.txt").read_text()
 FOCUS_ANR_NO_PACKAGE = (FIXTURES / "anr_no_package.txt").read_text()
+# An ANR window of a package other than the SYSTEMUI fixture, for last-poll naming.
+_OTHER_APP_ANR = "  Window #0 Window{9f8e7d u0 Application Not Responding: com.example.app}:\n"
 IME_BOUND = (FIXTURES / "ime_api36_bound.txt").read_text()
 IME_UNBOUND = (FIXTURES / "ime_api36_null.txt").read_text()
 
@@ -194,21 +196,32 @@ def _rtt(ms: str) -> list[Entry]:
     return [(_on(SERIAL, *RTT), _done(f"64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time={ms} ms\n"))]
 
 
-def _settle(load: str = "0.50", focus: str = FOCUS_NORMAL, ime: str = IME_BOUND) -> list[Entry]:
+def _settle(load: str = "0.50", windows: str = FOCUS_NORMAL, ime: str = IME_BOUND) -> list[Entry]:
     uptime = f" 14:10:01 up 1 day,  1:23,  0 users,  load average: {load}, 0.40, 0.30\n"
     return [
         (_on(SERIAL, "shell", "uptime"), _done(uptime)),
-        (_on(SERIAL, "shell", "dumpsys", "window"), _done(focus)),
+        (_on(SERIAL, "shell", "dumpsys", "window", "windows"), _done(windows)),
         (_on(SERIAL, "shell", "dumpsys", "input_method"), _done(ime)),
     ]
 
 
-def _focus(focus: str) -> list[Entry]:
-    return [(_on(SERIAL, "shell", "dumpsys", "window"), _done(focus))]
+def _windows(dump: str) -> list[Entry]:
+    return [(_on(SERIAL, "shell", "dumpsys", "window", "windows"), _done(dump))]
 
 
-def _force_stop(package: str) -> tuple[str, ...]:
-    return _on(SERIAL, "shell", "-n", "am", "force-stop", package)
+def _settle_anr_unbound(load: str) -> list[Entry]:
+    """One unsettled settle poll — high load, an ANR window, no IME — with the broadcast answer."""
+    uptime = f" 14:10:01 up 1 day,  1:23,  0 users,  load average: {load}, 0.40, 0.30\n"
+    return [
+        (_on(SERIAL, "shell", "uptime"), _done(uptime)),
+        *_windows(FOCUS_ANR),
+        (_close_dialogs(), _done()),
+        (_on(SERIAL, "shell", "dumpsys", "input_method"), _done(IME_UNBOUND)),
+    ]
+
+
+def _close_dialogs() -> tuple[str, ...]:
+    return _on(SERIAL, "shell", "-n", "am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS")
 
 
 def _puts(*, failing: int | None = None) -> list[Entry]:
@@ -234,7 +247,7 @@ def _cold_boot() -> list[Entry]:
         *_confirm(),
         *_rtt("12.3"),
         *_settle(),
-        *_focus(FOCUS_NORMAL),
+        *_windows(FOCUS_NORMAL),
         *_puts(),
     ]
 
@@ -462,16 +475,13 @@ def test_ready_wait_bound_raises_env_naming_state(tmp_path: Path, avd_home: Path
 
 def test_settle_names_every_unmet_gate_at_the_bound(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
     lane = LaneConfig(20, 3, True, (), 30)
-    unsettled = _settle(load="3.50", focus=FOCUS_ANR, ime=IME_UNBOUND)
+    unsettled = _settle_anr_unbound(load="3.50")
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
         *_confirm(),
         *_rtt("12.3"),
-        *unsettled[:2],
-        (_force_stop(SYSTEMUI), _done()),
-        *unsettled[2:],
-        *unsettled * 3,
+        *unsettled * 4,
         *_teardown(restore=False),
     ]
     runner = EmulatorRunner(script)
@@ -479,32 +489,39 @@ def test_settle_names_every_unmet_gate_at_the_bound(tmp_path: Path, avd_home: Pa
     error = _boot_fails(_booter(runner, avd_home, clock, lane), tmp_path)
 
     assert f"{SERIAL} did not settle after boot within 3 s" in error.reason
-    for reason in settle_reasons(3.5, SYSTEMUI, ime=False):
+    for reason in settle_reasons(3.5, (SYSTEMUI,), ime=False):
         assert reason in error.reason
     assert runner.calls.count(_on(SERIAL, "shell", "uptime")) == 4
-    assert runner.calls.count(_force_stop(SYSTEMUI)) == 1
+    assert runner.calls.count(_close_dialogs()) == 4
     assert not _has(runner.calls, "settings")
     assert _on(SERIAL, "emu", "kill") in runner.calls
 
 
-def test_settle_force_stops_an_anr_once_and_keeps_polling(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+def test_settle_broadcasts_on_each_poll_that_lists_an_anr_and_keeps_polling(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    anr_poll = [
+        (_on(SERIAL, "shell", "uptime"), _done(" 14:10:01 up 1 day,  1:23,  0 users,  load average: 0.50, 0.40, 0.30\n")),
+        *_windows(FOCUS_ANR),
+        (_close_dialogs(), _done()),
+        (_on(SERIAL, "shell", "dumpsys", "input_method"), _done(IME_BOUND)),
+    ]
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
         *_confirm(),
         *_rtt("12.3"),
-        *_settle(focus=FOCUS_ANR),
-        (_force_stop(SYSTEMUI), _done()),
-        *_settle(focus=FOCUS_ANR),
+        *anr_poll,
+        *anr_poll,
         *_settle(),
-        *_focus(FOCUS_NORMAL),
+        *_windows(FOCUS_NORMAL),
         *_puts(),
     ]
     runner = EmulatorRunner(script)
 
     record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
 
-    assert runner.calls.count(_force_stop(SYSTEMUI)) == 1
+    assert runner.calls.count(_close_dialogs()) == 2
     assert runner.calls.count(_on(SERIAL, "shell", "uptime")) == 3
     assert clock.sleeps == [1.0, 1.0]
     assert record.settings_applied is True
@@ -512,41 +529,64 @@ def test_settle_force_stops_an_anr_once_and_keeps_polling(tmp_path: Path, avd_ho
     record.port.release()
 
 
-def test_anr_at_boot_force_stops_its_package_then_rechecks(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+def test_settle_catches_an_anr_window_that_has_no_focus_yet(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    unfocused = (FIXTURES / "windows_anr_unfocused_api35.txt").read_text()
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
         *_confirm(),
         *_rtt("12.3"),
+        *_settle(windows=unfocused),
+        (_close_dialogs(), _done()),
         *_settle(),
-        *_focus(FOCUS_ANR),
-        (_force_stop(SYSTEMUI), _done()),
-        *_focus(FOCUS_NORMAL),
+        *_windows(FOCUS_NORMAL),
         *_puts(),
     ]
     runner = EmulatorRunner(script)
 
     record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
 
-    window = _on(SERIAL, "shell", "dumpsys", "window")
-    window_calls = [index for index, call in enumerate(runner.calls) if call == window]
-    stop = runner.calls.index(_force_stop(SYSTEMUI))
-    assert window_calls[1] < stop < window_calls[2]
+    assert runner.calls.count(_close_dialogs()) == 1
     assert record.settings_applied is True
-    assert record.port is not None
     record.port.release()
 
 
-def test_anr_still_focused_after_force_stop_is_env(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+def test_anr_at_boot_broadcasts_close_then_rechecks(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
         *_confirm(),
         *_rtt("12.3"),
         *_settle(),
-        *_focus(FOCUS_ANR),
-        (_force_stop(SYSTEMUI), _done()),
-        *_focus(FOCUS_ANR),
+        (_on(SERIAL, "shell", "uptime"), _done(" 14:10:01 up 1 day,  1:23,  0 users,  load average: 0.50, 0.40, 0.30\n")),
+        *_windows(FOCUS_ANR),
+        (_close_dialogs(), _done()),
+        (_on(SERIAL, "shell", "dumpsys", "input_method"), _done(IME_BOUND)),
+        *_windows(FOCUS_NORMAL),
+        *_puts(),
+    ]
+    runner = EmulatorRunner(script)
+
+    record = _booter(runner, avd_home, clock).boot(TARGET, tmp_path / "emulator.log")
+
+    window = _on(SERIAL, "shell", "dumpsys", "window", "windows")
+    window_calls = [index for index, call in enumerate(runner.calls) if call == window]
+    stop = runner.calls.index(_close_dialogs())
+    assert window_calls[1] < stop < window_calls[2]
+    assert record.settings_applied is True
+    assert record.port is not None
+    record.port.release()
+
+
+def test_anr_still_listed_after_close_system_dialogs_is_env(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
+    still = [*_windows(FOCUS_ANR), (_close_dialogs(), _done())]
+    script = [
+        *_listing((OTHER, "Other_AVD")),
+        *_ready(),
+        *_confirm(),
+        *_rtt("12.3"),
+        *_settle(),
+        *still * 17,
         *_teardown(restore=False),
     ]
     runner = EmulatorRunner(script)
@@ -554,21 +594,24 @@ def test_anr_still_focused_after_force_stop_is_env(tmp_path: Path, avd_home: Pat
     error = _boot_fails(_booter(runner, avd_home, clock), tmp_path)
 
     assert SYSTEMUI in error.reason
-    assert "force-stop" in error.reason
+    assert "CLOSE_SYSTEM_DIALOGS" in error.reason
+    assert runner.calls.count(_close_dialogs()) == 16
     assert _on(SERIAL, "emu", "kill") in runner.calls
     assert not _has(runner.calls, "settings")
     assert _port_is_free(avd_home, 5556)
 
 
-def test_anr_naming_no_package_is_never_force_stopped(avd_home: Path, clock: FakeClock) -> None:
-    runner = FakeRunner([*_state("device"), *_ready(), *_focus(FOCUS_ANR_NO_PACKAGE), *_focus(FOCUS_ANR_NO_PACKAGE)])
+def test_anr_naming_no_package_still_gets_the_broadcast(avd_home: Path, clock: FakeClock) -> None:
+    still = [*_windows(FOCUS_ANR_NO_PACKAGE), (_close_dialogs(), _done())]
+    runner = FakeRunner([*_state("device"), *_ready(), *still * 17])
     record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
 
     with pytest.raises(RoundEnvError) as caught:
         _booter(runner, avd_home, clock).before_file(record)
 
-    assert "names no package" in caught.value.reason
-    assert not _has(runner.calls, "force-stop")
+    assert "still lists after CLOSE_SYSTEM_DIALOGS" in caught.value.reason
+    assert "unknown" in caught.value.reason
+    assert _close_dialogs() in runner.calls
 
 
 def test_settings_applied_after_settle_and_restored_before_kill(
@@ -624,7 +667,7 @@ def test_shutdown_kills_the_pid_when_emu_kill_leaves_it_running(
 def test_before_file_reconnects_an_offline_serial_once(avd_home: Path, clock: FakeClock) -> None:
     reconnect = _on(SERIAL, "reconnect", "offline")
     runner = FakeRunner(
-        [*_state("offline"), (reconnect, _done()), *_state("offline"), *_ready(), *_focus(FOCUS_NORMAL)]
+        [*_state("offline"), (reconnect, _done()), *_state("offline"), *_ready(), *_windows(FOCUS_NORMAL)]
     )
     record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
 
@@ -632,7 +675,7 @@ def test_before_file_reconnects_an_offline_serial_once(avd_home: Path, clock: Fa
 
     assert runner.calls.count(reconnect) == 1
     assert runner.calls.index(reconnect) == 1
-    assert runner.calls[-1] == _on(SERIAL, "shell", "dumpsys", "window")
+    assert runner.calls[-1] == _on(SERIAL, "shell", "dumpsys", "window", "windows")
 
 
 def test_before_file_still_offline_at_the_bound_is_env_after_one_reconnect(avd_home: Path, clock: FakeClock) -> None:
@@ -650,14 +693,63 @@ def test_before_file_still_offline_at_the_bound_is_env_after_one_reconnect(avd_h
 
 def test_before_file_clears_an_anr_on_a_ready_device(avd_home: Path, clock: FakeClock) -> None:
     runner = FakeRunner(
-        [*_state("device"), *_ready(), *_focus(FOCUS_ANR), (_force_stop(SYSTEMUI), _done()), *_focus(FOCUS_NORMAL)]
+        [*_state("device"), *_ready(), *_windows(FOCUS_ANR), (_close_dialogs(), _done()), *_windows(FOCUS_NORMAL)]
     )
     record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
 
     _booter(runner, avd_home, clock).before_file(record)
 
     assert not _has(runner.calls, "reconnect")
-    assert _force_stop(SYSTEMUI) in runner.calls
+    assert _close_dialogs() in runner.calls
+
+
+def test_clear_anr_polls_until_the_dialog_leaves_the_window_list(avd_home: Path, clock: FakeClock) -> None:
+    still = [*_windows(FOCUS_ANR), (_close_dialogs(), _done())]
+    runner = FakeRunner(
+        [
+            *_state("device"),
+            *_ready(),
+            *still,
+            *still,
+            *_windows(FOCUS_NORMAL),
+        ]
+    )
+    record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
+
+    _booter(runner, avd_home, clock).before_file(record)
+
+    assert runner.calls.count(_close_dialogs()) == 2
+    assert clock.sleeps == [1.0, 1.0]
+
+
+def test_clear_anr_raises_after_the_close_wait_and_names_the_packages(avd_home: Path, clock: FakeClock) -> None:
+    first = [*_windows(FOCUS_ANR), (_close_dialogs(), _done())]
+    later = [*_windows(_OTHER_APP_ANR), (_close_dialogs(), _done())]
+    runner = FakeRunner([*_state("device"), *_ready(), *first, *later * 16])
+    record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
+
+    with pytest.raises(RoundEnvError) as caught:
+        _booter(runner, avd_home, clock).before_file(record)
+
+    assert "still lists after CLOSE_SYSTEM_DIALOGS" in caught.value.reason
+    assert "com.example.app" in caught.value.reason
+    assert clock.now >= 15.0
+
+
+def test_clear_anr_names_the_packages_the_last_poll_listed_not_the_entry_ones(
+    avd_home: Path, clock: FakeClock
+) -> None:
+    first = [*_windows(FOCUS_ANR), (_close_dialogs(), _done())]
+    later = [*_windows(_OTHER_APP_ANR), (_close_dialogs(), _done())]
+    runner = FakeRunner([*_state("device"), *_ready(), *first, *later * 16])
+    record = BootRecord(target="pixel_8", platform="android", device_id=SERIAL, reused=True)
+
+    with pytest.raises(RoundEnvError) as caught:
+        _booter(runner, avd_home, clock).before_file(record)
+
+    reason = caught.value.reason
+    assert SYSTEMUI not in reason.split("still lists")[-1]
+    assert "com.example.app" in reason
 
 
 def test_emulator_exiting_during_the_ready_wait_is_env_with_no_change_on_its_serial(
@@ -816,16 +908,13 @@ def test_a_settle_failure_saves_the_device_log_before_the_emulator_ends_and_stil
     tmp_path: Path, avd_home: Path, clock: FakeClock
 ) -> None:
     lane = LaneConfig(20, 3, True, (), 30)
-    unsettled = _settle(load="3.50", focus=FOCUS_ANR, ime=IME_UNBOUND)
+    unsettled = _settle_anr_unbound(load="3.50")
     script = [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
         *_confirm(),
         *_rtt("12.3"),
-        *unsettled[:2],
-        (_force_stop(SYSTEMUI), _done()),
-        *unsettled[2:],
-        *unsettled * 3,
+        *unsettled * 4,
         *_logcat(),
         *_teardown(restore=False),
     ]

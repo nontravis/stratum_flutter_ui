@@ -1,0 +1,3 @@
+WINDOW MANAGER WINDOWS (dumpsys window windows)
+  Window #0 Window{333ccc u0 Application Not Responding: com.android.systemui EXITING}:
+    package=android

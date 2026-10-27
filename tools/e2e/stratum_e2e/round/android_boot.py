@@ -17,8 +17,8 @@ from pathlib import Path
 
 from stratum_e2e.round.android_host import CONSOLE_PORTS, adb_path, avd_info, emulator_path, reserve_port
 from stratum_e2e.round.android_traps import (
+    anr_window_packages,
     clock_jumped,
-    focused_anr_package,
     guest_load,
     ime_bound,
     settings_apply_argv,
@@ -34,10 +34,11 @@ from stratum_e2e.round.runner import Completed, Runner
 _PLATFORM = "android"
 _SERIAL_PREFIX = "emulator-"
 _READY_STATE = "device"
-_NO_PACKAGE = "unknown"  # `focused_anr_package`'s answer for an ANR dialog that names no package
 _RTT_ARGS = ("shell", "ping", "-c", "1", "8.8.8.8")
 _POLL_S = 1.0
 _ADB_TIMEOUT_S = 60.0
+# measured 2026-10-27 on Pixel_Tablet_API_35: CLOSE_SYSTEM_DIALOGS closed a hidden System UI ANR dialog within 1 s
+_ANR_CLOSE_WAIT_S = 15.0
 _GONE_WAIT_S = 60.0
 _REAP_WAIT_S = 10.0
 
@@ -242,36 +243,38 @@ class AndroidBooter(Booter):
             self._sleep(_POLL_S)
 
     def _settle_wait(self, serial: str) -> None:
-        """Poll the settle gates; force-stop each package an ANR dialog names once, at first sight, and poll on."""
+        """Poll the settle gates; on each poll that lists an ANR window, broadcast CLOSE_SYSTEM_DIALOGS once."""
         limit = self._lane.boot_settle_timeout_seconds
         deadline = self._monotonic() + limit
-        stopped: set[str] = set()
         while True:
             self._check_alive(serial)
             load = guest_load(self._on(serial, "shell", "uptime").stdout)
-            anr = self._focused_anr(serial)
+            anr = self._anr_packages(serial)
             reasons = settle_reasons(load, anr, ime_bound(self._on(serial, "shell", "dumpsys", "input_method").stdout))
             if not reasons:
                 return
-            if anr is not None and anr != _NO_PACKAGE and anr not in stopped:
-                self._force_stop(serial, anr)
-                stopped.add(anr)
+            if anr:
+                self._close_anr_dialogs(serial)
             if self._monotonic() >= deadline:
                 raise RoundEnvError(f"{serial} did not settle after boot within {limit} s: {'; '.join(reasons)}")
             self._sleep(_POLL_S)
 
     def _clear_anr(self, serial: str) -> None:
-        """Force-stop the package a focused ANR dialog names, then check once more; a dialog still there is env."""
-        package = self._focused_anr(serial)
-        if package is None:
-            return
-        if package != _NO_PACKAGE:
-            self._force_stop(serial, package)
-        if self._focused_anr(serial) is None:
-            return
-        if package == _NO_PACKAGE:
-            raise RoundEnvError(f"{serial}: an ANR dialog holds focus and names no package to force-stop")
-        raise RoundEnvError(f"{serial}: an ANR dialog of {package} still holds focus after force-stop")
+        """Broadcast CLOSE_SYSTEM_DIALOGS, then poll until no ANR window lists or the wait runs out.
+
+        The broadcast maps to FORCE_CLOSE on the ANR dialog's receiver for any package, focused or not,
+        so no package name is needed; each poll that still lists an ANR window sends it again.
+        """
+        deadline = self._monotonic() + _ANR_CLOSE_WAIT_S
+        packages = self._anr_packages(serial)
+        while packages:
+            self._close_anr_dialogs(serial)
+            if self._monotonic() >= deadline:
+                raise RoundEnvError(
+                    f"{serial}: an ANR window of {', '.join(packages)} still lists after CLOSE_SYSTEM_DIALOGS"
+                )
+            self._sleep(_POLL_S)
+            packages = self._anr_packages(serial)
 
     def _write_settings(self, record: BootRecord, argvs: Sequence[list[str]]) -> None:
         """Run each `settings` row; a failed row never fails the boot or the shutdown, it lands on the record."""
@@ -295,14 +298,16 @@ class AndroidBooter(Booter):
                 return
             self._sleep(_POLL_S)
 
-    def _force_stop(self, serial: str, package: str) -> None:
-        self._on(serial, "shell", "-n", "am", "force-stop", package)
+    def _close_anr_dialogs(self, serial: str) -> None:
+        self._on(
+            serial, "shell", "-n", "am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS"
+        )
 
     def _clock_jumped(self, serial: str) -> bool:
         return clock_jumped(self._on(serial, *_RTT_ARGS).stdout)
 
-    def _focused_anr(self, serial: str) -> str | None:
-        return focused_anr_package(self._on(serial, "shell", "dumpsys", "window").stdout)
+    def _anr_packages(self, serial: str) -> tuple[str, ...]:
+        return anr_window_packages(self._on(serial, "shell", "dumpsys", "window", "windows").stdout)
 
     def _state(self, serial: str) -> str:
         return self._on(serial, "get-state").stdout.strip() or "none"

@@ -1,0 +1,5 @@
+WINDOW MANAGER WINDOWS (dumpsys window windows)
+  Window #0 Window{111aaa u0 Application Not Responding: com.android.systemui}:
+    package=android
+  Window #1 Window{222bbb u0 com.example.app isn't responding}:
+    package=com.example.app
