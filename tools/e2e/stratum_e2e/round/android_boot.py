@@ -340,7 +340,7 @@ class AndroidBooter(Booter):
 
 def _avd(target: Target) -> str:
     if target.avd is None:
-        raise CatalogError(f"android target {target.name!r} names no avd in tools/e2e/targets.toml")
+        raise CatalogError(f"android target {target.name!r} names no avd in e2e/targets.toml")
     return target.avd
 
 

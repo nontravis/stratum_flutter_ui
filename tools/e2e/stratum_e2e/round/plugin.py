@@ -85,13 +85,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--target",
         default=None,
         metavar="NAMES",
-        help="Run a device round on these comma-separated tools/e2e/targets.toml targets.",
+        help="Run a device round on these comma-separated e2e/targets.toml targets.",
     )
     group.addoption(
         "--mode",
         default=None,
         metavar="MODE",
-        help="Run a device round on the targets of a mode of tools/e2e/targets.toml: fast or full.",
+        help="Run a device round on the targets of a mode of e2e/targets.toml: fast or full.",
     )
     group.addoption(
         "--repeat",

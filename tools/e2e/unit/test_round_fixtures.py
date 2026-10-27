@@ -548,7 +548,7 @@ def _make_tree(
     """Build the repo-shaped sandbox: a fixture catalog, the real integration and perf items, fake backends, and `e2e` as test_e2e.py."""
     root = build_sandbox(pytester, monkeypatch, plugin="round_fake")
     (root / "round_fake.py").write_text(FAKE_SOURCE)
-    (root / "targets.toml").write_text(TARGETS_TOML.format(mac_app_id=MAC_APP_ID, lane_wait=lane_wait))
+    (suite_dir(pytester) / "targets.toml").write_text(TARGETS_TOML.format(mac_app_id=MAC_APP_ID, lane_wait=lane_wait))
     shutil.copytree(E2E_ROOT / "integration", root / "integration", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(TESTS_DIR / "perf", suite_dir(pytester) / "perf", ignore=shutil.ignore_patterns("__pycache__"))
     (suite_dir(pytester) / "test_e2e.py").write_text(E2E_HEADER + e2e)

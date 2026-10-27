@@ -14,6 +14,7 @@ from stratum_e2e.paths import (
     INTEGRATION_ITEM_DIR,
     REPO_ROOT,
     ROUNDS_ROOT,
+    TARGETS_TOML,
     TESTS_DIR,
     in_round_scope,
     scope_key,
@@ -24,6 +25,11 @@ from stratum_e2e.paths import (
 def test_e2e_root_holds_the_package_and_pytest_ini() -> None:
     assert (E2E_ROOT / "stratum_e2e").is_dir()
     assert (E2E_ROOT / "pytest.ini").is_file()
+
+
+def test_targets_toml_sits_beside_the_test_cases() -> None:
+    assert TARGETS_TOML == TESTS_DIR / "targets.toml"
+    assert TARGETS_TOML.is_file()
 
 
 def test_appium_lives_under_the_dot_tools_folder() -> None:

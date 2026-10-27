@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class CatalogError(ValueError):
-    """`tools/e2e/targets.toml` or a round request names something the catalog cannot resolve."""
+    """`e2e/targets.toml` or a round request names something the catalog cannot resolve."""
 
 
 class RoundEnvError(RuntimeError):

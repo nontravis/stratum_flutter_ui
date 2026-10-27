@@ -425,5 +425,5 @@ def check_packages(resolved: DepsResolution, target_apt: Sequence[str]) -> None:
     missing = [package for package in resolved.packages if package not in have]
     if missing:
         raise RoundEnvError(
-            f"missing native packages: {' '.join(missing)}; add them to the target's apt list in tools/e2e/targets.toml"
+            f"missing native packages: {' '.join(missing)}; add them to the target's apt list in e2e/targets.toml"
         )

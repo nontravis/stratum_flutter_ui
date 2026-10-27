@@ -158,7 +158,7 @@ def test_baseline_folder_name_matches_round_segment(
     """The baseline lands in the folder the round's own `_segment` rule names, digest included over 120 chars."""
     long_target = "host_fake_" + "x" * 200
     root = _make_round_tree(pytester, monkeypatch)
-    (root / "targets.toml").write_text(HOST_TARGETS_TOML.replace("host_fake", long_target))
+    (suite_dir(pytester) / "targets.toml").write_text(HOST_TARGETS_TOML.replace("host_fake", long_target))
     rounds = pytester.path / "rounds"
     monkeypatch.setenv("STRATUM_E2E_ROUNDS_DIR", str(rounds))
     monkeypatch.setenv("STRATUM_E2E_LANE_DIR", str(pytester.path / "lanes"))

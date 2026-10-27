@@ -173,7 +173,7 @@ def _make_tree(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, *, ca
     (suite_dir(pytester) / "perf" / "test_perf.py").write_text(PERF_SOURCE)
     shutil.copytree(INTEGRATION_FIXTURE, pytester.path / "test_app" / "integration_test")
     if catalog:
-        (root / "targets.toml").write_text(TARGETS_TOML)
+        (suite_dir(pytester) / "targets.toml").write_text(TARGETS_TOML)
     monkeypatch.setenv(ROUNDS_DIR_ENV, str(pytester.path / "rounds"))
     return root
 
@@ -368,7 +368,7 @@ def test_plain_name_on_a_flutter_drive_target_is_a_usage_error(
     catalog = TARGETS_TOML.replace(
         "[targets.pixel_8.repeat]", f'[targets.pixel_8.plain_name]\n"{SMOKE}" = "group A"\n\n[targets.pixel_8.repeat]'
     )
-    (root / "targets.toml").write_text(catalog)
+    (suite_dir(pytester) / "targets.toml").write_text(catalog)
     result = _collect(pytester, "--target", "pixel_8")
     assert result.ret == 4
     error = result.stderr.str()
@@ -381,7 +381,7 @@ def test_repeat_prefix_naming_no_block_is_a_usage_error(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _make_tree(pytester, monkeypatch)
-    (root / "targets.toml").write_text(TARGETS_TOML.replace('["co01_02/us03/s1"]', '["co99/us99/s9"]'))
+    (suite_dir(pytester) / "targets.toml").write_text(TARGETS_TOML.replace('["co01_02/us03/s1"]', '["co99/us99/s9"]'))
     result = _collect(pytester, "--target", "pixel_8", "--repeat", "3")  # a repeat of 1 wraps nothing
     assert result.ret == 4
     error = result.stderr.str()

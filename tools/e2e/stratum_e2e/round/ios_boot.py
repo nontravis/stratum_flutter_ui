@@ -212,7 +212,7 @@ class IosBooter(Booter):
 
     def _pair(self, target: Target) -> IosPair:
         if target.device is None:
-            raise CatalogError(f"ios target {target.name!r} names no device in tools/e2e/targets.toml")
+            raise CatalogError(f"ios target {target.name!r} names no device in e2e/targets.toml")
         listed = self._simctl("list", "-j", timeout_s=_QUERY_TIMEOUT_S)
         if listed.status != 0:
             raise RoundEnvError(f"simctl list failed (status {listed.status}): {listed.stderr.strip()}")

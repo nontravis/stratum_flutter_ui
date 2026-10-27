@@ -1,4 +1,4 @@
-"""The device round catalog: what `tools/e2e/targets.toml` declares and how a round request resolves against it.
+"""The device round catalog: what `e2e/targets.toml` declares and how a round request resolves against it.
 
 Design section 7 owns the values; section 15 owns how `--target`, `--mode`, and `--repeat` combine.
 """
@@ -11,10 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from stratum_e2e.paths import E2E_ROOT
+from stratum_e2e.paths import TARGETS_TOML
 from stratum_e2e.round.errors import CatalogError
 
-TARGETS_TOML = E2E_ROOT / "targets.toml"
 
 _DEFAULT_MODE = "fast"
 _PLATFORMS = ("android", "ios", "macos", "web", "linux", "windows")

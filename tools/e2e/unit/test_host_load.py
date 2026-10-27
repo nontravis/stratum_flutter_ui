@@ -197,7 +197,7 @@ repeat = 1
 def _make_tree(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> Path:
     """The repo-shaped sandbox with a fake host-load backend plugin; no test touches the OS."""
     root = build_sandbox(pytester, monkeypatch, plugin="round_fake_host")
-    (root / "targets.toml").write_text(HOST_TARGETS_TOML)
+    (suite_dir(pytester) / "targets.toml").write_text(HOST_TARGETS_TOML)
     fake = ROUND_FAKE_SOURCE.replace("from unit.round_fakes import FakeRunner", "from round_fakes import FakeRunner")
     (root / "round_fake_host.py").write_text(fake)
     shutil.copy(E2E_ROOT / "unit" / "round_fakes.py", root / "round_fakes.py")

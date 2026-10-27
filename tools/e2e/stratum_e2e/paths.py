@@ -7,6 +7,7 @@ from pathlib import Path
 E2E_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = E2E_ROOT.parents[1]
 TESTS_DIR = REPO_ROOT / "e2e"
+TARGETS_TOML = TESTS_DIR / "targets.toml"
 INTEGRATION_ITEM_DIR = E2E_ROOT / "integration"
 ROUNDS_ROOT = REPO_ROOT / "tmp" / "e2e-rounds"
 APPIUM_BIN = E2E_ROOT / ".tools" / "node_modules" / ".bin" / "appium"

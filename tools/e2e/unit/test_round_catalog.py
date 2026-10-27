@@ -35,7 +35,7 @@ def _names(catalog: Catalog, target_arg: str | None, mode_arg: str | None,
 
 
 def test_targets_toml_is_the_e2e_sibling() -> None:
-    assert TARGETS_TOML.name == "targets.toml"
+    assert TARGETS_TOML.parent.name == "e2e"
     assert TARGETS_TOML.is_file()
 
 

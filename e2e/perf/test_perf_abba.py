@@ -1,7 +1,7 @@
 """The example app's ABBA perf run as a round item: macOS only, outside default runs (design call 7).
 
 `tools/perf_abba.dart` builds its own example app (`example/tools/perf_abba.dart`), so the round builds nothing
-for it; the command comes from `apps.example.perf` in `tools/e2e/targets.toml`.
+for it; the command comes from `apps.example.perf` in `e2e/targets.toml`.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_perf_abba(round_backends: Backends) -> None:
     """Run the perf command in the example app folder; pass on exit 0. Its output lands in the item's captured log."""
     app = load_catalog(TARGETS_TOML).apps[PERF_APP]
     if app.perf is None:
-        pytest.fail(f"tools/e2e/targets.toml gives apps.{PERF_APP} no perf command", pytrace=False)
+        pytest.fail(f"e2e/targets.toml gives apps.{PERF_APP} no perf command", pytrace=False)
     done = round_backends.runner.run(shlex.split(app.perf), cwd=REPO_ROOT / app.folder)
     print(done.stdout)
     print(done.stderr)
