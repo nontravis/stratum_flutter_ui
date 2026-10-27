@@ -173,8 +173,8 @@ def _lost_or_fail(state: RoundState, target: Target, call: pytest.CallInfo[None]
 @pytest.fixture(scope="session")
 def round_backends(request: pytest.FixtureRequest) -> Backends:
     """The real backends: subprocesses, one booter per platform, the app build, the integration run, the host memory
-    gate, and the UTC clock. A unit test overrides this fixture in the `round_fake` plugin that `-p` loads last
-    (`unit/sandbox.py`); a sandbox conftest is never loaded."""
+    gate, and the UTC clock. A unit test overrides this fixture in a `round_fake` plugin that each sandbox test
+    writes and loads last through `-p`, as `unit/sandbox.py` passes it; a sandbox conftest is never loaded."""
     return real_backends(request.config)
 
 
