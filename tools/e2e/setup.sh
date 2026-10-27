@@ -3,13 +3,13 @@
 # e2e toolchain setup for the stratum_ui e2e suite.
 # Plan task M2-T7; design section 4 (own environment) and section 16 (pinned versions).
 #
-# Everything lands inside e2e/.venv (Python) and e2e/.tools (Node, Appium, drivers) —
+# Everything lands inside tools/e2e/.venv (Python) and tools/e2e/.tools (Node, Appium, drivers) —
 # nothing is installed globally. A plain run is idempotent: any step whose pinned
 # version is already present is skipped, so a second run installs nothing.
 #
 # Usage:
-#   e2e/tools/setup.sh            install the missing pieces of the pinned toolchain
-#   e2e/tools/setup.sh --check    print "<tool> <version> ok" or "<tool> <got> MISMATCH <want>"
+#   tools/e2e/setup.sh            install the missing pieces of the pinned toolchain
+#   tools/e2e/setup.sh --check    print "<tool> <version> ok" or "<tool> <got> MISMATCH <want>"
 #                                 per tool; exit 1 on any mismatch. Installs nothing.
 #
 # Exit codes: 0 success or all versions match; 1 install failure or version mismatch;
@@ -18,7 +18,7 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-E2E_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
+E2E_DIR="${SCRIPT_DIR}"
 VENV_DIR="${E2E_DIR}/.venv"
 TOOLS_DIR="${E2E_DIR}/.tools"
 APPIUM_HOME_DIR="${TOOLS_DIR}/appium-home"
@@ -43,7 +43,7 @@ pip_pkg_version() { # $1: distribution name
   "${VENV_DIR}/bin/python" -c "import importlib.metadata as m; print(m.version('${1}'))" 2>/dev/null || true
 }
 
-# Print the pinned version of a package from e2e/requirements.txt, or nothing.
+# Print the pinned version of a package from tools/e2e/requirements.txt, or nothing.
 requirements_pin() { # $1: distribution name
   [[ -f "${REQUIREMENTS}" ]] || return 0
   sed -n "s/^${1}==\(.*\)\$/\1/p" "${REQUIREMENTS}" | head -n 1

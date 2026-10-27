@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# Run the stratum_ui e2e suite (or its unit tests) through the tools/e2e toolchain.
+# Runs on Bash 3.2 (macOS system bash) and newer.
+#
+# Usage (from the stratum_ui root):
+#   tools/e2e/round [pytest args]            device suites under e2e/ plus the integration item
+#   tools/e2e/round unit [pytest args]       the harness unit tests under tools/e2e/unit
+#   tools/e2e/round --target <a>[,<b>] ...   a device round; every argument passes through to pytest
+#
+# Path selection is pytest's own: the default suites are the `testpaths` ini value, which pytest applies only when
+# the command line holds no path argument and the run starts in the rootdir. The wrapper pins the rootdir to the
+# stratum_ui root and never guesses which arguments are paths, so an option value such as `--app /tmp/x.apk` cannot
+# suppress the defaults, whatever options a plugin adds later.
+#
+# Exit code: pytest's; 1 when the toolchain is not set up or the run does not start in the stratum_ui root.
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SCRIPT_DIR
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
+readonly REPO_ROOT
+readonly VENV_PYTHON="${SCRIPT_DIR}/.venv/bin/python"
+
+# Relative to the rootdir (REPO_ROOT); free of spaces so the ini list splits cleanly.
+readonly DEFAULT_TESTPATHS="e2e tools/e2e/integration/test_integration.py"
+
+if [[ ! -x "${VENV_PYTHON}" ]]; then
+  printf 'round: %s missing; run %s/setup.sh first\n' "${VENV_PYTHON}" "${SCRIPT_DIR}" >&2
+  exit 1
+fi
+
+if [[ "$(pwd -P)" != "${REPO_ROOT}" ]]; then
+  printf 'round: run from the stratum_ui root (%s), not %s\n' "${REPO_ROOT}" "$(pwd -P)" >&2
+  exit 1
+fi
+
+args=("$@")
+if [[ ${#args[@]} -gt 0 && "${args[0]}" == "unit" ]]; then
+  args[0]="tools/e2e/unit"
+fi
+
+export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+# `${args[@]+...}` keeps an empty array from tripping `set -u` on Bash 3.2.
+exec "${VENV_PYTHON}" -m pytest \
+  -c "${SCRIPT_DIR}/pytest.ini" \
+  --rootdir "${REPO_ROOT}" \
+  -o "cache_dir=${SCRIPT_DIR}/.pytest_cache" \
+  -o "testpaths=${DEFAULT_TESTPATHS}" \
+  ${args[@]+"${args[@]}"}
