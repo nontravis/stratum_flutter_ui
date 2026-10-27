@@ -32,7 +32,7 @@ class _ToastShortcutFixtureState extends State<ToastShortcutFixture> {
   @override
   Widget build(BuildContext context) {
     return StratumToastHost(
-      child: Stack(
+      child: StackLayout(
         fit: StackFit.expand,
         children: [
           ColumnLayout(
