@@ -17,6 +17,7 @@ from stratum_e2e.round.errors import CatalogError
 
 _DEFAULT_MODE = "fast"
 _PLATFORMS = ("android", "ios", "macos", "web", "linux", "windows")
+BROWSERS = ("chrome", "firefox")
 _BUILD_MODES = ("debug", "profile", "release")
 
 
@@ -254,6 +255,16 @@ def _target(name: str, table: _Table, integration_dir: Path | None) -> Target:
     avd = table.str_("avd") if platform == "android" else table.opt_str("avd")
     device = table.str_("device") if platform == "ios" else table.opt_str("device")
 
+    browser = table.opt_str("browser")
+    if browser is not None and browser not in BROWSERS:
+        raise CatalogError(f"{table.where}.browser '{browser}' is not one of {', '.join(BROWSERS)}")
+    if browser == "firefox":
+        # Flutter's integration_test driver launches Chrome only, so a firefox target runs e2e legs alone.
+        if table.bool_("integration", True):
+            raise CatalogError(f"{table.where}: a firefox target needs integration = false")
+        if table.bool_("wasm", False):
+            raise CatalogError(f"{table.where}: a firefox target takes no wasm build")
+
     plain_name_table = table.table("plain_name")
     plain_name = {key: plain_name_table.str_(key) for key in plain_name_table.keys()}
     repeat_table = table.table("repeat")
@@ -270,7 +281,7 @@ def _target(name: str, table: _Table, integration_dir: Path | None) -> Target:
         emulator_args=table.strs("emulator_args"),
         device=device,
         runtime=table.opt_str("runtime"),
-        browser=table.opt_str("browser"),
+        browser=browser,
         wasm=table.bool_("wasm", False),
         apt=table.strs("apt"),
         integration=table.bool_("integration", True),

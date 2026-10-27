@@ -17,7 +17,7 @@ from stratum_e2e.round.catalog import (
 from stratum_e2e.round.errors import CatalogError, RoundEnvError
 
 FULL = (
-    "pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "linux",
+    "pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "firefox", "linux",
     "iphone_e2e", "e2e_talkback",
 )
 
@@ -56,8 +56,8 @@ def test_alone_targets(catalog: Catalog) -> None:
 
 
 def test_e2e_flag_per_target(catalog: Catalog) -> None:
-    with_e2e = {"pixel_8", "pixel_2", "small_phone", "tablet", "mac", "chrome", "chrome_wasm", "iphone_e2e",
-                "e2e_talkback"}
+    with_e2e = {"pixel_8", "pixel_2", "small_phone", "tablet", "mac", "chrome", "chrome_wasm", "firefox",
+                "iphone_e2e", "e2e_talkback"}
     for name, target in catalog.targets.items():
         assert target.e2e is (name in with_e2e), name
     assert catalog.targets["iphone"].e2e is False
@@ -65,7 +65,7 @@ def test_e2e_flag_per_target(catalog: Catalog) -> None:
 
 
 def test_integration_flag_per_target(catalog: Catalog) -> None:
-    without_integration = {"iphone_e2e", "e2e_talkback", "windows"}
+    without_integration = {"iphone_e2e", "e2e_talkback", "windows", "firefox"}
     for name, target in catalog.targets.items():
         assert target.integration is (name not in without_integration), name
 
@@ -88,6 +88,8 @@ def test_target_values(catalog: Catalog) -> None:
     assert targets["mac"].platform == "macos"
     assert (targets["chrome"].platform, targets["chrome"].browser, targets["chrome"].wasm) == ("web", "chrome", False)
     assert (targets["chrome_wasm"].browser, targets["chrome_wasm"].wasm) == ("chrome", True)
+    firefox = targets["firefox"]
+    assert (firefox.platform, firefox.browser, firefox.wasm, firefox.integration) == ("web", "firefox", False, False)
 
     linux = targets["linux"]
     assert linux.apt == ("libsecret-1-dev", "libwebkit2gtk-4.1-dev")
@@ -256,6 +258,13 @@ def test_base_catalog_loads(tmp_path: Path) -> None:
         ('\n[targets.x]\nplatform = "ios"', r"targets\.x\.device must be a non-empty string"),
         ('wasm = "yes"', r"targets\.pixel_2\.wasm must be true or false"),
         ('emulator_args = "-gpu host"', r"targets\.pixel_2\.emulator_args must be a list of strings"),
+        ('\n[targets.x]\nplatform = "web"\nbrowser = "safari"',
+         r"targets\.x\.browser 'safari' is not one of chrome, firefox"),
+        ('\n[targets.x]\nplatform = "web"\nbrowser = "firefox"', r"targets\.x: a firefox target needs integration = false"),
+        ('\n[targets.x]\nplatform = "web"\nbrowser = "firefox"\nintegration = true',
+         r"targets\.x: a firefox target needs integration = false"),
+        ('\n[targets.x]\nplatform = "web"\nbrowser = "firefox"\nintegration = false\nwasm = true',
+         r"targets\.x: a firefox target takes no wasm build"),
         (
             '\n[targets.w]\nplatform = "windows"\ncatalog_only = true\n\n[modes.full]\ntargets = ["w"]\nrepeat = 1',
             r"modes\.full\.targets names catalog-only target 'w'",
@@ -266,7 +275,9 @@ def test_base_catalog_loads(tmp_path: Path) -> None:
     ],
     ids=[
         "unknown-key", "bad-platform", "platform-not-a-string", "bad-build-mode", "android-without-avd",
-        "ios-without-device", "bool-as-string", "list-as-string", "catalog-only-in-a-mode", "unknown-target-in-a-mode",
+        "ios-without-device", "bool-as-string", "list-as-string",
+        "unknown-browser", "firefox-integration-default", "firefox-integration-true", "firefox-wasm",
+        "catalog-only-in-a-mode", "unknown-target-in-a-mode",
         "mode-repeat-below-one", "mode-repeat-as-string",
     ],
 )
