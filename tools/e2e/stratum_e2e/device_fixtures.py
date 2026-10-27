@@ -208,6 +208,7 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
         launch: Callable[[], Browser] = request.getfixturevalue("browser")
         chrome = launch()
         server = request.getfixturevalue("static_server")
+        _ready_device(request)
         try:
             page = chrome.new_page(base_url=server.url)
         except PlaywrightError as error:
@@ -222,6 +223,7 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
     appium_server = _appium_server(request)
     request.getfixturevalue("installed_app")
     options = _session_options(request.config, platform, app_id, request.getfixturevalue("round_app"))
+    _ready_device(request)
     try:
         session = webdriver.Remote(appium_server.url, options=options)
     except (WebDriverException, HTTPError, OSError) as error:
@@ -230,6 +232,19 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
         yield session
     finally:
         session.quit()
+
+
+def _ready_device(request: pytest.FixtureRequest) -> None:
+    """Ready the round target's device (clear an ANR) for this item; a no-op outside a round.
+
+    Called after the install and right before the session opens, so no build or install sits between the clear and
+    the session. A `RoundEnvError` propagates, so the item reads `env`.
+    """
+    target = item_target(request.node)
+    if target is None:
+        return
+    brought_up: RoundTarget = request.getfixturevalue("round_target")
+    request.getfixturevalue("round_backends").booter_for(target).before_file(brought_up.record)
 
 
 def _require_unlocked_console(runner: Runner) -> None:

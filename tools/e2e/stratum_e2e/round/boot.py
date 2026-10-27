@@ -59,7 +59,7 @@ class Booter(Protocol):
         ...
 
     def before_file(self, record: BootRecord) -> None:
-        """Make the device ready for the next test file; raises `RoundEnvError` when it cannot."""
+        """Make the device ready before each integration file and each e2e item; raises `RoundEnvError` when it cannot."""
         ...
 
     def shutdown(self, record: BootRecord) -> None:

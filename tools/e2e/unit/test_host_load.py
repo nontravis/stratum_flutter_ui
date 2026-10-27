@@ -263,6 +263,9 @@ class _HostBooter:
     def boot(self, target, log=None, device_log=None):
         return BootRecord(target=target.name, platform=target.platform, device_id="mac", reused=False)
 
+    def before_file(self, record):
+        pass
+
     def shutdown(self, record):
         pass
 
