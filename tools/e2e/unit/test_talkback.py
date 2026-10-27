@@ -7,8 +7,8 @@ import subprocess
 
 import pytest
 
+from stratum_e2e.android.adb import TALKBACK_AVD
 from stratum_e2e.android.talkback import (
-    AVD_NAME,
     TALKBACK_SERVICE,
     TalkBackLog,
     TalkBackNotIdle,
@@ -67,7 +67,7 @@ class FakeAdb:
     """
 
     def __init__(self) -> None:
-        self.avd = AVD_NAME
+        self.avd = TALKBACK_AVD
         self.settings: dict[str, str] = {}
         self.logcat = ""
         self.calls: list[list[str]] = []
@@ -164,12 +164,8 @@ def fake_adb(monkeypatch: pytest.MonkeyPatch, clock: FakeClock) -> FakeAdb:
     return adb
 
 
-def test_the_avd_name_has_one_home() -> None:
-    assert AVD_NAME == "E2E_TalkBack_API_35"
-
-
 def test_avd_name_reads_the_first_console_line(fake_adb: FakeAdb) -> None:
-    assert avd_name(SERIAL) == AVD_NAME
+    assert avd_name(SERIAL) == TALKBACK_AVD
     assert fake_adb.calls == [["emu", "avd", "name"]]
 
 

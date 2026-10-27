@@ -28,9 +28,9 @@ from playwright.sync_api import Error as PlaywrightError
 from selenium.common.exceptions import WebDriverException
 from urllib3.exceptions import HTTPError
 
+from stratum_e2e.android.adb import DEDICATED_AVD_BY_MARKER, dedicated_avds
 from stratum_e2e.android.session import android_capabilities, install_apk
 from stratum_e2e.android.talkback import (
-    AVD_NAME,
     TalkBackLog,
     TalkBackSession,
     TalkBackSilent,
@@ -306,7 +306,11 @@ def _set_up[T](stack: contextlib.ExitStack, tool: contextlib.AbstractContextMana
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip an e2e item --platform does not run; a round selects its own items, so this stays out of one."""
+    """Refuse an e2e item marked for two dedicated AVDs, then skip an e2e item --platform does not run.
+
+    The platform skip stays out of a round, which selects its own items; the marker check runs in both.
+    """
+    _refuse_items_for_two_dedicated_avds(items)
     if config.stash.get(ROUND_KEY, None) is not None:
         return
     platform = config.getoption("--platform")
@@ -318,6 +322,22 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         reason = skip_reason(markers, platform, host_voiceover=host_voiceover)
         if reason is not None:
             item.add_marker(pytest.mark.skip(reason=reason))
+
+
+def _refuse_items_for_two_dedicated_avds(items: list[pytest.Item]) -> None:
+    """Fail collection on an e2e item whose markers map to more than one dedicated AVD.
+
+    Such an item has no AVD to run on: the selection and the skip hook would drop it on every target, silently.
+    """
+    for item in items:
+        if not in_round_scope(Path(str(item.path))):
+            continue
+        marked = {marker.name for marker in item.iter_markers() if marker.name in DEDICATED_AVD_BY_MARKER}
+        if len(dedicated_avds(marked)) > 1:
+            raise pytest.UsageError(
+                f"{item.nodeid} is marked for more than one dedicated AVD ({', '.join(sorted(marked))}); "
+                "mark it for one"
+            )
 
 
 def _host_load_target(item: pytest.Item) -> str | None:
@@ -333,7 +353,7 @@ def _host_load_target(item: pytest.Item) -> str | None:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Skip a `talkback_avd` test on the wrong AVD.
+    """Skip an Android item carrying a dedicated-AVD marker on any other AVD.
 
     Runs before the driver fixture, so a shared target never gets an Appium session. The baseline
     write lives in `pytest_runtest_makereport`, not here: this hook runs before the fixtures, and
@@ -342,23 +362,27 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     """
     if not in_round_scope(Path(str(item.path))):
         return
-    if item.get_closest_marker("talkback_avd") is not None and item.get_closest_marker("skip") is None:
-        _skip_unless_talkback_avd(item)
+    if item.get_closest_marker("skip") is None:
+        _skip_unless_dedicated_avd(item)
 
 
-def _skip_unless_talkback_avd(item: pytest.Item) -> None:
-    """Skip `item` unless --device (in a round, the item's target) is the AVD named AVD_NAME."""
+def _skip_unless_dedicated_avd(item: pytest.Item) -> None:
+    """Skip `item` unless --device (in a round, the item's target) is the one AVD its markers map to."""
+    markers = {marker.name for marker in item.iter_markers()}
+    wanted = dedicated_avds(markers) if "android" in markers else set()
+    if not wanted:
+        return
     target = item_target(item)
     if target is not None:
-        if target.avd != AVD_NAME:
-            pytest.skip(f"talkback_avd: target {target.name} is AVD {target.avd!r}, not {AVD_NAME!r}")
+        if {target.avd} != wanted:
+            pytest.skip(f"dedicated AVD: target {target.name} is AVD {target.avd!r}, not {sorted(wanted)!r}")
         return
     device = item.config.getoption("--device")
     if device is None:
         pytest.skip("no --device given")
     name = avd_name(str(device))
-    if name != AVD_NAME:
-        pytest.skip(f"talkback_avd: {device} is AVD {name!r}, not {AVD_NAME!r}")
+    if {name} != wanted:
+        pytest.skip(f"dedicated AVD: {device} is AVD {name!r}, not {sorted(wanted)!r}")
 
 
 @pytest.hookimpl(wrapper=True)

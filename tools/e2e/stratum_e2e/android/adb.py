@@ -4,9 +4,22 @@ from __future__ import annotations
 
 import shlex
 import subprocess
+from collections.abc import Iterable, Mapping
+from types import MappingProxyType
 
-AVD_NAME = "E2E_TalkBack_API_35"
+TALKBACK_AVD = "E2E_TalkBack_API_35"
+STYLUS_AVD = "E2E_Stylus_API_36"
+# The one marker-to-AVD map (ruling Q3 amendment, 2026-10-27): selection, the skip hook, and SecureSetting read it.
+DEDICATED_AVD_BY_MARKER: Mapping[str, str] = MappingProxyType(
+    {"talkback_avd": TALKBACK_AVD, "level2": TALKBACK_AVD, "stylus_avd": STYLUS_AVD}
+)
+DEDICATED_AVDS = frozenset(DEDICATED_AVD_BY_MARKER.values())
 UNSET = "null"
+
+
+def dedicated_avds(markers: Iterable[str]) -> set[str]:
+    """Return the dedicated AVDs the [markers] ask for; empty when none, two or more when they conflict."""
+    return {DEDICATED_AVD_BY_MARKER[marker] for marker in markers if marker in DEDICATED_AVD_BY_MARKER}
 
 
 def adb(serial: str, *args: str) -> str:

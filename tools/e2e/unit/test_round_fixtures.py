@@ -59,6 +59,12 @@ avd = "E2E_TalkBack_API_35"
 alone = true
 integration = false
 
+[targets.e2e_stylus]
+platform = "android"
+avd = "E2E_Stylus_API_36"
+alone = true
+integration = false
+
 [targets.mac]
 platform = "macos"
 
@@ -1552,6 +1558,61 @@ def test_talkback_avd_check_failure_is_env(pytester: pytest.Pytester, monkeypatc
     _write_scenario(root, {"avd_check": 0})
     _round(pytester, "--target", "e2e_talkback").assert_outcomes(passed=1)
     assert _events(root, "check ", "item ") == ["check dev-e2e_talkback", "item e2e_talkback test_talkback_a"]
+
+
+STYLUS_TESTS = """\
+@pytest.mark.android
+@pytest.mark.stylus_avd
+def test_stylus_a(round_target):
+    event(f"item {round_target.target.name} test_stylus_a")
+
+
+@pytest.mark.android
+@pytest.mark.talkback_avd
+def test_talkback_a(round_target):
+    event(f"item {round_target.target.name} test_talkback_a")
+
+
+@pytest.mark.android
+def test_android_a(round_target):
+    event(f"item {round_target.target.name} test_android_a")
+"""
+
+
+def test_stylus_avd_check_failure_is_env_and_only_stylus_items_run_there(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, STYLUS_TESTS, {"avd_check": 1})
+    _round(pytester, "--target", "e2e_stylus")
+    assert _events(root, "check ", "item ") == ["check dev-e2e_stylus"]
+    reason = _cells(_summary(pytester))["test_e2e.py::test_stylus_a"]["e2e_stylus"]["reason"]
+    assert reason.startswith("stratum_e2e.e2e_avd create --avd E2E_Stylus_API_36|check: ")
+    assert "stylus:" not in reason
+
+    _write_scenario(root, {"avd_check": 0})
+    _round(pytester, "--target", "e2e_stylus").assert_outcomes(passed=1)
+    assert _events(root, "check ", "item ") == ["check dev-e2e_stylus", "item e2e_stylus test_stylus_a"]
+
+
+TWO_AVD_TESTS = """\
+@pytest.mark.android
+@pytest.mark.talkback_avd
+@pytest.mark.stylus_avd
+def test_two_avds(round_target):
+    event("item test_two_avds")
+"""
+
+
+def test_a_round_refuses_an_item_marked_for_two_dedicated_avds(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, TWO_AVD_TESTS)
+
+    result = _round(pytester, "--target", "e2e_stylus,e2e_talkback")
+
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines(["*test_two_avds*is marked for more than one dedicated AVD (stylus_avd, talkback_avd)*"])
+    assert _events(root, "item ") == []
 
 
 TALKBACK_FIXTURE = """\

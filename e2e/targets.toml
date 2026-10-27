@@ -72,6 +72,13 @@ alone = true
 integration = false                                     # e2e only, no integration build
 emulator_args = ["-gpu", "host"]                        # API 35 image boots software GLES; System UI misses its startup deadline and its ANR dialog covers the app; measured 2026-10-24: ANR in 5 of 7 default boots, 0 of 8 with host GPU
 
+[targets.e2e_stylus]
+platform = "android"
+avd = "E2E_Stylus_API_36"                              # provision with: python -m stratum_e2e.e2e_avd create --avd E2E_Stylus_API_36
+alone = true
+integration = false                                     # e2e only, no integration build
+emulator_args = ["-gpu", "host"]                        # the stylus recipe was measured with the host GPU (ruling Q3 amendment 2026-10-27)
+
 [targets.mac]
 platform = "macos"
 
@@ -107,7 +114,7 @@ targets = ["mac"]
 repeat = 1
 
 [modes.full]
-targets = ["pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "linux", "iphone_e2e", "e2e_talkback"]
+targets = ["pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "linux", "iphone_e2e", "e2e_talkback", "e2e_stylus"]
 repeat = 10                                             # ruling 2026-10-07; small_phone, tablet 2026-10-16; chrome_wasm 2026-10-17 night
 
 [lane]

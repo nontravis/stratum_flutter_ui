@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 
+from stratum_e2e.android.adb import STYLUS_AVD
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.android_host import CONSOLE_PORTS, adb_path, emulator_path, missing_avd_message, reserve_port
 from stratum_e2e.round.android_traps import (
@@ -224,14 +225,14 @@ def _close_dialogs() -> tuple[str, ...]:
     return _on(SERIAL, "shell", "-n", "am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS")
 
 
-def _puts(*, failing: int | None = None) -> list[Entry]:
+def _puts(*, failing: int | None = None, avd: str = AVD) -> list[Entry]:
     """One `settings put` answer per boot setting; the row at index `failing` answers status 1."""
-    argvs = settings_apply_argv(ADB, SERIAL)
+    argvs = settings_apply_argv(ADB, SERIAL, avd)
     return [(tuple(argv), _done(status=1 if index == failing else 0)) for index, argv in enumerate(argvs)]
 
 
-def _teardown(*, restore: bool, failing_delete: int | None = None) -> list[Entry]:
-    argvs = settings_restore_argv(ADB, SERIAL) if restore else []
+def _teardown(*, restore: bool, failing_delete: int | None = None, avd: str = AVD) -> list[Entry]:
+    argvs = settings_restore_argv(ADB, SERIAL, avd) if restore else []
     deletes = [(tuple(argv), _done(status=1 if index == failing_delete else 0)) for index, argv in enumerate(argvs)]
     return [
         *deletes,
@@ -240,15 +241,15 @@ def _teardown(*, restore: bool, failing_delete: int | None = None) -> list[Entry
     ]
 
 
-def _cold_boot() -> list[Entry]:
+def _cold_boot(avd: str = AVD) -> list[Entry]:
     return [
         *_listing((OTHER, "Other_AVD")),
         *_ready(),
-        *_confirm(),
+        *_confirm(avd),
         *_rtt("12.3"),
         *_settle(),
         *_windows(FOCUS_NORMAL),
-        *_puts(),
+        *_puts(avd=avd),
     ]
 
 
@@ -624,13 +625,32 @@ def test_settings_applied_after_settle_and_restored_before_kill(
 
     booter.shutdown(record)
 
-    puts = [tuple(argv) for argv in settings_apply_argv(ADB, SERIAL)]
-    deletes = [tuple(argv) for argv in settings_restore_argv(ADB, SERIAL)]
+    puts = [tuple(argv) for argv in settings_apply_argv(ADB, SERIAL, AVD)]
+    deletes = [tuple(argv) for argv in settings_restore_argv(ADB, SERIAL, AVD)]
     settle_end = runner.calls.index(_on(SERIAL, "shell", "dumpsys", "input_method"))
     assert runner.calls[booted_calls - len(puts) : booted_calls] == puts
     assert settle_end < booted_calls - len(puts)
     assert runner.calls[booted_calls:] == [*deletes, _on(SERIAL, "emu", "kill"), (ADB, "devices")]
     assert record.settings_applied is False
+
+
+def test_stylus_avd_boot_never_writes_or_deletes_the_stylus_key(
+    tmp_path: Path, avd_home: Path, clock: FakeClock
+) -> None:
+    (avd_home / f"{STYLUS_AVD}.ini").write_text(
+        f"avd.ini.encoding=UTF-8\npath={avd_home / STYLUS_AVD}.avd\ntarget=android-36\n"
+    )
+    target = Target(name="stylus", platform="android", alone=True, avd=STYLUS_AVD, build_mode="profile")
+    runner = EmulatorRunner([*_cold_boot(STYLUS_AVD), *_teardown(restore=True, avd=STYLUS_AVD)])
+    booter = _booter(runner, avd_home, clock)
+    record = booter.boot(target, tmp_path / "emulator.log")
+    booter.shutdown(record)
+
+    secure_writes = [call for call in runner.calls if call[3:6] == ("shell", "settings", "put")]
+    secure_deletes = [call for call in runner.calls if call[3:6] == ("shell", "settings", "delete")]
+    assert [call[-2:] for call in secure_writes] == [("immersive_mode_confirmations", "confirmed")]
+    assert [call[-1] for call in secure_deletes] == ["immersive_mode_confirmations"]
+    assert not any("stylus_handwriting_enabled" in call for call in runner.calls)
 
 
 def test_shutdown_kills_only_the_recorded_serial(tmp_path: Path, avd_home: Path, clock: FakeClock) -> None:
@@ -929,7 +949,7 @@ def test_failed_setting_put_is_recorded_and_the_boot_succeeds(tmp_path: Path, av
     assert len(record.setting_failures) == 1
     assert BOOT_SETTINGS[0][0] in record.setting_failures[0]
     assert "status 1" in record.setting_failures[0]
-    assert runner.calls[-len(BOOT_SETTINGS) :] == [tuple(argv) for argv in settings_apply_argv(ADB, SERIAL)]
+    assert runner.calls[-len(BOOT_SETTINGS) :] == [tuple(argv) for argv in settings_apply_argv(ADB, SERIAL, AVD)]
     assert record.settings_applied is True
     assert record.port is not None
     record.port.release()

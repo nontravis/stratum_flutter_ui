@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from stratum_e2e.android.talkback import AVD_NAME
+from stratum_e2e.android.adb import STYLUS_AVD, TALKBACK_AVD
 from stratum_e2e.round.catalog import Target
 from stratum_e2e.selection import PLATFORMS, runs_e2e, skip_reason
 
@@ -49,7 +49,8 @@ def _target(
 
 
 SHARED_ANDROID = _target("pixel_8", "android", avd="Pixel_8_API_37")
-TALKBACK = _target("e2e_talkback", "android", avd=AVD_NAME, integration=False)
+TALKBACK = _target("e2e_talkback", "android", avd=TALKBACK_AVD, integration=False)
+STYLUS = _target("e2e_stylus", "android", avd=STYLUS_AVD, integration=False)
 
 
 def test_runs_e2e_shared_android_runs_plain_and_level1_items() -> None:
@@ -71,6 +72,32 @@ def test_runs_e2e_talkback_target_runs_talkback_and_level2_items(markers: set[st
 def test_runs_e2e_talkback_target_skips_plain_android_items() -> None:
     assert not runs_e2e(TALKBACK, {"android"})
     assert not runs_e2e(TALKBACK, {"android", "level1"})
+
+
+def test_runs_e2e_shared_android_never_runs_stylus_items() -> None:
+    assert not runs_e2e(SHARED_ANDROID, {"android", "stylus_avd"})
+
+
+def test_runs_e2e_stylus_target_runs_only_stylus_items() -> None:
+    assert runs_e2e(STYLUS, {"android", "stylus_avd"})
+    assert runs_e2e(STYLUS, {"android", "stylus_avd", "level1"})
+
+
+@pytest.mark.parametrize("markers", [{"android"}, {"android", "level1"}, {"android", "talkback_avd"}, {"android", "level2"}])
+def test_runs_e2e_stylus_target_skips_every_other_android_item(markers: set[str]) -> None:
+    assert not runs_e2e(STYLUS, markers)
+
+
+@pytest.mark.parametrize("markers", [{"android", "stylus_avd"}, {"android", "stylus_avd", "level2"}])
+def test_runs_e2e_talkback_target_skips_items_marked_for_the_stylus_avd(markers: set[str]) -> None:
+    assert not runs_e2e(TALKBACK, markers)
+
+
+def test_runs_e2e_an_item_marked_for_both_dedicated_avds_runs_on_neither() -> None:
+    markers = {"android", "stylus_avd", "talkback_avd"}
+    assert not runs_e2e(STYLUS, markers)
+    assert not runs_e2e(TALKBACK, markers)
+    assert not runs_e2e(SHARED_ANDROID, markers)
 
 
 def test_runs_e2e_android_target_skips_other_platform_items() -> None:

@@ -107,39 +107,56 @@ def test_the_default_marker_expression_deselects_the_host_leg_even_with_the_opt_
     result.assert_outcomes(passed=1, deselected=1)
 
 
-TALKBACK_TESTS_SOURCE = """\
+DEDICATED_TESTS_SOURCE = """\
 import pytest
 
 
 @pytest.mark.android
 @pytest.mark.talkback_avd
 def test_talkback_only(): pass
+
+
+@pytest.mark.android
+@pytest.mark.stylus_avd
+def test_stylus_only(): pass
+
+
+@pytest.mark.android
+def test_plain_android(): pass
 """
 
 
-def test_talkback_avd_skip_still_fires_with_baseline_hook(
-    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("avd", "outcomes"),
+    [
+        ("Pixel_8_API_37", {"passed": 1, "skipped": 2}),
+        ("E2E_TalkBack_API_35", {"passed": 2, "skipped": 1}),
+        ("E2E_Stylus_API_36", {"passed": 2, "skipped": 1}),
+    ],
+)
+def test_dedicated_avd_skip_still_fires_with_baseline_hook(
+    avd: str, outcomes: dict[str, int], pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A direct run on a non-e2e AVD skips the talkback_avd item even with the baseline hook present.
+    """A direct run skips a dedicated-marker item on any AVD but its own, even with the baseline hook present.
 
     Two same-named `pytest_runtest_setup` defs rebind the module attribute, and pluggy registers only the last
     one, so the skip must live in the same function as the baseline write. The copied adb answers every
-    `avd name` with a non-e2e AVD, so no emulator is needed.
+    `avd name` with [avd], so no emulator is needed.
     """
     root = _make_round_tree(pytester, monkeypatch)
     adb_copy = root / "stratum_e2e" / "android" / "adb.py"
     adb_copy.write_text(
         adb_copy.read_text().replace(
             'lines = adb(serial, "emu", "avd", "name").splitlines()\n    return lines[0].strip() if lines else ""',
-            'return "Pixel_8_API_37"',
+            f'return "{avd}"',
         )
     )
-    (suite_dir(pytester) / "test_talkback_only.py").write_text(TALKBACK_TESTS_SOURCE)
+    (suite_dir(pytester) / "test_dedicated_only.py").write_text(DEDICATED_TESTS_SOURCE)
     monkeypatch.setenv("STRATUM_E2E_ROUNDS_DIR", str(pytester.path / "rounds"))
     monkeypatch.setenv("STRATUM_E2E_LANE_DIR", str(pytester.path / "lanes"))
     result = run_sandbox(
         pytester,
-        "e2e/test_talkback_only.py",
+        "e2e/test_dedicated_only.py",
         "-p",
         "no:cacheprovider",
         "--platform",
@@ -149,7 +166,34 @@ def test_talkback_avd_skip_still_fires_with_baseline_hook(
         "-p",
         "no:randomly",
     )
-    result.assert_outcomes(skipped=1)
+    result.assert_outcomes(**outcomes)
+
+
+TWO_AVD_TESTS_SOURCE = """\
+import pytest
+
+
+@pytest.mark.android
+@pytest.mark.talkback_avd
+@pytest.mark.stylus_avd
+def test_marked_for_both(): pass
+"""
+
+TWO_AVD_LEVEL2_SOURCE = TWO_AVD_TESTS_SOURCE.replace("@pytest.mark.talkback_avd", "@pytest.mark.level2")
+
+
+@pytest.mark.parametrize("source", [TWO_AVD_TESTS_SOURCE, TWO_AVD_LEVEL2_SOURCE], ids=["talkback_avd", "level2"])
+def test_an_item_marked_for_two_dedicated_avds_fails_collection(
+    source: str, pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Such an item matches no AVD, so it would vanish from every run; collection names it instead."""
+    build_sandbox(pytester, monkeypatch)
+    (suite_dir(pytester) / "test_two_avds.py").write_text(source)
+
+    result = run_sandbox(pytester, "e2e/test_two_avds.py", "-p", "no:cacheprovider", "--platform", "android")
+
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines(["*test_marked_for_both is marked for more than one dedicated AVD*stylus_avd*"])
 
 
 def test_baseline_folder_name_matches_round_segment(

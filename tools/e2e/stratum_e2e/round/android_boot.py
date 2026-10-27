@@ -130,7 +130,7 @@ class AndroidBooter(Booter):
         process = spawned.process
         try:
             if spawned.confirmed and process.poll() is None:
-                self._end_on_serial(record, process)
+                self._end_on_serial(record, process, spawned.avd)
         finally:
             if process.poll() is None:
                 process.kill()
@@ -145,10 +145,10 @@ class AndroidBooter(Booter):
             return None
         return spawned
 
-    def _end_on_serial(self, record: BootRecord, process: subprocess.Popen[bytes]) -> None:
+    def _end_on_serial(self, record: BootRecord, process: subprocess.Popen[bytes], avd: str) -> None:
         serial = record.device_id
         if record.settings_applied:
-            self._write_settings(record, settings_restore_argv(self._adb, serial))
+            self._write_settings(record, settings_restore_argv(self._adb, serial, avd))
             record.settings_applied = False
         self._on(serial, "emu", "kill")
         self._wait_gone(serial, process)
@@ -204,7 +204,7 @@ class AndroidBooter(Booter):
         self._settle_wait(serial)
         self._clear_anr(serial)
         record.settings_applied = True
-        self._write_settings(record, settings_apply_argv(self._adb, serial))
+        self._write_settings(record, settings_apply_argv(self._adb, serial, self._spawned[serial].avd))
 
     def _confirm_avd(self, serial: str) -> None:
         """Prove the serial is the spawned emulator before the first change: its console must name the AVD."""

@@ -1,0 +1,41 @@
+Input Method Manager Service state:
+  UserId=0
+    mBindingController:
+      mSelectedMethodId=com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME
+      mCurrentSubtype=android.view.inputmethod.InputMethodSubtype@5f09455b
+      mCurSeq=17
+      mCurId=com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME
+      mHasMainConnection=true
+      mVisibleBound=true
+      mCurToken=android.os.Binder@68bddf
+      mCurTokenDisplayId=0
+      mCurHostInputToken=android.os.BinderProxy@685d6fe
+      mCurIntent=Intent { act=android.view.InputMethod xflg=0x4 cmp=com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME (has extras) }
+      mCurMethod=com.android.server.inputmethod.IInputMethodInvoker@ccc2cf3
+      mImeWindowVis=3
+      mBackDisposition=0
+      mDisplayIdToShowIme=0
+      mDeviceIdToShowIme=0
+      mSupportsStylusHw=true
+      mSupportsConnectionlessStylusHw=true
+    mCurClient=ClientState{5c2e26a mUid=10145 mPid=5472 mSelfReportedDisplayId=0}
+    mFocusedWindowPerceptible={android.os.BinderProxy@1c135d6=true, null=true, android.os.BinderProxy@530c9f1=true}
+    mImeBindingState:
+      mFocusedWindow=android.os.BinderProxy@530c9f1
+      mFocusedWindowSoftInputMode=STATE_ALWAYS_VISIBLE|ADJUST_PAN|IS_FORWARD_NAVIGATION
+      mFocusedWindowClient=ClientState{5c2e26a mUid=10145 mPid=5472 mSelfReportedDisplayId=0}
+    mBoundToMethod=true
+    mEnabledSession=SessionState{uid=10145 pid=5472 method=5ebc7d6 session=5d614d1 channel=ClientState{5c2e26a mUid=10145 mPid=5472 mSelfReportedDisplayId=0} userId=0}
+    mVisibilityStateComputer:
+      mRequestedShowExplicitly=true mShowForced=false
+      mImeHiddenByDisplayPolicy=false
+      mInputShown=true
+      mLastImeTargetWindow=android.os.BinderProxy@530c9f1
+    mInFullscreenMode=false
+    Input Methods:
+      InputMethod #0:
+        mId=com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService mSettingsActivityName=com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.ui.VoiceImeSettingsActivity mLanguageSettingsActivityName=null mIsVrOnly=false mIsVirtualDeviceOnly=false mSupportsSwitchingToNextInputMethod=false mInlineSuggestionsEnabled=false mSupportsInlineSuggestionsWithTouchExploration=false mSuppressesSpellChecker=false mShowInInputMethodPicker=true mSupportsStylusHandwriting=false mSupportsConnectionlessStylusHandwriting=false mStylusHandwritingSettingsActivityAttr=null
+      InputMethod #1:
+        mId=com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME mSettingsActivityName=com.google.android.apps.inputmethod.latin.preference.SettingsActivity mLanguageSettingsActivityName=null mIsVrOnly=false mIsVirtualDeviceOnly=false mSupportsSwitchingToNextInputMethod=true mInlineSuggestionsEnabled=true mSupportsInlineSuggestionsWithTouchExploration=false mSuppressesSpellChecker=false mShowInInputMethodPicker=true mSupportsStylusHandwriting=true mSupportsConnectionlessStylusHandwriting=true mStylusHandwritingSettingsActivityAttr=com.google.android.apps.inputmethod.latin.stylus.StylusSettingsActivity
+        mIsDefaultResId=0x7f050023
+        Service:

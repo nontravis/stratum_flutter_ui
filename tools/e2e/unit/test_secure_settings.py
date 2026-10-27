@@ -6,8 +6,8 @@ import subprocess
 
 import pytest
 
+from stratum_e2e.android.adb import DEDICATED_AVDS, STYLUS_AVD, TALKBACK_AVD
 from stratum_e2e.android.secure_settings import SecureSetting, read_secure
-from stratum_e2e.android.talkback import AVD_NAME
 
 ADB_MODULE = "stratum_e2e.android.adb"
 SERIAL = "emulator-5554"
@@ -18,7 +18,7 @@ class FakeAdb:
     """In-memory device: the AVD name and the secure settings."""
 
     def __init__(self) -> None:
-        self.avd = AVD_NAME
+        self.avd = TALKBACK_AVD
         self.settings: dict[str, str] = {}
         self.calls: list[list[str]] = []
 
@@ -58,6 +58,37 @@ def test_secure_setting_refuses_a_shared_avd_before_any_write(fake_adb: FakeAdb)
         pytest.fail("the body must not run")
 
     assert fake_adb.writes() == []
+
+
+@pytest.mark.parametrize("avd", sorted(DEDICATED_AVDS))
+def test_secure_setting_accepts_every_dedicated_avd(fake_adb: FakeAdb, avd: str) -> None:
+    fake_adb.avd = avd
+    fake_adb.settings[KEY] = "0"
+
+    with SecureSetting(SERIAL, KEY, "1"):
+        assert fake_adb.settings[KEY] == "1"
+
+    assert fake_adb.settings[KEY] == "0"
+
+
+@pytest.mark.parametrize("avd", ["Pixel_Tablet_API_35", "E2E_Other_API_36", ""])
+def test_secure_setting_refuses_every_avd_outside_the_map_before_any_write(fake_adb: FakeAdb, avd: str) -> None:
+    fake_adb.avd = avd
+
+    with pytest.raises(ValueError, match="refusing"), SecureSetting(SERIAL, KEY, "1"):
+        pytest.fail("the body must not run")
+
+    assert fake_adb.writes() == []
+
+
+def test_secure_setting_refusal_names_both_dedicated_avds(fake_adb: FakeAdb) -> None:
+    fake_adb.avd = "Pixel_8_API_37"
+
+    with pytest.raises(ValueError) as refusal, SecureSetting(SERIAL, KEY, "1"):
+        pytest.fail("the body must not run")
+
+    assert TALKBACK_AVD in str(refusal.value)
+    assert STYLUS_AVD in str(refusal.value)
 
 
 def test_secure_setting_puts_the_value_then_restores_the_saved_one(fake_adb: FakeAdb) -> None:

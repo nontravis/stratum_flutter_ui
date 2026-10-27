@@ -18,7 +18,7 @@ from stratum_e2e.round.errors import CatalogError, RoundEnvError
 
 FULL = (
     "pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "linux",
-    "iphone_e2e", "e2e_talkback",
+    "iphone_e2e", "e2e_talkback", "e2e_stylus",
 )
 
 
@@ -52,12 +52,12 @@ def test_modes(catalog: Catalog) -> None:
 
 def test_alone_targets(catalog: Catalog) -> None:
     alone = {name for name, target in catalog.targets.items() if target.alone}
-    assert alone == {"pixel_8", "pixel_2", "small_phone", "tablet", "e2e_talkback"}
+    assert alone == {"pixel_8", "pixel_2", "small_phone", "tablet", "e2e_talkback", "e2e_stylus"}
 
 
 def test_e2e_flag_per_target(catalog: Catalog) -> None:
     with_e2e = {"pixel_8", "pixel_2", "small_phone", "tablet", "mac", "chrome", "chrome_wasm", "iphone_e2e",
-                "e2e_talkback"}
+                "e2e_talkback", "e2e_stylus"}
     for name, target in catalog.targets.items():
         assert target.e2e is (name in with_e2e), name
     assert catalog.targets["iphone"].e2e is False
@@ -65,7 +65,7 @@ def test_e2e_flag_per_target(catalog: Catalog) -> None:
 
 
 def test_integration_flag_per_target(catalog: Catalog) -> None:
-    without_integration = {"iphone_e2e", "e2e_talkback", "windows"}
+    without_integration = {"iphone_e2e", "e2e_talkback", "e2e_stylus", "windows"}
     for name, target in catalog.targets.items():
         assert target.integration is (name not in without_integration), name
 
@@ -85,6 +85,9 @@ def test_target_values(catalog: Catalog) -> None:
     assert (iphone_e2e.runtime, iphone_e2e.device, iphone_e2e.integration) == ("iOS 27.1", "iPhone Duo", False)
 
     assert (targets["e2e_talkback"].avd, targets["e2e_talkback"].integration) == ("E2E_TalkBack_API_35", False)
+    stylus = targets["e2e_stylus"]
+    assert (stylus.platform, stylus.avd, stylus.alone, stylus.integration) == ("android", "E2E_Stylus_API_36", True, False)
+    assert stylus.emulator_args == ("-gpu", "host")
     assert targets["mac"].platform == "macos"
     assert (targets["chrome"].platform, targets["chrome"].browser, targets["chrome"].wasm) == ("web", "chrome", False)
     assert (targets["chrome_wasm"].browser, targets["chrome_wasm"].wasm) == ("chrome", True)

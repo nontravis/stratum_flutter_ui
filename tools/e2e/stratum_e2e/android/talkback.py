@@ -7,7 +7,7 @@ import time
 from types import TracebackType
 
 from stratum_e2e.android.adb import (
-    AVD_NAME,
+    TALKBACK_AVD,
     adb,
     avd_name,
     delete_secure,
@@ -17,7 +17,7 @@ from stratum_e2e.android.adb import (
 )
 from stratum_e2e.android.tree import labels_with
 
-__all__ = ["AVD_NAME", "avd_name"]
+__all__ = ["TALKBACK_AVD", "avd_name"]
 TALKBACK_SERVICE = (
     "com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
 )
@@ -112,7 +112,7 @@ class TalkBackSession:
 
     TalkBack speaks a first utterance only on a fresh start, so entry turns it off, waits
     until it unbinds, then turns it on. `__enter__` returns a TalkBackLog marked after
-    that first utterance. Raises ValueError unless [serial] is the AVD named AVD_NAME,
+    that first utterance. Raises ValueError unless [serial] is the AVD named TALKBACK_AVD,
     TalkBackStuck when TalkBack stays bound for 10 s, and TalkBackSilent when it speaks
     nothing in 20 s; the last two restore the settings first.
     """
@@ -123,9 +123,9 @@ class TalkBackSession:
 
     def __enter__(self) -> TalkBackLog:
         name = avd_name(self._serial)
-        if name != AVD_NAME:
+        if name != TALKBACK_AVD:
             raise ValueError(
-                f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {AVD_NAME!r}"
+                f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {TALKBACK_AVD!r}"
             )
         self._saved = _read_accessibility_settings(self._serial)
         try:
@@ -170,7 +170,7 @@ class TalkBackOff:
     focus while TalkBack is on; with it off the tap reaches the field (t49-e04-probe-c2
     line 19). Writes the two accessibility settings `TalkBackSession` touches, waits
     until TalkBack unbinds, and restores both on success and on an exception; raises
-    ValueError unless [serial] is the AVD named AVD_NAME, and TalkBackStuck when
+    ValueError unless [serial] is the AVD named TALKBACK_AVD, and TalkBackStuck when
     TalkBack stays bound for 10 s (after restoring).
     """
 
@@ -180,9 +180,9 @@ class TalkBackOff:
 
     def __enter__(self) -> None:
         name = avd_name(self._serial)
-        if name != AVD_NAME:
+        if name != TALKBACK_AVD:
             raise ValueError(
-                f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {AVD_NAME!r}"
+                f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {TALKBACK_AVD!r}"
             )
         self._saved = _read_accessibility_settings(self._serial)
         try:

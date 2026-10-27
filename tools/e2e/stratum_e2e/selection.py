@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from stratum_e2e.android.talkback import AVD_NAME
+from stratum_e2e.android.adb import DEDICATED_AVDS, dedicated_avds
 
 if TYPE_CHECKING:
     from stratum_e2e.round.catalog import Target
 
 PLATFORMS = frozenset({"android", "ios", "macos", "web"})
-_TALKBACK_MARKERS = frozenset({"talkback_avd", "level2"})
 
 
 _HOST_VOICEOVER_MARKER = "level2_host"
@@ -41,8 +40,9 @@ def skip_reason(markers: set[str], platform: str | None, *, host_voiceover: bool
 def runs_e2e(target: Target, markers: set[str], *, host_voiceover: bool = False) -> bool:
     """Return whether the round target [target] runs an e2e item carrying [markers] (design section 7).
 
-    A target runs the items marked for its own platform. A `perf` item runs on the macOS target only. On Android the
-    dedicated TalkBack AVD runs the `talkback_avd` and `level2` items and every other Android target runs the rest.
+    A target runs the items marked for its own platform. A `perf` item runs on the macOS target only. On Android a
+    dedicated AVD runs only the items whose markers map to it (`DEDICATED_AVD_BY_MARKER`), and a shared Android
+    target runs only the items carrying no dedicated marker.
     A `level2_host` item runs only when [host_voiceover] (`--host-voiceover`) opts in, as in `skip_reason`.
     A target with `e2e = false` runs none.
     """
@@ -56,4 +56,7 @@ def runs_e2e(target: Target, markers: set[str], *, host_voiceover: bool = False)
         return False
     if target.platform != "android":
         return True
-    return (target.avd == AVD_NAME) == bool(markers & _TALKBACK_MARKERS)
+    wanted = dedicated_avds(markers)
+    if target.avd in DEDICATED_AVDS:
+        return wanted == {target.avd}
+    return not wanted
