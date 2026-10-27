@@ -128,7 +128,7 @@ class WrapLayout extends BoxLayout {
   final Widget Function(BuildContext context, int hiddenCount)? overflowBuilder;
   final List<Widget> children;
 
-  /// Overflow mode (s03 invariant 36): a limit or [overflowBuilder] set.
+  /// Overflow mode (s03 INV-36): a limit or [overflowBuilder] set.
   bool get _cuts =>
       overflowBuilder != null || maxRuns != null || maxChildren != null;
 

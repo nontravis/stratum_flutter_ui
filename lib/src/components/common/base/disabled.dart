@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/components/common/ink_well.dart'
 import 'package:stratum_ui/src/themes/theme_application.dart';
 
 /// The disabled look and behavior the component bases wrap around every
-/// component (FO-08 US-07; base s03 invariants 12 to 17 and 19).
+/// component (FO-08 US-07; base s03 INV-12 to INV-17 and INV-19).
 ///
 /// It stays in the tree whether [disabled] is true or false: a toggle
 /// changes only its values, so the component keeps its elements and its
@@ -15,7 +15,7 @@ import 'package:stratum_ui/src/themes/theme_application.dart';
 /// is right in every frame, outside a reorder item root. At a
 /// `ReorderableListViewLayout` item root the item's marker joins this
 /// node to the item's node instead, whether or not a `StratumInkWell`
-/// sits below it (layout s03 invariant 81).
+/// sits below it (layout s03 INV-81).
 ///
 /// It extends no component base, so the bases never wrap it in itself.
 ///
@@ -98,7 +98,7 @@ class StratumDisabled extends StatelessWidget {
 }
 
 /// Tells a tap surface whether it sits inside a disabled component (R13;
-/// base s03 invariant 14).
+/// base s03 INV-14).
 ///
 /// [IgnorePointer] refuses only a new pointer: Flutter routes a pointer
 /// already down along the path it hit at its down
@@ -130,7 +130,7 @@ class StratumDisabledScope extends InheritedWidget {
 
 /// The message a base element's debug assertion raises when [built], what
 /// [component] built at its root, is a `ParentDataWidget` (base s03
-/// invariant 12, US-07 FR-01 E07).
+/// INV-12, US-07 FR-01 E07).
 ///
 /// Public, not private, so both base elements' libraries can call it;
 /// `base.dart` does not export this file, so it stays out of the package's

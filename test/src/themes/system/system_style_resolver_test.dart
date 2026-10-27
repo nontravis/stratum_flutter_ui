@@ -373,7 +373,7 @@ void main() {
       expect(barStrips(tester, index: 1), paintsNothing);
     });
 
-    testWidgets('review minor 1, invariant 45: a root inset by a SafeArea '
+    testWidgets('review minor 1, INV-45: a root inset by a SafeArea '
         "paints the strip under the real bar, not over the app's content", (
       tester,
     ) async {

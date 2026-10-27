@@ -92,7 +92,7 @@ class Show extends StatefulWidget {
 
 class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   /// 0 hidden, 1 shown; forward over the show duration, reverse over the
-  /// hide duration (layout s03 invariant 43).
+  /// hide duration (layout s03 INV-43).
   late final AnimationController _controller;
 
   /// The curve both ways (PD9).
@@ -120,11 +120,11 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   var _reduced = false;
 
   /// The edge [Show.slideDirection] names, resolved through the
-  /// text direction in [_applyMotion] (invariant 42).
+  /// text direction in [_applyMotion] (INV-42).
   Offset _edgeOffset = Offset.zero;
 
   /// Takes focus when focus sat inside content that hides; Tab skips it
-  /// (layout s03 invariant 46, the rule of `IndexedStackLayout`).
+  /// (layout s03 INV-46, the rule of `IndexedStackLayout`).
   final _showNode = FocusNode(debugLabel: 'Show', skipTraversal: true);
 
   /// Marks the content's subtree only.
@@ -155,7 +155,7 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
     _applyMotion();
     if (widget.visible == oldWidget.visible) return;
     // The build below excludes the content from focus, so check now
-    // whether focus sits inside it (invariant 46).
+    // whether focus sits inside it (INV-46).
     if (!widget.visible && _contentNode.hasFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showNode.requestFocus();
@@ -173,11 +173,11 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   }
 
   /// Takes the show and hide durations and the curve from the theme's
-  /// `defaultStyle`, unless this instance sets them (invariant 43).
+  /// `defaultStyle`, unless this instance sets them (INV-43).
   ///
   /// A level that sets none of them, such as [AnimationStyle.noAnimation],
   /// takes zero, its own forward duration, and `easeInOutSine` (themes s03
-  /// invariant 15).
+  /// INV-15).
   void _applyMotion() {
     final now = _look;
     _reduced = context.reducesMotion;
@@ -197,7 +197,7 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   void _move() {
     final now = _look;
     if (_reduced && widget.transition == ShowTransition.size) {
-      // `size` shows and hides at once under reduced motion (invariant 44).
+      // `size` shows and hides at once under reduced motion (INV-44).
       _controller.value = widget.visible ? 1 : 0;
     } else if (widget.visible) {
       _controller.forward();
@@ -224,7 +224,7 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   /// The size changes under `size` and `sizeAndFade`, the opacity under
   /// all but `size`, and the content slides under `slide` alone (FR-02
   /// E04); under reduced motion neither the size nor the slide moves
-  /// (invariant 44).
+  /// (INV-44).
   _Look _track(double t) {
     final transition = widget.transition;
     final resizes =
@@ -241,10 +241,10 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
 
   /// Sets each channel's line: at rest the track itself; mid-motion the
   /// line from [now], what the content showed before the change, to the
-  /// track's value at the motion's end, so no change jumps (invariant 50).
+  /// track's value at the motion's end, so no change jumps (INV-50).
   /// While [_reduced], the size and the slide skip the line and go
   /// straight to the reduced track; only the opacity still refits
-  /// (invariant 44).
+  /// (INV-44).
   ///
   /// Every track is linear in the motion value, so a line through the
   /// value now and the track's end reaches the track at the end. A
@@ -313,7 +313,7 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
               ignoring: hidden,
               // Dismissed: the content leaves the tree, or with
               // maintainState stays offstage under TickerMode(enabled:
-              // false) (invariant 46, PD8).
+              // false) (INV-46, PD8).
               child: Visibility(
                 visible: !_controller.isDismissed,
                 maintainState: widget.maintainState,
@@ -327,7 +327,7 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   }
 
   /// The size change on both axes, anchored at the top start corner, with
-  /// the fade and the slide inside it (layout s03 invariant 45; PD6, PD7).
+  /// the fade and the slide inside it (layout s03 INV-45; PD6, PD7).
   Widget _motion() => _SizeFactorBox(
     factor: _sizeFactor,
     slide: _slide,
@@ -343,7 +343,7 @@ class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
 typedef _Look = ({double size, double opacity, Offset slide});
 
 /// Sizes itself to its child's size times [factor] and places the child at
-/// the top start corner (layout s03 invariant 45; PD6, PD7).
+/// the top start corner (layout s03 INV-45; PD6, PD7).
 ///
 /// The child lays out under the incoming constraints unchanged, so a shown
 /// child stretches as it would with no show around it. It clips to its own
@@ -376,7 +376,7 @@ class _SizeFactorBox extends SingleChildRenderObjectWidget {
       ..slide = slide
       ..textDirection = Directionality.of(context)
       // The setters above return early when [factor] or [slide] keep the
-      // same Animation object, as a rewrite at rest does (invariant 50);
+      // same Animation object, as a rewrite at rest does (INV-50);
       // re-check both so a value change with no new object still marks
       // layout or paint.
       .._onFactor()
@@ -517,8 +517,8 @@ class _RenderSizeFactorBox extends RenderAligningShiftedBox {
       _clipped ? Offset.zero & size : null;
 }
 
-/// The offset, in the child's own size, of [direction]'s edge (invariant
-/// 42); `start` and `end` resolve through [text].
+/// The offset, in the child's own size, of [direction]'s edge (INV-42);
+/// `start` and `end` resolve through [text].
 Offset _edge(ShowSlideDirection direction, TextDirection text) {
   final rtl = text == TextDirection.rtl;
   return switch (direction) {

@@ -23,7 +23,7 @@ final class MergedTheme {
 /// Stage 3 (spec section 7.1): merges the files of [checked] in order,
 /// checks the app colors, and derives the high-contrast sets of `color`
 /// (section 7.2) and of the four `system` and `focus` sets (config s03
-/// invariants 16, 19). Every problem goes to [errors].
+/// INV-16, INV-19). Every problem goes to [errors].
 MergedTheme mergeThemes(CheckedThemes checked, ThemeErrors errors) =>
     _Merge(checked.schema, errors).run(checked.files);
 
@@ -161,7 +161,7 @@ final class _Merge {
   }
 
   /// Makes the [overlay] set of [sets], the group [group], full (spec
-  /// section 7.2; config s03 invariant 16): a copy of the merged [base] set
+  /// section 7.2; config s03 INV-16): a copy of the merged [base] set
   /// whose `{color.<base>.` aliases point into the [overlay] color set,
   /// with the merged overlay applied on top.
   void _derive(

@@ -30,7 +30,7 @@ String remoteSourceIdOf(String id, int generation) => '$id@$generation';
 
 /// Decodes a zip entry as strict UTF-8: the one text decode of install step
 /// 9 and of every later read, so a theme that installed always reads again
-/// (FO-04 s03 invariant 4). Throws [FormatException] whose `offset` is the
+/// (FO-04 s03 INV-4). Throws [FormatException] whose `offset` is the
 /// byte where decoding stops.
 String decodeRemoteText(Uint8List bytes) => utf8.decode(bytes);
 

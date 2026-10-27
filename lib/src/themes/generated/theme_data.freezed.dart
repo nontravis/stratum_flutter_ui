@@ -40,7 +40,7 @@ mixin _$StratumThemeData {
  SystemStyle get systemStyle;/// `focus`: the focus ring's level 0 from the theme file's `focus` set
 /// for this data's mode, a high-contrast set laid over its base, each
 /// color from this data's own color set (FO-06 US-04 FR-03; themes s03
-/// invariant 46).
+/// INV-46).
  StratumFocusTokens get focus;/// The 64 built-in transparent steps.
  StratumTransparentTokens get transparent; WidgetSize get defaultWidgetSize; InteractiveInkFeatureFactory get splashFactory; ScrollBehavior get scrollBehavior; ScrollPhysics get physics;
 /// Create a copy of StratumThemeData
@@ -251,7 +251,7 @@ class _StratumThemeData extends StratumThemeData {
 /// `focus`: the focus ring's level 0 from the theme file's `focus` set
 /// for this data's mode, a high-contrast set laid over its base, each
 /// color from this data's own color set (FO-06 US-04 FR-03; themes s03
-/// invariant 46).
+/// INV-46).
 @override final  StratumFocusTokens focus;
 /// The 64 built-in transparent steps.
 @override@JsonKey() final  StratumTransparentTokens transparent;

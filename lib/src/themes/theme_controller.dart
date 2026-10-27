@@ -176,7 +176,7 @@ class StratumThemeController extends ChangeNotifier {
   /// to parse; either leaves the active theme as it was. A switch to the
   /// active id changes nothing while the active id's latest install is on
   /// screen; else it lands that install as above with no `onThemeChanged`,
-  /// the id being unchanged (FO-04 s03 invariant 10). When switches overlap
+  /// the id being unchanged (FO-04 s03 INV-10). When switches overlap
   /// the latest wins: an overtaken switch completes with no error and no
   /// callback, and its theme is dropped. Only the active theme stays
   /// parsed, so a switch back reads its file again; its font files stay
@@ -225,7 +225,7 @@ class StratumThemeController extends ChangeNotifier {
   /// Lands the active id's registered generation as a same-id switch when
   /// another generation is on screen and no switch is in flight, so an
   /// install whose swap dropped still reaches the screen (FO-04 s03
-  /// invariant 10).
+  /// INV-10).
   void _landRegistered() {
     if (_disposed || _switchInFlight != null) return;
     if (_registry[_activeId]!.folder == _activeFolder) return;
@@ -453,7 +453,7 @@ class StratumThemeController extends ChangeNotifier {
   /// The package's embedded default theme read alone, with neither the
   /// app's `default` nor a start theme over it: the theme of the splash
   /// screen's frames after a theme-phase failure (FO-03 US-12 FR-07 E01;
-  /// themes `s03_domain.md` invariant 29). [bundle] defaults to
+  /// themes `s03_domain.md` INV-29). [bundle] defaults to
   /// [rootBundle]. Registers no font file and waits for no Google font.
   @internal
   static Future<StratumThemeSet> packageDefaultThemes({

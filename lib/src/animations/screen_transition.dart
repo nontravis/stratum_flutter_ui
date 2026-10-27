@@ -7,7 +7,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:stratum_ui/src/src.dart';
 
 /// The `slow` level of the theme above [context], else the package
-/// default's (style s03 invariant 14).
+/// default's (style s03 INV-14).
 AnimationStyle slowOf(BuildContext? context) {
   final theme = context == null
       ? null
@@ -34,7 +34,7 @@ Duration reverseDurationOf(AnimationStyle style) =>
 Curve curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;
 
 /// The Flutter builder [type] delegates to on [platform] (style s03
-/// invariant 21): for [ScreenTransitionType.platform] the builder of
+/// INV-21): for [ScreenTransitionType.platform] the builder of
 /// `const PageTransitionsTheme()`, or Flutter's zoom where that map names
 /// none, never `Theme.of(context).pageTransitionsTheme`, which holds
 /// `StratumPageTransitionsBuilder` and would recurse; for
@@ -80,7 +80,7 @@ Duration reverseTransitionDurationOf(
 };
 
 /// [type]'s transition of [route]'s page [child], for every route of
-/// US-05 (FR-01 and FR-03; style s03 invariants 14 and 21).
+/// US-05 (FR-01 and FR-03; style s03 INV-14 and INV-21).
 ///
 /// [curve] is the caller's; with none, every type but `platform` and
 /// `cupertino` runs on [standard], the theme's `standard` curve, and the
@@ -339,7 +339,7 @@ Widget buildScreenTransition<T>(
 
 /// The transition a route of [type] hands the route below it, so the page
 /// below leaves in step with [type]'s page coming in, for every route of
-/// US-05 (FR-01; style s03 invariant 21).
+/// US-05 (FR-01; style s03 INV-21).
 ///
 /// For `platform` and `cupertino` it is the Flutter builder's own on
 /// [platform], which may itself be null. For `fadeThrough`, the shared-axis
@@ -381,8 +381,8 @@ DelegatedTransitionBuilder? delegatedScreenTransition(
 };
 
 /// Whether a page moves out under [next], by its own secondary animation
-/// or by [next]'s delegated transition (US-05 FR-01; style s03 invariant
-/// 21): only under a page route that is opaque or hands its own delegated
+/// or by [next]'s delegated transition (US-05 FR-01; style s03 INV-21):
+/// only under a page route that is opaque or hands its own delegated
 /// transition. A page seen through a translucent route stays as it was,
 /// unless that route hands a delegate, which then owns how the page
 /// beneath looks, as Flutter's Cupertino sheet scales it back; a

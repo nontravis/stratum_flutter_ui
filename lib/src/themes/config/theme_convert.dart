@@ -88,7 +88,7 @@ Map<String, StratumByWindowSize<StratumDimension>> _tokens(
 });
 
 /// [plain], one `system` set as stage 5 reads it, as the [SystemStyle] of
-/// its eight look fields (config s03 invariant 16).
+/// its eight look fields (config s03 INV-16).
 SystemStyle convertSystemLook(Map<String, Object> plain) => SystemStyle(
   statusBarIcons: _icons(plain['statusBarIcons']),
   statusBarColor: _color(plain['statusBarColor']),
@@ -101,7 +101,7 @@ SystemStyle convertSystemLook(Map<String, Object> plain) => SystemStyle(
 );
 
 /// [plain], one `focus` set as stage 5 reads it, as the
-/// [StratumFocusTokens] of its six values (config s03 invariant 19); null
+/// [StratumFocusTokens] of its six values (config s03 INV-19); null
 /// when a value failed, so the set is not whole and the parse throws.
 StratumFocusTokens? convertFocusLook(Map<String, Object> plain) {
   if (!focusKeys.every(plain.containsKey)) return null;

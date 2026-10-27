@@ -991,7 +991,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final target = _targetOf(from, intent);
     if (target == null) return KeyEventResult.handled;
     // A drag, or a drop still settling, ends first, as a call ends it
-    // (invariant 28): the move changes the data under it.
+    // (INV-28): the move changes the data under it.
     _cancelDrag();
     if (intent == _MoveIntent.start || intent == _MoveIntent.end) {
       _jumpTowards(item, position, toStart: intent == _MoveIntent.start);
@@ -1036,7 +1036,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// apart by drag state: the drag proxy holds the dropped item
   /// ([_liftedKey]) until after the SDK reports the drop, so a report of
   /// that item is the drop. A drop converts its frame indices, since a
-  /// call during a drag ends it first (invariant 28); a screen-reader move
+  /// call during a drag ends it first (INV-28); a screen-reader move
   /// is decoded into its intent and takes the reorder keys' target (R4),
   /// so it acts at once, also between a call and its frame (FR-03 E07),
   /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
@@ -1261,7 +1261,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// a call that runs earlier in the post-frame batch cannot land focus one
   /// item off; an item at the gap that the frame has not built, inserted
   /// after the frame, is skipped (R3). Each target is revealed in every
-  /// viewport around it, as invariant 21 reveals every focus move.
+  /// viewport around it, as INV-21 reveals every focus move.
   void _handOffFocus(_DataIndex gap) {
     if (!mounted) return;
     final next = _builtNear(gap, 1);
@@ -1496,7 +1496,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Jumps in a move's call turn toward the slot the focused item whose key
   /// node is [node] enters at [to] of the current data, when the last frame
-  /// did not build that slot number ([_enteredSlot], invariant 35).
+  /// did not build that slot number ([_enteredSlot], INV-35).
   /// Exactly to the start or end for an edge slot, as a key move to either
   /// end does, else by [_estimateTowards] at slot [to] (FR-05 E04). The
   /// item's key comes from its built slot, so the list never calls
@@ -1528,7 +1528,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _itemNodes.keys.any((index) => index.slot == slot);
 
   /// The slot the item at [to] of the current data enters in the next
-  /// frame, for a move either way (invariant 35). The next frame anchors
+  /// frame, for a move either way (INV-35). The next frame anchors
   /// its layout at the first slot the last frame built, so the count
   /// starts there: that slot plus the boxes the next frame draws at full
   /// extent from it through [to]. Those are the items before [to], save
@@ -2194,7 +2194,7 @@ class _Exit {
   Size? size;
 
   /// Whether the exit started after the last build, so the next frame
-  /// draws a box the last one did not (invariant 35).
+  /// draws a box the last one did not (INV-35).
   bool fresh = true;
 }
 

@@ -14,7 +14,7 @@ abstract class SystemBars with _$SystemBars {
     /// The status bar fields, and the navigation bar fields when the
     /// navigation bar's point was read; every bar color in it is
     /// transparent, since the root paints the bar colors itself (themes s03
-    /// invariant 45).
+    /// INV-45).
     required SystemUiOverlayStyle overlay,
 
     /// Null when no layer sets one this frame; the resolver falls back to
@@ -56,16 +56,16 @@ abstract class SystemBars with _$SystemBars {
 ///
 /// Each point merges its style layers from the bottom up, every base
 /// region, the outermost first, under every scope layer (themes s03
-/// invariant 38), and blends its fills from the bottom up over the page
-/// background of its topmost base (invariant 40); a `SystemUiOverlayStyle`
+/// INV-38), and blends its fills from the bottom up over the page
+/// background of its topmost base (INV-40); a `SystemUiOverlayStyle`
 /// that is no Stratum layer, such as a Material `AppBar`'s, is one fill
-/// (invariant 41). The merged bar color, which the root paints over every
+/// (INV-41). The merged bar color, which the root paints over every
 /// page, blends last, the topmost fill, and the overlay sends the platform
-/// transparent bar colors (invariant 45). The status point gives the
+/// transparent bar colors (INV-45). The status point gives the
 /// status bar fields and the app switcher color; the navigation point
 /// gives the navigation bar fields; [painted], merged in the same order,
 /// gives the bar mode, the rotation lock, and the app switcher label
-/// (invariant 39).
+/// (INV-39).
 SystemBars? resolveSystemBars(
   List<SystemUiOverlayStyle> status, {
   List<SystemUiOverlayStyle>? navigation,
@@ -178,7 +178,7 @@ Color? _fillFor(bool? lightIcons) => switch (lightIcons) {
 /// The Stratum style layers among [entries], front to back, merged from
 /// the bottom up: every base region, the outermost first, then every
 /// scope layer over them, so a theme application nested in a page stays
-/// under that page's style (themes s03 invariant 38).
+/// under that page's style (themes s03 INV-38).
 SystemStyle _merge(List<SystemUiOverlayStyle> entries) {
   var bases = const SystemStyle();
   var layers = const SystemStyle();

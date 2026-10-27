@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/themes/component_defaults.dart'
 
 /// [upper] laid over [lower], field by field and shown state by shown
 /// state: a field [upper] leaves null, or that resolves to null for a
-/// state, takes [lower]'s value (layout s03 invariant 80; FO-06 US-04
+/// state, takes [lower]'s value (layout s03 INV-80; FO-06 US-04
 /// FR-03 E14). Null when both are null.
 ///
 /// Not exported: `utility/utility.dart` hides it. A ring host lays its
@@ -52,7 +52,7 @@ final class _Over<T> implements WidgetStateProperty<T?> {
 
 /// Level 0 for [placement]: the theme's `focus` group, [radius], the box's
 /// own corner radius, and the theme's `fast` level on its `standard` curve
-/// (themes s03 invariant 46). The inside ring takes no gap (choice (b)).
+/// (themes s03 INV-46). The inside ring takes no gap (choice (b)).
 StratumFocusBorderStyle _themeLevel(
   StratumThemeData theme,
   StratumFocusBorderPlacement placement,
@@ -132,7 +132,7 @@ double focusBorderOutsideReach(
     customStyle,
   );
   // The merged upper levels' own placement, as `_looks` reads it (layout
-  // s03 invariant 80): an inside-placed host style floors on the theme's
+  // s03 INV-80): an inside-placed host style floors on the theme's
   // inside look, never the outside one.
   final placement = upper?.placement ?? StratumFocusBorderPlacement.outside;
   if (placement == StratumFocusBorderPlacement.inside) return 0;

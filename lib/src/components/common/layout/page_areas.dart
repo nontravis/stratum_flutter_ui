@@ -5,7 +5,7 @@ import 'package:stratum_ui/src/components/common/model/page_layout/page_areas.da
 
 /// The handle one `PageLayout` publishes its [PageAreas] through; the
 /// host reads the innermost one whose route is current (s03 toast
-/// invariant 16).
+/// INV-16).
 class PageAreasHandle extends ValueNotifier<PageAreas?> {
   new() : super(null);
 
@@ -55,7 +55,7 @@ class PageAreasHandle extends ValueNotifier<PageAreas?> {
 /// of its page: the page's route is current, and no `TickerMode` or
 /// `Visibility` above it hides its branch, as a go_router
 /// `StatefulShellRoute.indexedStack` or an `IndexedStack` does (s03 toast
-/// invariant 16).
+/// INV-16).
 ///
 /// The route and branch reads depend on this leaf alone, whose build
 /// returns [child] unchanged, so a push, a pop, or a branch switch
@@ -125,7 +125,7 @@ class _PageAreasProbeState extends State<PageAreasProbe> {
 
 /// The registry the toast host provides above the app's navigator; each
 /// mounted `PageLayout` adds its own handle through [maybeOf] and drops
-/// it on dispose (s03 toast invariant 16).
+/// it on dispose (s03 toast INV-16).
 ///
 /// The host keeps the handles and a version notifier the registry
 /// exposes, bumped on every registration change and every areas write,
@@ -172,7 +172,7 @@ class _PageAreasRegistryState extends State<PageAreasRegistry> {
 
 /// Publishes the registry controller to the pages and readers below;
 /// the controller's version notifier drives the dependents' rebuilds
-/// (s03 toast invariant 16).
+/// (s03 toast INV-16).
 class _PageAreasScope extends InheritedNotifier<ValueNotifier<int>> {
   const new({
     required this.controller,
@@ -184,7 +184,7 @@ class _PageAreasScope extends InheritedNotifier<ValueNotifier<int>> {
 }
 
 /// Owns the pages' handles: added in mount order, dropped on dispose,
-/// and the innermost current one wins a read (s03 toast invariant 16).
+/// and the innermost current one wins a read (s03 toast INV-16).
 class PageAreasController extends ChangeNotifier {
   // A plain unnamed constructor; the lint wants `new`, which this
   // package reserves for widgets.
@@ -213,7 +213,7 @@ class PageAreasController extends ChangeNotifier {
   void _handleWrote() => version.value++;
 
   /// The innermost handle on stage; null while none is (s03 toast
-  /// invariant 16; N14).
+  /// INV-16; N14).
   ///
   /// Walks from the most recently added on-stage handle, promoting an
   /// earlier one only when it truly nests inside the pick so far
@@ -260,7 +260,7 @@ class PageAreasController extends ChangeNotifier {
 /// Writes [child]'s global rect into [report] whenever it changes,
 /// post-frame, so a pane drag, a resize within one window size, the
 /// keyboard, or a route transition reaches the registry with no rebuild
-/// of the page (s03 toast invariant 16).
+/// of the page (s03 toast INV-16).
 class PageAreasReporter extends SingleChildRenderObjectWidget {
   const new({super.key, required this.report, required super.child});
 

@@ -105,7 +105,7 @@ final class _Read {
   }
 
   /// Whether [value] reads as a `space`, `radius`, or `layouts` token: one
-  /// dimension within the length bound (config s03 invariant 15), or a
+  /// dimension within the length bound (config s03 INV-15), or a
   /// non-empty map of window sizes to such dimensions; a percent only when
   /// [percent] is set (spec section 8.3).
   static bool _isTokenDimension(Object? value, {required bool percent}) {
@@ -236,7 +236,7 @@ final class _Read {
   /// [reader]'s required dimension of [value] at [path]. Without [percent]
   /// (`space` and `radius`), a percent is reported as `expected_dimension`
   /// and dropped (spec section 8.3); `ThemeReader.dimension` holds every
-  /// value to the length bound (config s03 invariant 15).
+  /// value to the length bound (config s03 INV-15).
   StratumDimension? _dimension(
     ThemeReader reader,
     Object? value,
@@ -452,8 +452,8 @@ final class _Read {
     return transitions;
   }
 
-  /// The `opacity` group (FO-01 US-01 FR-01 E12; config s03 invariant
-  /// 11): each key the merged tree holds, the package default's
+  /// The `opacity` group (FO-01 US-01 FR-01 E12; config s03 INV-11):
+  /// each key the merged tree holds, the package default's
   /// `disabled` and `scrim`, as a number from 0 to 1, the range Flutter's
   /// `Opacity` asserts.
   Map<String, double> _opacity(Object? value) {
@@ -482,13 +482,13 @@ final class _Read {
   static const _layerKeys = {'x', 'y', 'blur', 'spread', 'color'};
 
   /// The most layers one `shadow` level holds (FO-01 US-01 FR-01 E14;
-  /// config s03 invariant 13). Each layer is one more blurred draw for
+  /// config s03 INV-13). Each layer is one more blurred draw for
   /// every box that paints the level, so the cap bounds the paint cost a
   /// theme file the app did not write can ask for.
   static const _maxShadowLayers = 8;
 
   /// The `border` or `blur` group [group] (FO-01 US-01 FR-01 E05, E13;
-  /// config s03 invariants 12, 14, and 15): each key the merged tree holds,
+  /// config s03 INV-12, INV-14, and INV-15): each key the merged tree holds,
   /// a number from 0 to the length bound; an alias resolved in stage 4
   /// reads its target's value, and one that failed there reports nothing
   /// here.
@@ -506,7 +506,7 @@ final class _Read {
   }
 
   /// The `shadow` group (FO-01 US-01 FR-01 E05, E13 to E15; config s03
-  /// invariant 13): each level the merged tree holds, its layers in file
+  /// INV-13): each level the merged tree holds, its layers in file
   /// order; `[]` is no shadow. A level of more than [_maxShadowLayers]
   /// reports `expected_shadow` once and stage 5 reads none of its layers;
   /// stage 4 still checks each layer's own color alias, so a bad alias in
@@ -592,7 +592,7 @@ final class _Read {
   }
 
   /// A layer's `x`, `y`, or `spread` at [path]: a theme length (config s03
-  /// invariant 15), which may be negative; `required` for an empty value,
+  /// INV-15), which may be negative; `required` for an empty value,
   /// else `expected_dimension`.
   double? _signedLength(String path, Object? value) {
     if (value is num && ThemeReader.isLength(value)) return value.toDouble();
@@ -628,7 +628,7 @@ final class _Read {
   }
 
   /// Whether [value] is a `border` width or a blur radius: a theme length
-  /// (config s03 invariant 15) of 0 or more.
+  /// (config s03 INV-15) of 0 or more.
   static bool _isEffectNumber(Object? value) =>
       value is num && ThemeReader.isLength(value) && value >= 0;
 
@@ -654,7 +654,7 @@ final class _Read {
   }
 
   /// The `system` group (FO-01 US-01 FR-01 E17 to E19; config s03
-  /// invariant 16): each of the four sets, which stage 3 made full.
+  /// INV-16): each of the four sets, which stage 3 made full.
   Map<String, Map<String, Object>> _system(Object? value) {
     final node = _reader.map(value, 'system');
     if (node == null) return const {};
@@ -722,7 +722,7 @@ final class _Read {
     return null;
   }
 
-  /// The `focus` group (FO-01 US-01 FR-01 E20; config s03 invariant 19):
+  /// The `focus` group (FO-01 US-01 FR-01 E20; config s03 INV-19):
   /// each of the four sets, which stage 3 made full.
   Map<String, Map<String, Object>> _focus(Object? value) {
     final node = _reader.map(value, 'focus');
@@ -735,7 +735,7 @@ final class _Read {
 
   /// The `focus` set [name], each key of [focusKeys] read by its kind: a
   /// color with an alpha above 0, a width above 0 up to the length bound,
-  /// and a gap from 0 to it (config s03 invariant 15), since a fully
+  /// and a gap from 0 to it (config s03 INV-15), since a fully
   /// transparent color or a width of 0 hides the ring.
   Map<String, Object> _focusSet(Object? value, String name) {
     final values = <String, Object>{};
@@ -768,7 +768,7 @@ final class _Read {
   /// resolved to one, whose alpha is above 0 (FO-01 US-01 FR-01 E20). An
   /// inherited high-contrast leaf reports nothing at its own path (spec
   /// section 7.4), so a fully transparent color it inherits reports at the
-  /// color token its retargeted alias names (config s03 invariant 19).
+  /// color token its retargeted alias names (config s03 INV-19).
   int? _focusColor(ThemeReader reader, String path, Object? value) {
     final alias = _theme.aliases[path];
     final argb = reader.color(value, path, alias: alias);
@@ -776,11 +776,11 @@ final class _Read {
     if (_theme.inherited.contains(path)) {
       // A copied literal alias (one `_retarget` left unchanged) names the
       // same token the base set's own leaf does, which already reported at
-      // the base set (invariant 18); only a retargeted alias, which names a
+      // the base set (INV-18); only a retargeted alias, which names a
       // token inside the overlay set's own color set, can fail here. A
       // retargeted token the overlay set itself never set is inherited too,
       // so it holds the base set's own value, whose leaf already reported
-      // (invariant 18): skip it rather than report it a second time.
+      // (INV-18): skip it rather than report it a second time.
       final overlay = path.split('.')[1];
       final token = _theme.chains[path]?.first;
       if (token != null &&

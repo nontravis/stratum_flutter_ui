@@ -56,7 +56,7 @@ Widget _page({
 );
 
 void main() {
-  group('PageLayout build counts (US-18 FR-02; layout s03 invariant 63)', () {
+  group('PageLayout build counts (US-18 FR-02; layout s03 INV-63)', () {
     testWidgets('fo06/us18/fr02/e01: a drawer opens and closes, no slot builds '
         'again', (tester) async {
       _view(tester, const Size(390, 844));

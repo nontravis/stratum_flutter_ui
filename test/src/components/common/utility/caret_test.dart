@@ -651,7 +651,7 @@ void main() {
       });
     }
 
-    testWidgets('fo03/us06/fr01, caret s03 invariant 14: an app-wide box style '
+    testWidgets('fo03/us06/fr01, caret s03 INV-14: an app-wide box style '
         'under StratumCaret restyles every caret, and the instance style wins '
         'field by field', (tester) async {
       const fill = Color(0xFFEEEEEE);

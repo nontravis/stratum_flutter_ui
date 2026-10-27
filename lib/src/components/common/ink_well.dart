@@ -52,7 +52,7 @@ bool tapSurfaceTakesFocus({
 
 /// Whether a box layout builds the tap surface for [interaction]: an
 /// activation callback, `onHover`, `onHighlightChanged`, `onFocusChange`,
-/// or a non-empty `shortcuts` map (layout s03 invariant 2).
+/// or a non-empty `shortcuts` map (layout s03 INV-2).
 ///
 /// The one tap-surface build rule: `BoxLayout` builds a [StratumInkWell]
 /// exactly when it holds, and `ContainerLayout.builder` reads the surface's
@@ -973,7 +973,7 @@ class _RenderCallerSemantics extends RenderSemanticsAnnotations {
 
 /// Marks a reorder item's root, so a flagged node below, such as the pass
 /// node `StratumDisabled` builds, can seed its [_ItemRootFlag.role] from
-/// this marker (layout s03 invariant 81).
+/// this marker (layout s03 INV-81).
 ///
 /// `_wrapItem` wraps every item in this first, [active] false for a
 /// leaving item, which keeps the marker, inactive, so the item keeps its
@@ -992,7 +992,7 @@ class ReorderItemRoot extends StatelessWidget {
   /// [customSemanticsActions] that, while the item's root surface joins
   /// it, also describes that surface's custom actions, the caller's and its
   /// secondary tap, so the two share the one config Flutter merges into
-  /// (layout s03 invariant 81, D6(a)). A leaving item builds it too, with
+  /// (layout s03 INV-81, D6(a)). A leaving item builds it too, with
   /// no container and no actions, so its element stays across the leave.
   static Widget itemNode({
     required bool container,
@@ -1026,7 +1026,7 @@ bool _insideItemRoot(BuildContext context) =>
     context.dependOnInheritedWidgetOfExactType<_ItemRootScope>() != null;
 
 /// How a flagged node describes its semantics config at a reorder item
-/// root (layout s03 invariant 81; base s03 invariant 15).
+/// root (layout s03 INV-81; base s03 INV-15).
 enum _ItemRootRole {
   /// Outside any reorder item root: describes as [Semantics] does.
   none,
@@ -1102,7 +1102,7 @@ class _ItemRootMarker extends SingleChildRenderObjectWidget {
 
 /// The render object [ReorderItemRoot] builds: opens no semantics node of
 /// its own, and flags every pass node a seed finds below it `join`
-/// (layout s03 invariant 81).
+/// (layout s03 INV-81).
 class _RenderItemRoot extends RenderProxyBox {
   new(this._active);
 
@@ -1334,7 +1334,7 @@ class _RenderItemRoot extends RenderProxyBox {
 /// joins the item's node while a reorder item root's marker flags it
 /// `join`, and describes nothing while flagged `hidden`, a pass node
 /// above a root surface (M1-T2). Kept out of the barrel (layout s03
-/// invariant 81; base s03 invariant 15).
+/// INV-81; base s03 INV-15).
 class ItemRootPassSemantics extends Semantics {
   new({super.key, super.container, super.enabled, super.child});
 
@@ -1398,7 +1398,7 @@ class _RenderPassSemantics extends RenderSemanticsAnnotations
 /// [Semantics] for its outer node: joins the whole reorder item's node
 /// while a marker flags it `join`, so the surface's label, button role,
 /// enabled state, tap, and custom actions sit beside the item's move
-/// actions on one node (layout s03 invariant 81).
+/// actions on one node (layout s03 INV-81).
 /// `ContainerLayout(interaction:)` reaches this too, since it builds a
 /// [StratumInkWell] (`box_layout.dart:219`).
 class _SurfaceSemantics extends Semantics {
@@ -1570,7 +1570,7 @@ class _ItemNodeSemantics extends Semantics {
 /// moves from its properties and, while it links a root surface
 /// ([joined]), that surface's custom actions in the same config, since
 /// two configs that both carry custom actions never merge
-/// (`semantics/semantics.dart:6755@3.47.7`; layout s03 invariant 81).
+/// (`semantics/semantics.dart:6755@3.47.7`; layout s03 INV-81).
 /// It links the surface its own semantics walk exposes ([_exposedRoot]),
 /// so the actions sit here exactly when Flutter would expose them on the
 /// surface's own config.

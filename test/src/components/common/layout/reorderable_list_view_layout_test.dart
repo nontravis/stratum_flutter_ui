@@ -897,13 +897,13 @@ Widget _semanticsContainerBoundary(Widget child) =>
 
 /// Wraps [child] in a tappable [StratumInkWell] that holds the whole item,
 /// so the surface is item 100's root and joins the item's node, not its
-/// own (s03 invariant 81).
+/// own (s03 INV-81).
 Widget _inkWellBoundary(Widget child) =>
     StratumInkWell(onTap: () {}, child: child);
 
 /// Wraps [child] in a tappable [StratumInkWell] beside a spacer, so the
 /// surface does not hold the whole item and keeps its own container node
-/// (s03 invariant 81).
+/// (s03 INV-81).
 Widget _innerInkWellBoundary(Widget child) => RowLayout(
   children: [
     const SizedBox(width: 4, height: 4),
@@ -944,7 +944,7 @@ Widget _constSurface() =>
 
 /// A sibling beside [surface] that shows [extra] while [_extra] is true,
 /// so a flip pin can join and split the item's root on the same item
-/// (layout s03 invariant 81's one-frame window).
+/// (layout s03 INV-81's one-frame window).
 class _Sibling extends StatelessWidget {
   const new({required this.surface, this.extra = const Text('Extra')});
 
@@ -15233,7 +15233,7 @@ void main() {
         );
         expect(children, 50);
         expect(layers / children, 1);
-        // The item root marker (layout s03 invariant 81) adds three
+        // The item root marker (layout s03 INV-81) adds three
         // elements and one render object, no layer.
         expect(elements / children, 31);
         expect(renders / children, 15);
@@ -15664,7 +15664,7 @@ void main() {
     });
 
     testWidgets(
-      'R4, invariant 28, FR-03 E08: a screen-reader move action on the '
+      'R4, INV-28, FR-03 E08: a screen-reader move action on the '
       'lifted item during its own drag reports the move and ends the '
       'drag at once, synchronously, never reading as the drop',
       (tester) async {
@@ -15681,7 +15681,7 @@ void main() {
         // second report on the same stale index would recurse (the drop
         // this read starves, T15 RCA P5); the fix ends the drag inside
         // this very call, with no frame between the action and the end
-        // (R4, invariant 28, FR-03 E08). Read with no pump between: a
+        // (R4, INV-28, FR-03 E08). Read with no pump between: a
         // pump would run that same count-change cancel regardless of
         // which read this proves, and mask the difference. The pointer
         // this grab started stays down: the drag already ended through
@@ -17156,7 +17156,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
         // The momentum still runs once the EndUser let go, item 100 held
         // with its focus past the cache band, where its rect reads NaN, so
-        // the focus move brings it back first (R40, invariant 21).
+        // the focus move brings it back first (R40, INV-21).
         expect(position.pixels, greaterThan(flung));
         expect(state.node.rect.isFinite, isFalse);
 
@@ -17858,7 +17858,7 @@ void main() {
     );
 
     testWidgets(
-      "invariant 30: a lift ends the item's own grow-in through the file's "
+      "INV-30: a lift ends the item's own grow-in through the file's "
       'own ending path, so a later build reads it at rest, never a '
       'leftover entry',
       (tester) async {

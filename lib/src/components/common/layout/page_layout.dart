@@ -22,7 +22,7 @@ const String _rightWidthName = 'right_width';
 
 /// Opens and closes a [PageLayout]'s drawers and holds the chosen widths of
 /// its inline side panes; [PageLayout.of] returns it (US-19 FR-03, FR-06;
-/// layout s03 invariants 66 and 69).
+/// layout s03 INV-66 and INV-69).
 ///
 /// [openLeft], [openRight], and [close] drive the drawers of the page it is
 /// attached to; it owns the side the app asked open, while the page owns
@@ -342,7 +342,7 @@ typedef _DrawerView = ({PageDrawerSide? shown, bool open});
 const _DrawerView _noDrawer = (shown: null, open: false);
 
 /// The fields of [_PageLayoutScope], one dependency aspect each (layout s03
-/// invariant 63).
+/// INV-63).
 enum _PageAspect { controller, drawer }
 
 class _PageLayoutState extends State<PageLayout>
@@ -372,12 +372,12 @@ class _PageLayoutState extends State<PageLayout>
   FocusNode? _parkedFocus;
 
   /// The drawer's 0-to-1 animation, which a drag also drives (layout s03
-  /// invariant 65).
+  /// INV-65).
   late final _drawer = AnimationController(vsync: this)
     ..addStatusListener(_onDrawerStatus);
 
   /// What the drawer stage draws, published to it with no rebuild of the
-  /// page (layout s03 invariant 63).
+  /// page (layout s03 INV-63).
   final _drawerView = ValueNotifier<_DrawerView>(_noDrawer);
 
   /// The scope the shown drawer panel keeps focus in.
@@ -426,8 +426,7 @@ class _PageLayoutState extends State<PageLayout>
 
   /// The page's own published areas; the host above reads the innermost
   /// handle on stage, which the [PageAreasProbe] at the root of [build]
-  /// tracks, so no route read subscribes this State (s03 toast invariant
-  /// 16).
+  /// tracks, so no route read subscribes this State (s03 toast INV-16).
   final _handle = PageAreasHandle();
 
   /// The last areas this page wrote, so a reporter for one slot rewrites
@@ -515,7 +514,7 @@ class _PageLayoutState extends State<PageLayout>
 
   /// Registers this page's handle with the nearest registry once it
   /// exists; the handle's value is null until the first layout reports
-  /// (s03 toast invariant 16).
+  /// (s03 toast INV-16).
   ///
   /// A registration during a build defers to after the frame, since the
   /// registry's scope rebuilds on the version bump; a dispose quiets the
@@ -580,7 +579,7 @@ class _PageLayoutState extends State<PageLayout>
   /// Publishes [snack], the page's resolved `PageLayoutStyle.snack`, once
   /// this frame ends, whether or not the page has a `snack` slot, so a
   /// theme or `customStyle.snack` change, or its removal, reaches the
-  /// next notice (s03 toast invariant 16).
+  /// next notice (s03 toast INV-16).
   ///
   /// Writing from `build()` once the registry has a listener would ask an
   /// ancestor to `markNeedsBuild()` mid-build and crash; the write takes
@@ -647,7 +646,7 @@ class _PageLayoutState extends State<PageLayout>
   /// focus back as loading turns false (US-18 FR-06 E05): to that node, as
   /// long as focus still sits where loading parked it, and then into a
   /// drawer asked open meanwhile, which keeps focus inside (layout s03
-  /// invariant 68). A route above the page, or a hidden branch, keeps its
+  /// INV-68). A route above the page, or a hidden branch, keeps its
   /// focus: the page's [PageAreasProbe] answers that, so this State
   /// depends on no route and rebuilds on no push or pop.
   void _moveFocusForLoading() {
@@ -708,7 +707,7 @@ class _PageLayoutState extends State<PageLayout>
     return PageAreasProbe(
       // Above every other widget of the page, with no render object of
       // its own, so a nested page's probe sits below this one's and the
-      // systemStyle switch remounts no probe (s03 toast invariant 16).
+      // systemStyle switch remounts no probe (s03 toast INV-16).
       handle: _handle,
       child: widget.systemStyle == null
           ? _page(style, look, theme, page)
@@ -818,7 +817,7 @@ class _PageLayoutState extends State<PageLayout>
   // MARK: - Drawers
 
   /// Whether the window sits below [PageLayout.drawerCut], where `left`
-  /// and `right` are drawers (layout s03 invariant 69).
+  /// and `right` are drawers (layout s03 INV-69).
   bool get _belowCut => _windowSize < widget.drawerCut;
 
   /// Whether [side] is `right` shown as the front overlay drawer, at or
@@ -1199,7 +1198,7 @@ class _PageLayoutState extends State<PageLayout>
 
   // MARK: - Layout
 
-  /// The slots in the geometry of layout s03 invariant 61, a null slot and
+  /// The slots in the geometry of layout s03 INV-61, a null slot and
   /// a drawer side left out, above a footer room at least [keyboard] tall:
   /// the page above
   /// the footer then ends at the keyboard's top while the footer stays
@@ -1318,7 +1317,7 @@ class _PageLayoutState extends State<PageLayout>
 
   /// [column] beside [side]'s inline [pane], or alone where [side] has
   /// none, as one [SplitLayout] at Tab [order], its divider painted by the
-  /// side's divider builder (layout s03 invariants 61 and 69; R17).
+  /// side's divider builder (layout s03 INV-61 and INV-69; R17).
   ///
   /// The divider's Home, End, and slider speak for [pane], the WAI-ARIA
   /// window splitter's primary pane, so `right`'s split passes its end pane
@@ -1536,7 +1535,7 @@ class _PageLayoutState extends State<PageLayout>
   }
 
   /// The screen edges [slot] touches in the geometry of the slots present
-  /// (layout s03 invariant 64).
+  /// (layout s03 INV-64).
   _Edges _edgesOf(_Slot slot) {
     final page = widget;
     final noHeader = page.header == null;
@@ -1580,7 +1579,7 @@ class _PageLayoutState extends State<PageLayout>
   /// touched edge whose [PageLayout.safeArea] flag is false pads nothing
   /// either, and the slot's children read its inset too. Every other inset
   /// is removed for the slot's children, and so is the keyboard while the
-  /// page makes room for it (layout s03 invariant 64).
+  /// page makes room for it (layout s03 INV-64).
   Widget _slotBox(
     _Slot slot,
     Widget child,
@@ -1633,7 +1632,7 @@ class _PageLayoutState extends State<PageLayout>
 /// Publishes a [PageLayout]'s controller, for [PageLayout.of], and what its
 /// drawer stage draws, one dependency aspect each, so a drawer change
 /// rebuilds the stage and never a [PageLayout.of] reader (layout s03
-/// invariant 63).
+/// INV-63).
 class _PageLayoutScope extends InheritedModel<_PageAspect> {
   const new({
     required this.controller,

@@ -14,7 +14,7 @@ Duration? toastCloseTime({
 
 /// The plain look of one notice: the kind's icon, the wrapping message, the
 /// action, and the close button, every visual value from theme tokens
-/// (US-01 FR-06; s03 invariant 12).
+/// (US-01 FR-06; s03 INV-12).
 ///
 /// Internal: the barrel keeps this inside the toast folder; the host builds
 /// it unless an app `builder` replaces it.
@@ -25,7 +25,7 @@ class StratumToastPlainLook extends StatelessWidget {
 
   /// The surface's corners at the theme-token layer, null keeping
   /// `radius.lg` on all four; the host passes a float notice's, curved
-  /// next to a screen corner (s03 invariant 6).
+  /// next to a screen corner (s03 INV-6).
   final BorderRadius? corners;
 
   @override
@@ -33,9 +33,9 @@ class StratumToastPlainLook extends StatelessWidget {
     final style = _style(context);
     final surface = _surface(context, style);
     // A solid notice's surface declares the one solid color it paints,
-    // opacity folded, on both edges (s03 invariant 17; US-01 FR-02 E08).
+    // opacity folded, on both edges (s03 INV-17; US-01 FR-02 E08).
     // The host sizes and places every look, so a float one is the surface
-    // alone (s03 invariant 13).
+    // alone (s03 INV-13).
     return notice.placement is StratumToastSolid
         ? SystemBarFill(color: solidFillColor(style), child: surface)
         : surface;
@@ -43,7 +43,7 @@ class StratumToastPlainLook extends StatelessWidget {
 
   /// The notice's surface style, each later source winning: theme tokens,
   /// the app-wide notice defaults, the page's `snack` layer, then the
-  /// call's `customStyle` (s03 invariant 16).
+  /// call's `customStyle` (s03 INV-16).
   WidgetStyle _style(BuildContext context) {
     final theme = context.theme;
     return WidgetStyle(
@@ -63,7 +63,7 @@ class StratumToastPlainLook extends StatelessWidget {
         .merge(notice.customStyle);
   }
 
-  /// The kind's border color, `info` reading brand (s03 invariant 12).
+  /// The kind's border color, `info` reading brand (s03 INV-12).
   static Color _kindBorder(StratumTheme theme, FeedbackState kind) =>
       switch (kind) {
         FeedbackState.positive => theme.color.border.color.positive,
@@ -72,7 +72,7 @@ class StratumToastPlainLook extends StatelessWidget {
         FeedbackState.info => theme.color.border.color.brand,
       };
 
-  /// The kind's icon color, `info` reading brand (s03 invariant 12).
+  /// The kind's icon color, `info` reading brand (s03 INV-12).
   static Color _kindIcon(StratumTheme theme, FeedbackState kind) =>
       switch (kind) {
         FeedbackState.positive => theme.color.icon.color.positive,
@@ -82,7 +82,7 @@ class StratumToastPlainLook extends StatelessWidget {
       };
 
   /// The kind's icon: every kind differs by icon as well as color
-  /// (NFR-U08; s03 invariant 12).
+  /// (NFR-U08; s03 INV-12).
   static IconData _iconOf(FeedbackState kind) => switch (kind) {
     FeedbackState.positive => Icons.check_circle_outline,
     FeedbackState.info => Icons.info_outline,
@@ -92,7 +92,7 @@ class StratumToastPlainLook extends StatelessWidget {
 
   /// The notice's content: the kind icon, the wrapping message, the action,
   /// and the close button, the message and icon on the theme's body
-  /// typography and primary text and icon colors (s03 invariant 12).
+  /// typography and primary text and icon colors (s03 INV-12).
   Widget _surface(BuildContext context, WidgetStyle style) {
     final theme = context.theme;
     final action = notice.action;

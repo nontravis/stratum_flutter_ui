@@ -5,7 +5,7 @@ import 'package:stratum_ui/src/src.dart';
 /// for every [TargetPlatform] (FO-03 US-08 FR-01 E04), so every
 /// [MaterialPageRoute] and [MaterialPage] below the Stratum theme brings
 /// its page in with the type [motion]'s `transition` names for the window
-/// size (FO-05 US-05 FR-04; style s03 invariants 18 to 20).
+/// size (FO-05 US-05 FR-04; style s03 INV-18 to INV-20).
 /// `PageTransition`, `StratumTransitionPage`, and `NoPageTransition` show
 /// their own transition, never this builder's. Internal: not exported.
 @immutable
@@ -21,7 +21,7 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
   final TargetPlatform platform;
 
   /// The type whose durations apply: the theme's type for the window size
-  /// of the implicit view, else of `mobile` (invariant 20, ruling R5).
+  /// of the implicit view, else of `mobile` (INV-20, ruling R5).
   ScreenTransitionType get _durationType =>
       motion.transition[windowSizeOfView(
         WidgetsBinding.instance.platformDispatcher.implicitView,
@@ -37,7 +37,7 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
 
   /// The theme's type for the window size of the scope above [context],
   /// else of the window's size by FO-07 US-01 FR-01, which never throws
-  /// (invariant 19). Shared by [buildTransitions] and [delegatedTransition]
+  /// (INV-19). Shared by [buildTransitions] and [delegatedTransition]
   /// so both read the same window size the same way.
   ScreenTransitionType _typeOf(BuildContext context) =>
       motion.transition[WindowSizeScope.maybeOf(context) ??
@@ -67,7 +67,7 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
   );
 
   /// The transition a route below that is not a Material route leaves by in
-  /// sync with this builder's route (style s03 invariant 21): the
+  /// sync with this builder's route (style s03 INV-21): the
   /// [_typeOf] type's by [delegatedScreenTransition], which every route of
   /// US-05 shares, else the child unchanged. Never throws. This builder's
   /// routes are Material routes, which are opaque.

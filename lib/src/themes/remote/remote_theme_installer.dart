@@ -41,7 +41,7 @@ abstract final class RemoteThemeInstaller {
   static final _generations = <String, int>{};
 
   /// Runs the install check (steps 1 to 10), then the convert; the
-  /// controller runs step 11, the register (FO-04 s03 invariant 16).
+  /// controller runs step 11, the register (FO-04 s03 INV-16).
   /// Throws [StratumRemoteThemeException] at the first failed step and
   /// changes nothing it does not own.
   static Future<RemoteInstall> prepare(

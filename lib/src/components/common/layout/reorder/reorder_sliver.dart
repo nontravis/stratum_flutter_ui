@@ -111,7 +111,7 @@ class _ReorderSliverState extends SliverReorderableListState {
 
   // Every reorder controller ticks on this State: each item's reflow and
   // the drop's settle. Under reduced motion each reads a long elapsed time
-  // and ends on its first tick (R38, invariant 59).
+  // and ends on its first tick (R38, INV-59).
   @override
   Ticker createTicker(TickerCallback onTick) {
     return super.createTicker(
@@ -448,7 +448,7 @@ class _ReorderSliverState extends SliverReorderableListState {
   var _reportingDrop = false;
 
   /// Whether this call to [_handleReorderItem] reports the drag's own
-  /// drop, never a screen-reader move action (R4, invariant 28): the
+  /// drop, never a screen-reader move action (R4, INV-28): the
   /// body reads this, never the last build's look, which a drop whose
   /// lifted item the build left out still reads as a screen-reader move
   /// (FR-04 E20), and a screen-reader move on the lifted item's own slot
@@ -666,7 +666,7 @@ class _ReorderSliverState extends SliverReorderableListState {
   /// a leaving item or closing gap, under the reorder item that moves it
   /// for the drag's gap and hides it while it is lifted, and under a frame
   /// keyed by the item's own key, so the sliver moves the item's element
-  /// in place to its new slot (invariant 35). One widget shape serves every
+  /// in place to its new slot (INV-35). One widget shape serves every
   /// state, so an item's subtree never changes parent from its insert to
   /// the end of its exit (R47).
   Widget _itemBuilder(BuildContext context, int slot) {
@@ -836,13 +836,13 @@ class _ReorderSliverState extends SliverReorderableListState {
       findChildIndexCallback: _body._findIndex,
       // The reorder item holds the item's own boundary, which it rasters
       // for the drag proxy; the slot frame gives each data item its
-      // semantic index and a leaving item none (invariant 58).
+      // semantic index and a leaving item none (INV-58).
       addRepaintBoundaries: false,
       addSemanticIndexes: false,
     );
     // Under a fixed extent a leaving item takes a slot of no extent, so
     // every fixed kind lays out through the plan's extents. The prototype
-    // takes no Tab stop and no screen-reader node (invariant 58).
+    // takes no Tab stop and no screen-reader node (INV-58).
     final hangs = _body._plan.hangs;
     if (_body._fixedExtent) {
       final prototype = widget.prototypeItem;

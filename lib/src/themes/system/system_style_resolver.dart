@@ -21,8 +21,8 @@ bool get _isWeb => debugSystemStyleIsWebOverride ?? kIsWeb;
 /// The base layer of the system bar style that a `StratumThemeApplication`
 /// places around its child, its hook into the one resolver of its view, and,
 /// on the outermost root of the view, the bar color strips painted over
-/// every page (FO-03 US-14 FR-01 to FR-04; themes s03 invariants 38 to 43
-/// and 45). Internal: not exported.
+/// every page (FO-03 US-14 FR-01 to FR-04; themes s03 INV-38 to INV-43
+/// and INV-45). Internal: not exported.
 class SystemStyleRoot extends StatefulWidget {
   const new({
     super.key,
@@ -48,7 +48,7 @@ class _SystemStyleRootState extends State<SystemStyleRoot> {
   _SystemStyleResolver? _resolver;
 
   /// Whether another root on the same view lies above this one, so this
-  /// root's region is sized to its child (themes s03 invariant 40).
+  /// root's region is sized to its child (themes s03 INV-40).
   bool _nested = false;
 
   /// The bar color strips this root paints; the resolver sets them on the
@@ -97,7 +97,7 @@ class _SystemStyleRootState extends State<SystemStyleRoot> {
 /// the root's: `origin` is the view's top-left point in the root's local
 /// coordinates and `viewSize` its logical size, so a root inset by a
 /// `SafeArea` or the like paints under the real bar instead of over its
-/// own content (themes s03 invariant 45). `status` fills the view's `top`
+/// own content (themes s03 INV-45). `status` fills the view's `top`
 /// padding, and `navigation` fills its `bottom` padding with `divider` as
 /// its edge line.
 typedef _SystemBarStrips = ({
@@ -112,7 +112,7 @@ typedef _SystemBarStrips = ({
 
 /// Paints the bar color strips over the root's child, so every page lies
 /// under them, as an opaque system bar lies over the app (themes s03
-/// invariant 45). The divider is a line one logical pixel tall on the
+/// INV-45). The divider is a line one logical pixel tall on the
 /// navigation strip's edge that faces the app, as Android draws its own. A
 /// transparent color paints nothing.
 class _SystemBarStripPainter extends CustomPainter {
@@ -180,8 +180,8 @@ class _SystemStyleRootRegion extends SingleChildRenderObjectWidget {
 
 /// Paints [value] as an annotation around its child, unsized on the
 /// outermost root of the view and sized to the child on a nested one, so a
-/// nested theme counts only at a bar it lies under (themes s03 invariant
-/// 40), and keeps the layer it pushed, so the resolver searches every layer
+/// nested theme counts only at a bar it lies under (themes s03 INV-40),
+/// and keeps the layer it pushed, so the resolver searches every layer
 /// painted inside it.
 class _RenderSystemStyleRoot extends RenderProxyBox {
   new(this._value, {required bool sized}) : _sized = sized;
@@ -242,7 +242,7 @@ class _RenderSystemStyleRoot extends RenderProxyBox {
   /// Every Stratum region painted inside this root, front to back in the
   /// order of [annotationsAt], wherever it lies and whatever clips it, so a
   /// scope in a clipped tab view still sets the behavior (themes s03
-  /// invariant 39). An offstage route and a hidden `IndexedStack` child
+  /// INV-39). An offstage route and a hidden `IndexedStack` child
   /// push no layer, so only what painted counts.
   List<SystemStyleRegion> painted() {
     final layer = _layer.layer;
@@ -271,7 +271,7 @@ class _RenderSystemStyleRoot extends RenderProxyBox {
 }
 
 /// The one writer of the system chrome for one view (FO-03 US-14 FR-02 to
-/// FR-04; themes s03 invariants 39 to 43 and 45). Every
+/// FR-04; themes s03 INV-39 to INV-43 and INV-45). Every
 /// `StratumThemeApplication` on the view shares it; it lives while one of
 /// them is in the tree.
 final class _SystemStyleResolver {
@@ -503,7 +503,7 @@ final class _SystemStyleResolver {
   /// `Title` read now, with the merged `appSwitcherColor` made opaque,
   /// else that `Title`'s own color when no layer sets one, when either
   /// changed or the app widget rebuilt, which builds a new `Title` that
-  /// may have sent its own description (themes s03 invariant 42).
+  /// may have sent its own description (themes s03 INV-42).
   void _sendDescription(SystemBars bars) {
     final title = _title();
     final color = bars.appSwitcherColor ?? title?.color;

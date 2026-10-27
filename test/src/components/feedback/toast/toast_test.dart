@@ -855,7 +855,7 @@ void main() {
     expect(style.dropShadow, isNotEmpty);
   });
 
-  testWidgets('co05_07/us01/fr06: s03 invariant 16: the app-wide '
+  testWidgets('co05_07/us01/fr06: s03 INV-16: the app-wide '
       'StratumComponentDefaults.partsOf<WidgetStyle> layer wins over the '
       'theme, with no customStyle set', (tester) async {
     _view(tester);
@@ -875,7 +875,7 @@ void main() {
   });
 
   testWidgets('n20: co05_07/us01/fr06/e06: StratumToastHost(closeButtonLabel:, kindLabels:) '
-      "override FO-09's built-in labels (s03 invariant 11)", (tester) async {
+      "override FO-09's built-in labels (s03 INV-11)", (tester) async {
     _view(tester);
     final handle = tester.ensureSemantics();
     final announced = _announceRecorder(tester);
@@ -1048,7 +1048,7 @@ void main() {
   );
 
   // R27: the host shortcut and its hint (US-01 FR-05 statement, E05 to
-  // E14; FR-06 E06; s03 invariants 10, 11, 18, 19).
+  // E14; FR-06 E06; s03 INV-10, INV-11, INV-18, INV-19).
 
   testWidgets(
     'co05_07/us01/fr05/e06 e10: the default shortcut reaches the notice from a '
@@ -1815,7 +1815,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // s03 invariant 6: the corner next to a screen corner follows its curve
+  // s03 INV-6: the corner next to a screen corner follows its curve
   // (correctness 3, edge I10).
 
   for (final (screen, shape) in [(55.0, 'concentric'), (24.0, 'floored')]) {
@@ -1906,7 +1906,7 @@ void main() {
   );
 
   // R28: `context.dismissAllToasts()` (US-01 FR-04 E11 to E14; s03
-  // invariant 20).
+  // INV-20).
 
   testWidgets('r28: co05_07/us01/fr04/e11: a dismiss-all call with nothing showing or queued '
       'does nothing', (tester) async {

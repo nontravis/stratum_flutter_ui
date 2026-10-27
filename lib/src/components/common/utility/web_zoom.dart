@@ -70,7 +70,7 @@ class _WebZoomViewerState extends State<_WebZoomViewer>
     with SingleTickerProviderStateMixin {
   final _controller = _HeldTransformationController();
 
-  /// Eases the scale into new limits (web_zoom s03 invariant 7).
+  /// Eases the scale into new limits (web_zoom s03 INV-7).
   late final _ease = AnimationController(vsync: this)..addListener(_onEase);
 
   /// The theme's `standard` curve, set in [_easeIntoLimits].

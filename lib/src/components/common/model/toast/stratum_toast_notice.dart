@@ -11,7 +11,7 @@ part 'generated/stratum_toast_notice.freezed.dart';
 /// One notice as the plain look and an app `builder` read it: its message,
 /// kind, action, placement, the edge inset its solid edge pads by, and the
 /// page `snack` style layer the host resolved, plus the [close] call that
-/// closes it (US-01 FR-06 E04; s03 invariants 4, 16).
+/// closes it (US-01 FR-06 E04; s03 INV-4, INV-16).
 @valueModel
 class StratumToastNotice with _$StratumToastNotice {
   const new({
@@ -32,14 +32,14 @@ class StratumToastNotice with _$StratumToastNotice {
   final StratumToastPlacement placement;
 
   /// The edge inset a solid notice pads its content by; zero on a float
-  /// (s03 invariant 4).
+  /// (s03 INV-4).
   final EdgeInsets insets;
 
   /// The registered page's `PageLayoutStyle.snack` layer, null with no
-  /// registered page (s03 invariant 16).
+  /// registered page (s03 INV-16).
   final WidgetStyle? pageSnack;
 
-  /// The per-call style layer, last in the style order (s03 invariant 16).
+  /// The per-call style layer, last in the style order (s03 INV-16).
   final WidgetStyle? customStyle;
 
   final StratumToastAction? action;
@@ -48,11 +48,11 @@ class StratumToastNotice with _$StratumToastNotice {
   final VoidCallback close;
 
   /// The close button's accessible name: `StratumToastHost.closeButtonLabel`
-  /// when the app set one, else FO-09's built-in label (s03 invariant 11).
+  /// when the app set one, else FO-09's built-in label (s03 INV-11).
   final String closeLabel;
 
   /// The kind's accessible name: `StratumToastHost.kindLabels[kind]` when
   /// the app set one, else FO-09's built-in name — the same name the host
-  /// announces on show (FO-09 FR-01 E08; s03 invariant 11).
+  /// announces on show (FO-09 FR-01 E08; s03 INV-11).
   final String kindLabel;
 }

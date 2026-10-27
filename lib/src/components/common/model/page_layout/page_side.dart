@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/themes/value_model.dart';
 part 'generated/page_side.freezed.dart';
 
 /// How a `PageLayout` side opens as a drawer (US-19 FR-02; layout s03
-/// invariant 65).
+/// INV-65).
 enum PageDrawerType {
   /// The drawer moves in over the still page.
   front,

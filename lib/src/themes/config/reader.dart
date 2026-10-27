@@ -156,7 +156,7 @@ final class ThemeReader {
   static final _hex = RegExp(r'^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$');
 
   /// The largest magnitude of a theme length, in logical pixels (config s03
-  /// invariant 15). Every `space`, `radius`, and `layouts` number, the `N`
+  /// INV-15). Every `space`, `radius`, and `layouts` number, the `N`
   /// of a `layouts` `"N%"`, every `border` width and `blur` radius, a
   /// shadow layer's `x`, `y`, `blur`, and `spread`, and every `typography`
   /// length, the `N` of its `"N%"` included, keep within it, so no package
@@ -245,7 +245,7 @@ final class ThemeReader {
   }
 
   /// [value] read by [StratumDimension.parse] and held to [maxLength]
-  /// (config s03 invariant 15). Reports `required` for null when [required]
+  /// (config s03 INV-15). Reports `required` for null when [required]
   /// is set; reports `expected_dimension`, in this order, for a value that
   /// does not parse, for a percent when [percent] is not set, and for a
   /// value that does not [fitsLength].

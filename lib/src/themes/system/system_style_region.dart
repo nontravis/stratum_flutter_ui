@@ -2,13 +2,13 @@ import 'package:flutter/services.dart';
 import 'package:stratum_ui/src/themes/system/system_style.dart';
 
 /// One Stratum layer of the system bar style in the layer tree (FO-03
-/// US-14; themes s03 invariants 38 to 40). Each subtype sits in an
+/// US-14; themes s03 INV-38 to INV-40). Each subtype sits in an
 /// `AnnotatedRegion<SystemUiOverlayStyle>`, so the resolver finds every
 /// Stratum layer and a Material `AppBar`'s own annotation at a bar's point
 /// in one `findAllAnnotations` call, in paint order, and every Stratum
 /// layer painted anywhere by one walk of the layer tree. Its overlay
 /// fields stay null; the resolver turns Flutter's own write of the overlay
-/// style off for its view (themes s03 invariant 41). Internal: not
+/// style off for its view (themes s03 INV-41). Internal: not
 /// exported.
 sealed class SystemStyleRegion extends SystemUiOverlayStyle {
   const new();
@@ -40,7 +40,7 @@ final class SystemStyleBaseRegion extends SystemStyleRegion {
 }
 
 /// One half of a `SystemStyleScope`: its look, sized to its child, or its
-/// behavior, unsized (themes s03 invariant 39).
+/// behavior, unsized (themes s03 INV-39).
 final class SystemStyleLayerRegion extends SystemStyleRegion {
   const new(this.style);
 

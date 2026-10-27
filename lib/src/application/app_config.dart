@@ -16,7 +16,7 @@ typedef StratumAppBuilder = Widget Function(
 /// The values `StratumApplication` hands its [StratumAppBuilder] (FO-03
 /// US-13 FR-02), built again on each `StratumApplication` rebuild and
 /// when the active theme, the window size class, the text scale, or the
-/// platform locale changes (themes s03 invariant 35).
+/// platform locale changes (themes s03 INV-35).
 @valueModel
 class StratumAppConfig with _$StratumAppConfig {
   const new({

@@ -1,6 +1,6 @@
 part of '../reorderable_list_view_layout.dart';
 
-// The frame plan (D2, invariant 58): each build of the list lays its data
+// The frame plan (D2, INV-58): each build of the list lays its data
 // items and each leaving item or closing gap out as sliver children of
 // their own, so an item's subtree lives in one sliver child from its insert
 // to the end of its exit (R47). Every index the list reports or gives
@@ -13,7 +13,7 @@ part of '../reorderable_list_view_layout.dart';
 /// Where a build lays each data item and each leaving item or closing gap
 /// out, as sliver slots (R47): a slot holds a data item or one of [exits],
 /// and every index the list reports or gives semantics stays an index of
-/// the app's data (invariants 29 and 58).
+/// the app's data (INV-29 and INV-58).
 class _FramePlan {
   const new({
     required this.dataCount,
@@ -153,7 +153,7 @@ class _PlannedExit {
 }
 
 /// The semantics of one slot: a data item's own node at its data index; a
-/// leaving item, [index] null, none (invariant 58, E05).
+/// leaving item, [index] null, none (INV-58, E05).
 class _SlotSemantics extends SingleChildRenderObjectWidget {
   const new({required this.index, required this.exit, super.child});
 

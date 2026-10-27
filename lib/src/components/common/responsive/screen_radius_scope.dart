@@ -11,7 +11,7 @@ import 'package:flutter/widgets.dart';
 // queue 4).
 /// Publishes the native probe's screen corner radii into [MediaQuery] on
 /// iOS and macOS, where Flutter reports none, so `DeviceWindow.radius`
-/// stays one aspect read (FO-07 US-04 FR-03; responsive s03 invariant 9).
+/// stays one aspect read (FO-07 US-04 FR-03; responsive s03 INV-9).
 ///
 /// One per tree: `StratumThemeApplication` inserts it only when [hasScope]
 /// is false, so a tree publishes one [MediaQuery]. Every scope alive in the
@@ -21,7 +21,7 @@ import 'package:flutter/widgets.dart';
 /// pass-through [MediaQuery] present unconditionally from its first frame,
 /// with no [GlobalKey]: every State below stays mounted across every probe
 /// event, including the first one and any flip to or from null. Every
-/// other platform inserts no [MediaQuery] (responsive s03 invariant 9).
+/// other platform inserts no [MediaQuery] (responsive s03 INV-9).
 class ScreenRadiusScope extends StatefulWidget {
   const new({super.key, required this.child});
 
@@ -132,7 +132,7 @@ abstract final class _RadiusProbeSubscription {
   /// Takes one probe event; a null message ends the stream and keeps the
   /// last radius. An error event or a malformed one leaves the radius
   /// unreadable, so null, and reports the error (responsive s03
-  /// invariant 9).
+  /// INV-9).
   static Future<ByteData?> _onEvent(ByteData? message) async {
     if (message == null) return null;
     BorderRadius? probe;

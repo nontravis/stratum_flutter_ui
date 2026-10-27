@@ -2,7 +2,7 @@ import 'package:stratum_ui/src/src.dart';
 
 /// A [MaterialPageRoute] that shows its page with no animation and zero
 /// push and pop durations, whatever the theme's page transitions builder
-/// supplies (FO-05 US-05 FR-02; style s03 invariant 15).
+/// supplies (FO-05 US-05 FR-02; style s03 INV-15).
 class NoPageTransition extends MaterialPageRoute<dynamic> {
   new({
     required super.builder,

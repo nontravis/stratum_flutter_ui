@@ -9,7 +9,7 @@ import 'package:stratum_ui/src/src.dart';
 void main() {
   const fill = Color(0xFFEEEEEE);
 
-  test('co01_03/us01/fr04: R10(2), caret s03 invariant 14, the box style '
+  test('co01_03/us01/fr04: R10(2), caret s03 INV-14, the box style '
       'builds a WidgetStyle of its 16 fields and no other', () {
     final style = StratumCaretStyle(
       opacity: 0.5,

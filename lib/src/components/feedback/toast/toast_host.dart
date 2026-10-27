@@ -19,7 +19,7 @@ import 'package:toastification/toastification.dart'
 
 /// [kind]'s accessible name: [kindLabels]'s entry for [kind] when it holds
 /// one, else FO-09's built-in name — the same name the host's announcement
-/// and the plain look's icon both show (FO-09 FR-01 E08; s03 invariant 11).
+/// and the plain look's icon both show (FO-09 FR-01 E08; s03 INV-11).
 String _kindLabel(
   BuildContext context,
   FeedbackState kind,
@@ -38,14 +38,14 @@ String _kindLabel(
 
 /// Whether [defaultTargetPlatform] is one of Apple's, where F8 is a media
 /// key, so the host shortcut's default order puts Option+T first (US-01
-/// FR-05 statement; s03 invariant 18).
+/// FR-05 statement; s03 INV-18).
 bool get _appleTargetPlatform =>
     defaultTargetPlatform == TargetPlatform.macOS ||
     defaultTargetPlatform == TargetPlatform.iOS;
 
 /// `focusShortcuts`'s default order: Option+T then F8 on macOS and iOS,
 /// F8 then Alt+T on every other platform (US-01 FR-05 statement; s03
-/// invariant 18).
+/// INV-18).
 List<SingleActivator> _defaultFocusShortcuts() {
   const optionT = SingleActivator(LogicalKeyboardKey.keyT, alt: true);
   const f8 = SingleActivator(LogicalKeyboardKey.f8);
@@ -53,7 +53,7 @@ List<SingleActivator> _defaultFocusShortcuts() {
 }
 
 /// [activator]'s name for the built-in hint: its modifiers then its key,
-/// joined by `+`, Alt written Option on macOS and iOS (s03 invariant 11).
+/// joined by `+`, Alt written Option on macOS and iOS (s03 INV-11).
 String _shortcutKeyName(SingleActivator activator) {
   final parts = [
     if (activator.control) 'Ctrl',
@@ -67,14 +67,14 @@ String _shortcutKeyName(SingleActivator activator) {
 }
 
 /// The host shortcut's intent: move focus into the newest notice on
-/// screen (US-01 FR-05; s03 invariant 18).
+/// screen (US-01 FR-05; s03 INV-18).
 class _FocusNewestNoticeIntent extends Intent {
   const new();
 }
 
 /// [notice]'s first descendant a [FocusTraversalPolicy] would reach, or
 /// null when it holds none: generic over whatever look rendered it, plain
-/// or an app `builder` (US-01 FR-05; FR-06 E04; s03 invariants 13, 18).
+/// or an app `builder` (US-01 FR-05; FR-06 E04; s03 INV-13, INV-18).
 FocusNode? _firstTraversableDescendant(FocusNode notice) {
   for (final node in notice.traversalDescendants) {
     return node;
@@ -105,7 +105,7 @@ FocusNode? _newestTrackedNotice(
 /// notice's first traversable descendant, whatever look built it; disabled
 /// while none is open, so the shortcut manager passes the key on, and left
 /// unhandled when that notice holds no focusable descendant, so the key
-/// still reaches an outer handler (US-01 FR-05; s03 invariant 18).
+/// still reaches an outer handler (US-01 FR-05; s03 INV-18).
 class _FocusNewestNoticeAction extends Action<_FocusNewestNoticeIntent> {
   new(this._host);
 
@@ -187,30 +187,30 @@ class StratumToastHost extends StatefulWidget {
 
   /// The app's own look for every notice, replacing the plain look only:
   /// placement, queue, timers, close paths, and the announcement stay the
-  /// host's (US-01 FR-06 E04; s03 invariant 13).
+  /// host's (US-01 FR-06 E04; s03 INV-13).
   final StratumToastBuilder? builder;
 
   /// Replaces FO-09's close button label in the announcement and the
   /// close button's accessible name; null keeps the built-in label
-  /// (`architecture/localization.md` rule 2; s03 invariant 11).
+  /// (`architecture/localization.md` rule 2; s03 INV-11).
   final String? closeButtonLabel;
 
   /// Replaces FO-09's kind name per [FeedbackState] in the announcement
   /// and the icon's accessible name; a kind missing from the map, or a
   /// null [kindLabels], keeps that kind's built-in name
-  /// (`architecture/localization.md` rule 2; s03 invariant 11).
+  /// (`architecture/localization.md` rule 2; s03 INV-11).
   final Map<FeedbackState, String>? kindLabels;
 
   /// The keys that move focus into the newest notice on screen, null
   /// keeping the platform-ordered default (Option+T then F8 on macOS and
   /// iOS, F8 then Alt+T elsewhere); an empty list turns the shortcut off
   /// and drops the hint from the announcement (US-01 FR-05 E09 to E11,
-  /// E13; s03 invariant 18).
+  /// E13; s03 INV-18).
   final List<SingleActivator>? focusShortcuts;
 
   /// Replaces FO-09's shortcut hint in the announcement, which otherwise
   /// names the first `focusShortcuts` entry; null keeps the built-in hint
-  /// (US-01 FR-05 E12; FR-06 E06; s03 invariant 11).
+  /// (US-01 FR-05 E12; FR-06 E06; s03 INV-11).
   final String? focusShortcutHint;
 
   /// The host state above [context], or the `FlutterError` of a tree with
@@ -247,7 +247,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   final GlobalKey _solidKey = GlobalKey(debugLabel: 'StratumToastHost.solid');
 
   /// Solid notices waiting for the one on screen to close, in call order,
-  /// each with its resolved edge (US-01 FR-03, s03 invariant 2).
+  /// each with its resolved edge (US-01 FR-03, s03 INV-2).
   final List<(StratumToastRequest, StratumToastSolid)> _solidQueue = [];
 
   /// Whether a solid notice holds the solid slot: from its show until it
@@ -257,13 +257,13 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// Every open notice, shown and not yet closed, in true show order: the
   /// order [_present] ran, never a queued one, and never the order its
-  /// widget happened to mount (s03 invariants 2, 3, 7; R27 fix:
+  /// widget happened to mount (s03 INV-2, INV-3, INV-7; R27 fix:
   /// correctness finding 2, edge finding D).
   ///
   /// [_closed] is the one transition out of it.
   final Map<ToastificationItem, _OpenNotice> _open = {};
 
-  /// A float corner holds at most this many notices (s03 invariant 3).
+  /// A float corner holds at most this many notices (s03 INV-3).
   static const int _floatCap = 3;
 
   bool _disposed = false;
@@ -287,7 +287,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// traversable descendant of the newest [_open] entry that has one,
   /// whatever look built it, and [_closed] returns focus when the closing
   /// notice's node holds it (US-01 FR-04, FR-05 E05, E09; FR-06 E04; s03
-  /// invariants 13, 18, 19).
+  /// INV-13, INV-18, INV-19).
   final Map<ToastificationItem, FocusNode> _noticeTrackingNodes = {};
 
   /// The shortcut's bound action, created once so its enabled check reads
@@ -407,7 +407,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// Closes every notice at once, float and solid, shown, paused, or held,
   /// and empties the solid queue, so no queued notice ever shows; a show
   /// issued before this call that still waits for its frame never lands
-  /// (owner ruling R28; US-01 FR-04 E11, E12; s03 invariant 20).
+  /// (owner ruling R28; US-01 FR-04 E11, E12; s03 INV-20).
   ///
   /// Each close runs [_closed], so a notice holding focus returns it
   /// (E14), and runs no exit animation while `context.reducesMotion` is
@@ -489,7 +489,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// Hands [request] to `toastification` at [placement]'s manager key
   /// under the direction of the show context, so solid notices reach the
-  /// solid config and float notices the float one (s03 invariant 4), opens
+  /// solid config and float notices the float one (s03 INV-4), opens
   /// it in [_open], and announces it on show, never while queued (US-01
   /// FR-05 E03).
   void _present(StratumToastRequest request, StratumToastPlacement placement) {
@@ -548,7 +548,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// Whether [_announce] speaks the shortcut hint: desktop or the web
-  /// only (US-01 FR-05 E13, E14; s03 invariant 10).
+  /// only (US-01 FR-05 E13, E14; s03 INV-10).
   bool get _hearsShortcutHint =>
       kIsWeb ||
       defaultTargetPlatform == TargetPlatform.macOS ||
@@ -557,7 +557,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// The announcement's shortcut hint, or null to speak none: off the
   /// desktop-and-web set, or with `focusShortcuts` empty (US-01 FR-05
-  /// E11, E13, E14; FR-06 E06; s03 invariant 10, 11).
+  /// E11, E13, E14; FR-06 E06; s03 INV-10, INV-11).
   String? _shortcutHint(BuildContext context) {
     if (!_hearsShortcutHint) return null;
     final shortcuts = widget.focusShortcuts ?? _defaultFocusShortcuts();
@@ -576,7 +576,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// toastification's show and hide duration: the theme's `normal` level,
   /// zero under reduced motion, where `_ToastView` fades the look in on
-  /// its own (NFR-U03; s03 invariant 14).
+  /// its own (NFR-U03; s03 INV-14).
   Duration _animationDuration(BuildContext context) {
     // WORKAROUND: toastification animates each item's heightFactor from 0
     // to 1 over the first 60% of the show whatever the animationBuilder
@@ -588,7 +588,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// Fades [child] on [animation]; toastification pre-curves the intervals
   /// it hands (easeInOut), and the size curve stays theirs (s01 Effects;
-  /// s03 invariant 14).
+  /// s03 INV-14).
   Widget _animate(
     BuildContext context,
     Animation<double> animation,
@@ -609,7 +609,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// cap, through [_closed] as any close, then dismisses it after this
   /// frame's add: `toastification` adds each item in a post-frame
   /// callback, and this one registers after that add, so it dismisses a
-  /// live item (s03 invariants 3, 19).
+  /// live item (s03 INV-3, INV-19).
   void _evictOverCap(StratumToastCorner corner) {
     final atCorner = [
       for (final MapEntry(key: item, value: notice) in _open.entries)
@@ -631,7 +631,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// The one transition out of [_open], run once per notice whatever
   /// closed it: its own timer, any close path of its look, or an eviction
-  /// (US-01 FR-03, FR-04; s03 invariants 2, 3, 19).
+  /// (US-01 FR-03, FR-04; s03 INV-2, INV-3, INV-19).
   ///
   /// A later call for the same notice does nothing, so a second close
   /// never shows a second queued solid notice. It returns focus when the
@@ -646,7 +646,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// Hands the solid slot to the next queued solid notice, or frees it
-  /// with none queued (US-01 FR-03; s03 invariant 2).
+  /// with none queued (US-01 FR-03; s03 INV-2).
   void _passSolidSlot() {
     if (_solidQueue.isEmpty) {
       _solidShowing = false;
@@ -661,7 +661,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// Returns focus from a closing notice that holds it: to the last focus
   /// outside every notice while that node is still in the focus tree and
   /// can take focus, else to the focus its scope held before, which is the
-  /// current route's (s03 invariant 19; US-01 FR-04 E06 to E09).
+  /// current route's (s03 INV-19; US-01 FR-04 E06 to E09).
   void _returnFocusIfInside(ToastificationItem item) {
     final notice = _noticeTrackingNodes[item];
     if (notice == null || !notice.hasFocus) return;
@@ -699,19 +699,19 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// Pauses [item]'s close timer for [reason] while it is open (s03
-  /// invariant 7).
+  /// INV-7).
   void _pause(ToastificationItem item, _PauseReason reason) =>
       _open[item]?.pause(reason);
 
   /// Ends [reason]'s pause of [item]'s close timer while it is open (s03
-  /// invariant 7).
+  /// INV-7).
   void _resume(ToastificationItem item, _PauseReason reason) =>
       _open[item]?.resume(reason);
 
   /// The edge inset of a solid notice at [placement], read from the host's
   /// own context outside `toastification`'s list, whose
   /// `MediaQuery.removePadding` zeroes it, so the fill runs under the bar
-  /// while the content pads by it (s03 invariant 4).
+  /// while the content pads by it (s03 INV-4).
   ///
   /// Reads the `viewPadding` aspect alone, so a keyboard or resize frame
   /// rebuilds no host builder (performance finding 4).
@@ -728,7 +728,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// Closes [item] with no removal animation: every close path of a look
   /// (close button, Esc, swipe, and an action tap) ends here, so a
-  /// dismissed `Dismissible` never remounts (s03 invariant 9), then runs
+  /// dismissed `Dismissible` never remounts (s03 INV-9), then runs
   /// [_closed] as a timer close does (US-01 FR-03, FR-04).
   void _closeItem(ToastificationItem item) {
     toastification.dismiss(item, showRemoveAnimation: false);
@@ -739,7 +739,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   Widget build(BuildContext context) {
     // The Shortcuts and Actions pair wraps the host's child, above the
     // Navigator, so a key press from any focused route, a dialog
-    // included, bubbles to it (US-01 FR-05; s03 invariant 18).
+    // included, bubbles to it (US-01 FR-05; s03 INV-18).
     return Shortcuts(
       shortcuts: {
         for (final activator
@@ -788,8 +788,8 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// The float config: no width of its own, since [_floatMargin] sizes and
-  /// places each float notice through its side margins (s03 invariants 5,
-  /// 12, 16).
+  /// places each float notice through its side margins (s03 INV-5,
+  /// INV-12, INV-16).
   // WORKAROUND: toastification creates one `ToastificationManager` per
   // alignment on the first show (`managers.putIfAbsent` in
   // `lib/src/core/toastification.dart`) and that manager's config, read
@@ -807,7 +807,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// The solid config: full width, the edge's negative `viewPadding` as
   /// the margin that cancels what `toastification` adds, and the keyboard
-  /// owned by the margin itself (s03 invariants 4, 5).
+  /// owned by the margin itself (s03 INV-4, INV-5).
   static const ToastificationConfig _solidConfig = ToastificationConfig(
     itemWidth: double.infinity,
     applyMediaQueryViewInsets: false,
@@ -818,7 +818,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// `toastification` adds on every side, so the overlay's list box is the
   /// notice's own rect, its width capped and its corner hugged whatever
   /// look draws it, and takes no tap beside it (US-01 FR-02, FR-06 E04;
-  /// s03 invariants 5, 12, 13, 16).
+  /// s03 INV-5, INV-12, INV-13, INV-16).
   ///
   /// A pure function of the overlay entry's own context: `toastification`
   /// calls it on every build of that entry, and its registry read
@@ -841,11 +841,11 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// reaches the screen edge; on bottom, the higher of the keyboard and
   /// the page's `footer` or `bottom` less that same `viewPadding`, so the
   /// fill reaches the screen edge with neither, and sits directly above
-  /// the higher one otherwise (US-01 FR-02 E05, E06; s03 invariants 4, 5;
+  /// the higher one otherwise (US-01 FR-02 E05, E06; s03 INV-4, INV-5;
   /// N15).
   ///
   /// A pure function of the overlay entry's own context, as
-  /// [_floatMargin] is (s03 invariant 16).
+  /// [_floatMargin] is (s03 INV-16).
   static EdgeInsets _solidMargin(
     BuildContext context,
     AlignmentGeometry alignment,
@@ -874,7 +874,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// The areas of the innermost registered page on the current route;
-  /// null with no page registered (s03 invariant 16).
+  /// null with no page registered (s03 INV-16).
   ///
   /// Reads the registry from [context] itself, so every registration
   /// and areas write rebuilds the overlay entry's margin (N13); a handle
@@ -893,7 +893,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// Whether [item] is the open notice nearest its screen edge: no notice
-  /// shown after it shares its alignment (s03 invariant 3).
+  /// shown after it shares its alignment (s03 INV-3).
   bool _nearestItsEdge(ToastificationItem item) {
     var after = false;
     for (final open in _open.keys) {
@@ -906,7 +906,7 @@ class StratumToastHostState extends State<StratumToastHost> {
 
 /// Where a float notice sits, in global coordinates: its gap from the
 /// screen's left and right edges and from the screen edge it anchors to
-/// (US-01 FR-02; s03 invariants 5, 6, 12).
+/// (US-01 FR-02; s03 INV-5, INV-6, INV-12).
 final class _FloatFrame {
   const new({
     required this.left,
@@ -987,7 +987,7 @@ final class _FloatFrame {
   /// radius at that screen corner less the larger of its two gaps from
   /// it, never less than [token]; every other corner, every corner of a
   /// notice not [nearest] the edge, and every corner while [screen] is
-  /// null take [token] (s03 invariant 6; US-01 FR-02 E02, E03).
+  /// null take [token] (s03 INV-6; US-01 FR-02 E02, E03).
   BorderRadius corners(
     BorderRadius? screen,
     double token, {
@@ -1025,7 +1025,7 @@ class _StratumToastHostScope extends InheritedWidget {
 
 /// One open notice of the host: its placement, and why its close timer is
 /// paused right now, so the timer resumes only once every reason has
-/// ended (s03 invariant 7).
+/// ended (s03 INV-7).
 ///
 /// Lives in the host, never in the notice's widget state, so it outlasts
 /// any rebuild of `toastification`'s list (edge finding I1).
@@ -1052,7 +1052,7 @@ final class _OpenNotice {
 /// timer, and the timer resumes only once all three have ended, a
 /// cancelled touch counting as ended; Esc while focus is inside, the
 /// close button, and a horizontal swipe close it (US-01 FR-04; s03
-/// invariants 7, 9).
+/// INV-7, INV-9).
 class _ToastView extends StatefulWidget {
   const new({
     super.key,
@@ -1082,7 +1082,7 @@ class _ToastViewState extends State<_ToastView>
 
   /// The look's own fade-in under reduced motion, where `toastification`
   /// shows in zero time; it rests at full opacity otherwise (s03
-  /// invariant 14).
+  /// INV-14).
   late final AnimationController _reducedMotionFade = AnimationController(
     vsync: this,
     value: 1,
@@ -1121,9 +1121,9 @@ class _ToastViewState extends State<_ToastView>
   /// [StratumToastHostState._closed]), the one a timer close takes too.
   void _close() => widget.host._closeItem(widget.item);
 
-  /// The notice as its look reads it (s03 invariant 4, 16), with [context]
+  /// The notice as its look reads it (s03 INV-4, INV-16), with [context]
   /// resolving the close button and kind labels, a passed prop winning
-  /// over FO-09's built-in one (s03 invariant 11).
+  /// over FO-09's built-in one (s03 INV-11).
   StratumToastNotice _notice(BuildContext context) => StratumToastNotice(
     message: widget.request.message,
     kind: widget.request.kind,
@@ -1144,7 +1144,7 @@ class _ToastViewState extends State<_ToastView>
   );
 
   /// The look: the app `builder`'s when set, else the plain look; both
-  /// read the same notice (US-01 FR-06 E04; s03 invariant 13).
+  /// read the same notice (US-01 FR-06 E04; s03 INV-13).
   Widget _look(BuildContext context) {
     final builder = widget.host.widget.builder;
     final notice = _notice(context);
@@ -1153,7 +1153,7 @@ class _ToastViewState extends State<_ToastView>
         : StratumToastPlainLook(notice: notice, corners: _corners(context));
   }
 
-  /// The plain look's corners: a float notice's by s03 invariant 6, null
+  /// The plain look's corners: a float notice's by s03 INV-6, null
   /// for a solid one, which keeps `radius.lg` (US-01 FR-02 E02, E03).
   BorderRadius? _corners(BuildContext context) {
     if (widget.placement is! StratumToastFloat) return null;
@@ -1180,7 +1180,7 @@ class _ToastViewState extends State<_ToastView>
       direction: DismissDirection.horizontal,
       // Under reduced motion the finger's own drag is the only motion: no
       // settle after release, and no resize of the notices beside it
-      // (s03 invariant 14; edge finding I9).
+      // (s03 INV-14; edge finding I9).
       movementDuration: reducesMotion ? Duration.zero : _swipeSettle,
       resizeDuration: reducesMotion ? null : _swipeResize,
       onDismissed: (_) => _close(),
@@ -1223,12 +1223,12 @@ class _ToastViewState extends State<_ToastView>
   }
 }
 
-/// Why a notice's close timer is paused (s03 invariant 7).
+/// Why a notice's close timer is paused (s03 INV-7).
 enum _PauseReason { hover, focus, touch }
 
 /// Pauses the notice's timer while focus holds inside [child], however
 /// many focusable children it holds, and resumes once focus leaves them
-/// all (s03 invariant 7).
+/// all (s03 INV-7).
 ///
 /// Owns a pass-through node, never a scope: a `FocusScopeNode` with
 /// `canRequestFocus` false blocks Tab's descent into the notice's buttons,
