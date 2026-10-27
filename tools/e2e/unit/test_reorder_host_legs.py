@@ -37,6 +37,8 @@ reorder = _load_e2e_module("common/test_reorderable_list_view_layout.py")
 ITEMS = reorder.INITIAL_ORDER
 CHROME_PGREP = ["pgrep", "-x", "Google Chrome"]
 CHROME_ACTIVATE = osascript_args('tell application "Google Chrome" to activate')
+FIREFOX_EXECUTABLE = "/t/ms-playwright/firefox-1/firefox/Nightly.app/Contents/MacOS/firefox"
+FIREFOX_BUNDLE = "/t/ms-playwright/firefox-1/firefox/Nightly.app"
 
 
 class FakeClock:
@@ -209,7 +211,7 @@ def test_a_chrome_that_already_runs_is_refused() -> None:
     runner = FakeRun(returncode=0, stdout="812\n")
 
     with pytest.raises(RoundEnvError, match="already runs"):
-        reorder._refuse_a_running_chrome(runner)
+        reorder._refuse_a_running_browser(runner, CHROME_PGREP)
 
     assert runner.calls == [CHROME_PGREP]
 
@@ -217,7 +219,7 @@ def test_a_chrome_that_already_runs_is_refused() -> None:
 def test_no_running_chrome_passes_the_guard() -> None:
     runner = FakeRun(returncode=1)
 
-    reorder._refuse_a_running_chrome(runner)
+    reorder._refuse_a_running_browser(runner, CHROME_PGREP)
 
     assert runner.calls == [CHROME_PGREP]
     assert runner.kwargs[0]["timeout"] > 0
@@ -225,18 +227,18 @@ def test_no_running_chrome_passes_the_guard() -> None:
 
 def test_a_failing_chrome_pgrep_is_a_round_env_error() -> None:
     with pytest.raises(RoundEnvError, match="pgrep exited 2.*bad option"):
-        reorder._refuse_a_running_chrome(FakeRun(returncode=2, stderr="bad option"))
+        reorder._refuse_a_running_browser(FakeRun(returncode=2, stderr="bad option"), CHROME_PGREP)
 
 
 def test_a_missing_pgrep_is_a_round_env_error() -> None:
     with pytest.raises(RoundEnvError, match="pgrep not found"):
-        reorder._refuse_a_running_chrome(FakeRun(raises=FileNotFoundError("pgrep")))
+        reorder._refuse_a_running_browser(FakeRun(raises=FileNotFoundError("pgrep")), CHROME_PGREP)
 
 
 def test_activation_brings_the_one_chrome_to_the_front() -> None:
     runner = FakeRun(returncode=0)
 
-    reorder._activate_chrome(runner)
+    reorder._activate_browser(runner, "Google Chrome")
 
     assert runner.calls == [CHROME_ACTIVATE]
     assert runner.kwargs[0]["timeout"] > 0
@@ -246,32 +248,113 @@ def test_a_refused_activation_is_a_round_env_error_with_its_stderr() -> None:
     stderr = "execution error: Not authorized to send Apple events to Google Chrome. (-1743)"
 
     with pytest.raises(RoundEnvError, match=r"osascript exited 1.*\(-1743\)"):
-        reorder._activate_chrome(FakeRun(returncode=1, stderr=stderr))
+        reorder._activate_browser(FakeRun(returncode=1, stderr=stderr), "Google Chrome")
 
 
 def test_a_timed_out_activation_is_a_round_env_error_with_its_stderr() -> None:
     expired = subprocess.TimeoutExpired(cmd="osascript", timeout=10, stderr=b"waiting for consent")
 
     with pytest.raises(RoundEnvError, match="timed out.*waiting for consent"):
-        reorder._activate_chrome(FakeRun(raises=expired))
+        reorder._activate_browser(FakeRun(raises=expired), "Google Chrome")
 
 
-def test_host_chrome_refuses_a_running_chrome_before_playwright_starts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    started: list[bool] = []
+def test_host_app_names_chrome_by_its_app_name() -> None:
+    assert reorder._host_app("chrome", FIREFOX_EXECUTABLE) == (CHROME_PGREP, "Google Chrome")
 
+
+def test_host_app_targets_playwrights_firefox_by_its_paths() -> None:
+    pgrep, app = reorder._host_app("firefox", FIREFOX_EXECUTABLE)
+
+    assert pgrep == ["pgrep", "-f", FIREFOX_EXECUTABLE]
+    assert app == FIREFOX_BUNDLE
+
+
+def test_host_app_refuses_a_firefox_outside_an_app_bundle() -> None:
+    with pytest.raises(RoundEnvError, match="not inside an .app bundle"):
+        reorder._host_app("firefox", "/t/firefox/firefox")
+
+
+def test_firefox_activation_goes_by_the_bundle_path() -> None:
+    runner = FakeRun(returncode=0)
+
+    reorder._activate_browser(runner, FIREFOX_BUNDLE)
+
+    assert runner.calls == [osascript_args(f'tell application "{FIREFOX_BUNDLE}" to activate')]
+
+
+class _HostBrowser:
+    def __init__(self, launches: list[tuple[str, dict[str, Any]]]) -> None:
+        self._launches = launches
+
+    def new_page(self, base_url: str | None = None) -> str:
+        return "page"
+
+    def close(self) -> None:
+        pass
+
+
+class _HostType:
+    def __init__(self, name: str, launches: list[tuple[str, dict[str, Any]]]) -> None:
+        self._name = name
+        self._launches = launches
+        self.executable_path = FIREFOX_EXECUTABLE
+
+    def launch(self, **kwargs: Any) -> _HostBrowser:
+        self._launches.append((self._name, kwargs))
+        return _HostBrowser(self._launches)
+
+
+class _HostPlaywright:
+    def __init__(self) -> None:
+        self.launches: list[tuple[str, dict[str, Any]]] = []
+        self.chromium = _HostType("chromium", self.launches)
+        self.firefox = _HostType("firefox", self.launches)
+
+
+def _fake_toolchain(monkeypatch: pytest.MonkeyPatch, playwright: _HostPlaywright) -> None:
     @contextlib.contextmanager
-    def fake_sync_playwright() -> Iterator[Any]:
-        started.append(True)
-        yield None
+    def toolchain() -> Iterator[_HostPlaywright]:
+        yield playwright
 
-    monkeypatch.setattr(reorder, "sync_playwright", fake_sync_playwright)
+    monkeypatch.setattr(reorder, "toolchain_playwright", toolchain)
+    monkeypatch.setattr(reorder, "open_fixture_route", lambda page, fixture: None)
+    monkeypatch.setattr(reorder, "wait_until_held", lambda *args, **kwargs: None)
+    monkeypatch.setattr(reorder, "_order", lambda page, platform: reorder.INITIAL_ORDER)
 
-    runner = FakeRun(returncode=0, stdout="812\n")
+
+def test_the_host_leg_launches_the_target_browser_visible(monkeypatch: pytest.MonkeyPatch) -> None:
+    playwright = _HostPlaywright()
+    _fake_toolchain(monkeypatch, playwright)
+    runner = _HostRunner(pgrep=1)
+
+    with reorder._host_browser("http://127.0.0.1:1", "firefox", runner=runner):
+        pass
+
+    assert playwright.launches == [("firefox", {"headless": False})]
+    assert runner.calls == [
+        ["pgrep", "-f", FIREFOX_EXECUTABLE],
+        osascript_args(f'tell application "{FIREFOX_BUNDLE}" to activate'),
+    ]
+
+
+def test_the_host_leg_refuses_a_running_browser_before_it_launches(monkeypatch: pytest.MonkeyPatch) -> None:
+    playwright = _HostPlaywright()
+    _fake_toolchain(monkeypatch, playwright)
 
     with pytest.raises(RoundEnvError, match="already runs"):
-        with reorder._host_chrome("http://127.0.0.1:1", runner=runner):
-            pytest.fail("the leg must not run beside another Chrome")
+        with reorder._host_browser("http://127.0.0.1:1", "chrome", runner=FakeRun(returncode=0, stdout="812\n")):
+            pytest.fail("the leg must not run beside another browser")
 
-    assert started == []
+    assert playwright.launches == []
+
+
+class _HostRunner:
+    """Answers `pgrep` with [pgrep] as its exit code and every other command with 0."""
+
+    def __init__(self, pgrep: int) -> None:
+        self._pgrep = pgrep
+        self.calls: list[list[str]] = []
+
+    def __call__(self, args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        self.calls.append(args)
+        return subprocess.CompletedProcess(args, self._pgrep if args[0] == "pgrep" else 0, stdout="", stderr="")

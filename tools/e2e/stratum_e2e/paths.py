@@ -12,6 +12,7 @@ INTEGRATION_ITEM_DIR = E2E_ROOT / "integration"
 ROUNDS_ROOT = REPO_ROOT / "tmp" / "e2e-rounds"
 APPIUM_BIN = E2E_ROOT / ".tools" / "node_modules" / ".bin" / "appium"
 APPIUM_HOME = E2E_ROOT / ".tools" / "appium-home"
+PLAYWRIGHT_BROWSERS_DIR = E2E_ROOT / ".tools" / "ms-playwright"
 
 # Each scope root maps to the folder its retry and catalog keys are relative to; the integration item keeps its
 # `integration/` prefix so a key reads the same as before the move.

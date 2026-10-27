@@ -24,11 +24,11 @@ import subprocess
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 from appium.webdriver.common.appiumby import AppiumBy
-from playwright.sync_api import sync_playwright
 from playwright.sync_api import Error as PlaywrightError
 
 from stratum_e2e.android import emu_mouse
@@ -55,6 +55,7 @@ from stratum_e2e.macos.host_voiceover import HostVoiceOver, HostVoiceOverError, 
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.waits import wait_until, wait_until_held
 from stratum_e2e.web import snapshot as web_snapshot
+from stratum_e2e.web.browsers import launch_browser, toolchain_playwright
 from stratum_e2e.web.server import StaticServer
 from stratum_e2e.web.session import accessibility_snapshot, open_fixture_route
 
@@ -81,7 +82,7 @@ IOS_FOCUS_ORDER = [
 ]
 
 # Host VoiceOver (level2_host, owner command only): the VO cursor starts wherever the host left
-# it (on web, possibly in Chrome's toolbar), so the walk moves right until it has read all six
+# it (on web, possibly in the browser's toolbar), so the walk moves right until it has read all six
 # items, this many moves have passed, or two moves in a row spoke nothing new (the end of
 # content, or a tree VoiceOver is still building, passes with one).
 HOST_MAX_MOVES = 60
@@ -93,7 +94,7 @@ HOST_QUIET_S = 0.25
 # A stop counts as an item when `Item <n>` starts the phrase or follows a comma: a first stop
 # into a new group often carries the group's name first (edge F2).
 _HOST_ITEM_IN_PHRASE = re.compile(r"(?:^|,\s*)(Item \d+)")
-# The process name of the Chrome the web host leg launches (Playwright's `chrome` channel).
+# The process name of the Chrome the web host leg launches for the `chrome` target (Playwright's `chrome` channel).
 _CHROME_PROCESS = "Google Chrome"
 _HOST_RUN_TIMEOUT_S = 10.0
 
@@ -315,49 +316,66 @@ def _assert_host_actions(
 
 
 @contextlib.contextmanager
-def _host_chrome(base_url: str, runner: Callable[..., Any] = subprocess.run) -> Iterator[Any]:
-    """Yield a page of a visible Chrome on the fixture route, in front, closed afterwards.
+def _host_browser(base_url: str, browser: str, runner: Callable[..., Any] = subprocess.run) -> Iterator[Any]:
+    """Yield a page of a visible [browser] on the fixture route, in front, closed afterwards.
 
-    Headless Chrome has no window host VoiceOver can read, so this leg launches its own visible
+    A headless browser has no window host VoiceOver can read, so this leg launches its own visible
     one instead of the suite's `driver` fixture, wraps a launch failure in `RoundEnvError` as the
-    suite's own launch does (finding 5), and activates Chrome through the OS (`osascript
-    activate`), since `bring_to_front` only raises a tab inside Chrome while the terminal can
+    suite's own launch does (finding 5), and activates the browser through the OS (`osascript
+    activate`), since `bring_to_front` only raises a tab inside the browser while the terminal can
     still be the frontmost app (edge F5). Playwright exposes no handle on the process it
-    launches, so activation goes by app name; the leg refuses to start beside another Chrome,
-    so that name can only mean the launched one. [runner] runs pgrep and osascript.
+    launches, so activation goes by app name or bundle path; the leg refuses to start beside
+    another instance of that app, so the name can only mean the launched one. [runner] runs pgrep
+    and osascript.
     """
-    _refuse_a_running_chrome(runner)
-    with sync_playwright() as playwright:
+    with toolchain_playwright() as playwright:
+        pgrep_args, app = _host_app(browser, playwright.firefox.executable_path)
+        _refuse_a_running_browser(runner, pgrep_args)
         try:
-            chrome = playwright.chromium.launch(channel="chrome", headless=False)
+            opened = launch_browser(playwright, browser, headless=False)
         except PlaywrightError as error:
-            raise RoundEnvError(f"chrome launch failed: {error}") from error
+            raise RoundEnvError(f"{browser} launch failed: {error}") from error
         try:
-            page = chrome.new_page(base_url=base_url)
+            page = opened.new_page(base_url=base_url)
             open_fixture_route(page, FIXTURE_ID)
             wait_until_held(
                 lambda: _order(page, "web") == INITIAL_ORDER,
                 "the six items on screen",
                 timeout_s=WAIT_TIMEOUT_S,
             )
-            _activate_chrome(runner)
+            _activate_browser(runner, app)
             yield page
         finally:
             with contextlib.suppress(PlaywrightError):
-                chrome.close()
+                opened.close()
 
 
-def _refuse_a_running_chrome(runner: Callable[..., Any]) -> None:
-    """Raise `RoundEnvError` when a Google Chrome already runs on this Mac (finding 4).
+def _host_app(browser: str, firefox_executable: str) -> tuple[list[str], str]:
+    """Return the `pgrep` argv that finds [browser]'s process and the `osascript` target that names its app.
+
+    Chrome goes by its app name. Firefox is Playwright's bundled build, found by the path of its
+    executable and activated by the `.app` bundle holding it, so a tester's own Firefox is never
+    the target and no bundle name is hardcoded.
+    """
+    if browser == "chrome":
+        return ["pgrep", "-x", _CHROME_PROCESS], _CHROME_PROCESS
+    bundle = next((parent for parent in Path(firefox_executable).parents if parent.suffix == ".app"), None)
+    if bundle is None:
+        raise RoundEnvError(f"the Playwright Firefox at {firefox_executable} is not inside an .app bundle")
+    return ["pgrep", "-f", firefox_executable], str(bundle)
+
+
+def _refuse_a_running_browser(runner: Callable[..., Any], pgrep_args: list[str]) -> None:
+    """Raise `RoundEnvError` when [pgrep_args] finds the browser's app already running on this Mac (finding 4).
 
     Activation by app name could reach that instance instead of the launched one, and VoiceOver
     would then walk the tester's own tabs.
     """
-    result = _run_on_host(runner, ["pgrep", "-x", _CHROME_PROCESS])
+    result = _run_on_host(runner, pgrep_args)
     if result.returncode == 0:
         raise RoundEnvError(
-            f"{_CHROME_PROCESS} already runs (pid {_stream_text(result.stdout)}); quit it first: "
-            "the web host leg activates Chrome by name and could reach that instance"
+            f"{pgrep_args[-1]} already runs (pid {_stream_text(result.stdout)}); quit it first: "
+            "the web host leg activates the browser by name and could reach that instance"
         )
     if result.returncode != 1:
         raise RoundEnvError(
@@ -365,13 +383,13 @@ def _refuse_a_running_chrome(runner: Callable[..., Any]) -> None:
         )
 
 
-def _activate_chrome(runner: Callable[..., Any]) -> None:
-    """Bring the one running Chrome, the launched one, to the front, or raise `RoundEnvError`."""
-    activate = f'tell application "{_CHROME_PROCESS}" to activate'
+def _activate_browser(runner: Callable[..., Any], app: str) -> None:
+    """Bring the one running [app], the launched browser, to the front, or raise `RoundEnvError`."""
+    activate = f'tell application "{app}" to activate'
     result = _run_on_host(runner, osascript_args(activate))
     if result.returncode != 0:
         raise RoundEnvError(
-            f"Chrome activation failed: osascript exited {result.returncode}. "
+            f"{app} activation failed: osascript exited {result.returncode}. "
             f"stderr: {_stream_text(result.stderr)}"
         )
 
@@ -706,23 +724,23 @@ def test_host_voiceover_reads_the_items_and_their_moves_on_macos(
 @pytest.mark.level2_host
 @pytest.mark.req("fo06/us11/fr03/e03")
 def test_host_voiceover_reads_the_items_and_their_moves_on_web(
-    static_server: StaticServer,
+    static_server: StaticServer, browser_name: str
 ) -> None:
-    """The Mac's VoiceOver reads Item 1 to Item 6 in order in a visible Chrome, and their moves prove E03.
+    """The Mac's VoiceOver reads Item 1 to Item 6 in order in a visible browser, and their moves prove E03.
 
     Owner command only (`-m level2_host --host-voiceover --platform web`; ruling O1); without
-    `--host-voiceover` it skips whatever `-m` selects. Browser: Chrome, as the level 1 web leg,
-    but visible (`headless=False`), since headless Chrome has no window for VoiceOver;
-    `_host_chrome` refuses to start while another Chrome runs, then activates the launched one
-    itself (`osascript`), since `bring_to_front` only raises a tab while the terminal can stay
-    the frontmost app. Semantics: the test_app
-    calls `SemanticsBinding.ensureSemantics` at start, so Flutter's semantics tree exists with
-    no placeholder click, and `_host_chrome` waits for the six items (held) before VoiceOver
-    starts; Chrome builds its accessibility tree for VoiceOver once VoiceOver runs, which the
-    walk's silence tolerance rides out.
+    `--host-voiceover` it skips whatever `-m` selects. Browser: the one the target names
+    (`--device`), as the level 1 web leg, but visible (`headless=False`), since a headless
+    browser has no window for VoiceOver; `_host_browser` refuses to start while another instance
+    of that app runs, then activates the launched one itself (`osascript`), since
+    `bring_to_front` only raises a tab while the terminal can stay the frontmost app. Semantics:
+    the test_app calls `SemanticsBinding.ensureSemantics` at start, so Flutter's semantics tree
+    exists with no placeholder click, and `_host_browser` waits for the six items (held) before
+    VoiceOver starts; the browser builds its accessibility tree for VoiceOver once VoiceOver
+    runs, which the walk's silence tolerance rides out.
     Words and E03 action lists: as the macOS leg above.
     """
-    with _host_chrome(static_server.url), HostVoiceOver() as voiceover:
+    with _host_browser(static_server.url, browser_name), HostVoiceOver() as voiceover:
         stops, menus, phrases = _host_walk(voiceover)
         _assert_host_stops(stops, phrases)
         _assert_host_actions(menus, stops, phrases)

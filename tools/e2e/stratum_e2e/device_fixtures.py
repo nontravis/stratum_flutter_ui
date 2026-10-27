@@ -3,7 +3,7 @@
 Loaded by `-p` from `pytest.ini`; the scope check keeps unit/ runnable under any --platform and without a device. In a device round
 (`--target` or `--mode`) every fixture here depends on `round_target`, so it re-creates per target,
 and the round plugin (`stratum_e2e.round.plugin`) supplies the app and the low-level options; an
-Appium server, install, or session failure, a Chrome launch or page failure, or a TalkBack or uhid keyboard setup
+Appium server, install, or session failure, a web browser launch or page failure, or a TalkBack or uhid keyboard setup
 failure raises `RoundEnvError`, so the round classes it `env`.
 """
 
@@ -23,7 +23,7 @@ from appium.options.android import UiAutomator2Options
 from appium.options.common import AppiumOptions
 from appium.options.ios import XCUITestOptions
 from appium.options.mac import Mac2Options
-from playwright.sync_api import Browser, Playwright, sync_playwright
+from playwright.sync_api import Browser, Playwright
 from playwright.sync_api import Error as PlaywrightError
 from selenium.common.exceptions import WebDriverException
 from urllib3.exceptions import HTTPError
@@ -45,12 +45,14 @@ from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.macos.session import mac_capabilities
 from stratum_e2e.paths import in_round_scope
 from stratum_e2e.ports import free_port
+from stratum_e2e.round.catalog import TARGETS_TOML, load_catalog
 from stratum_e2e.round.collect import item_target
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.results import _segment
 from stratum_e2e.round.runner import Runner
 from stratum_e2e.round.state import ROUND_KEY, RoundTarget
 from stratum_e2e.selection import skip_reason
+from stratum_e2e.web.browsers import launch_browser, toolchain_playwright
 from stratum_e2e.web.server import StaticServer
 
 _CONSOLE_LOCKED = re.compile(r'"CGSSessionScreenIsLocked"\s*=\s*Yes')
@@ -164,8 +166,21 @@ def static_server(round_app: Path, _static_servers: _StaticServers) -> StaticSer
 
 
 @pytest.fixture(scope="session")
-def browser(request: pytest.FixtureRequest) -> Iterator[Callable[[], Browser]]:
-    """Return the getter of the headless Chrome the web leg drives; it launches on the first call and closes at
+def browser_name(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> str:
+    """The catalog browser the web leg drives: the round target's, else the one `--device` names, else Chrome.
+
+    A web target's device id is its name, so a legacy run with `--device firefox` reads that target's `browser`.
+    """
+    if round_target is not None:
+        return round_target.target.browser or "chrome"
+    device = request.config.getoption("--device")
+    target = load_catalog(TARGETS_TOML).targets.get(device) if device else None
+    return (target.browser if target is not None else None) or "chrome"
+
+
+@pytest.fixture(scope="session")
+def browser(request: pytest.FixtureRequest, browser_name: str) -> Iterator[Callable[[], Browser]]:
+    """Return the getter of the headless browser the web leg drives; it launches on the first call and closes at
     session end.
 
     A failed launch raises `RoundEnvError`. In a device round the failure is not kept, so the round's re-run of an
@@ -183,10 +198,10 @@ def browser(request: pytest.FixtureRequest) -> Iterator[Callable[[], Browser]]:
             if not launched:
                 try:
                     if not started:
-                        started.append(stack.enter_context(sync_playwright()))
-                    launched.append(started[0].chromium.launch(channel="chrome", headless=True))
+                        started.append(stack.enter_context(toolchain_playwright()))
+                    launched.append(launch_browser(started[0], browser_name, headless=True))
                 except PlaywrightError as error:
-                    env = RoundEnvError(f"chrome launch failed: {_first_line(str(error))}")
+                    env = RoundEnvError(f"{browser_name} launch failed: {_first_line(str(error))}")
                     if not in_round:
                         failure.append(env)
                     raise env from error
@@ -206,12 +221,13 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
     """
     if platform == "web":
         launch: Callable[[], Browser] = request.getfixturevalue("browser")
-        chrome = launch()
+        browser = launch()
         server = request.getfixturevalue("static_server")
         try:
-            page = chrome.new_page(base_url=server.url)
+            page = browser.new_page(base_url=server.url)
         except PlaywrightError as error:
-            raise RoundEnvError(f"chrome page failed: {_first_line(str(error))}") from error
+            name: str = request.getfixturevalue("browser_name")
+            raise RoundEnvError(f"{name} page failed: {_first_line(str(error))}") from error
         try:
             yield page
         finally:

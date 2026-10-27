@@ -65,6 +65,11 @@ platform = "macos"
 platform = "web"
 browser = "chrome"
 
+[targets.firefox]
+platform = "web"
+browser = "firefox"
+integration = false
+
 [targets.linux]
 platform = "linux"
 e2e = false
@@ -109,6 +114,7 @@ import stratum_e2e.android.uhid_keyboard as uhid_keyboard
 import stratum_e2e.device_fixtures as device_fixtures
 import stratum_e2e.round.bring_up as bring_up
 import stratum_e2e.round.state as state
+import stratum_e2e.web.browsers as web_browsers
 from stratum_e2e.appium_server import AppiumServer, AppiumStartError
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.app_build import AppBuild
@@ -430,6 +436,7 @@ def _check(serial):
 e2e_avd.check = _check
 
 _launch_failures = [SCENARIO.get("chrome_launch_fail", 0)]
+_firefox_launch_failures = [SCENARIO.get("firefox_launch_fail", 0)]
 _page_failures = [SCENARIO.get("chrome_page_fail", 0)]
 
 
@@ -453,6 +460,7 @@ class _Chrome:
 class _Chromium:
     def launch(self, channel=None, headless=None):
         event("chrome launch")
+        event(f"launch headless={headless}")
         if _launch_failures[0]:
             _launch_failures[0] -= 1
             raise playwright.sync_api.Error(
@@ -461,10 +469,21 @@ class _Chromium:
         return _Chrome()
 
 
+class _Firefox:
+    def launch(self, headless=None):
+        event("firefox launch")
+        event(f"launch headless={headless}")
+        if _firefox_launch_failures[0]:
+            _firefox_launch_failures[0] -= 1
+            raise playwright.sync_api.Error("BrowserType.launch: Executable doesn't exist at /t/ms-playwright/firefox-1")
+        return _Chrome()
+
+
 class _Playwright:
-    """Stands in for `sync_playwright()`: its Chromium launches `_Chrome`, failing `chrome_launch_fail` times."""
+    """Stands in for `sync_playwright()`: its Chromium launches `_Chrome`, failing `chrome_launch_fail` times; its Firefox, `firefox_launch_fail` times."""
 
     chromium = _Chromium()
+    firefox = _Firefox()
 
     def __enter__(self):
         event("playwright start")
@@ -475,7 +494,7 @@ class _Playwright:
 
 
 playwright.sync_api.sync_playwright = _Playwright
-device_fixtures.sync_playwright = _Playwright  # the plugin bound the real one at import
+web_browsers.sync_playwright = _Playwright  # the module bound the real one at import
 
 _talkback_failures = [SCENARIO.get("talkback_stuck", 0)]
 _keyboard_failures = [SCENARIO.get("uhid_fail", 0)]
@@ -1460,6 +1479,51 @@ def test_legacy_chrome_launch_failure_is_kept_for_the_session(
     result.assert_outcomes(skipped=1, errors=2)  # the integration item has no platform marker
     assert _events(root, "chrome launch") == ["chrome launch"]
     assert CHROME_MISSING in result.stdout.str()
+
+
+def test_each_web_target_of_a_round_launches_its_own_browser(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    _round(pytester, "--target", "chrome,firefox").assert_outcomes(passed=6)  # chrome adds its 2 integration items
+    assert _events(root, "chrome launch", "firefox launch") == ["chrome launch", "firefox launch"]
+
+
+def test_every_web_launch_is_headless(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    _round(pytester, "--target", "chrome,firefox").assert_outcomes(passed=6)  # chrome adds its 2 integration items
+    assert _events(root, "launch headless") == ["launch headless=True"] * 2
+
+
+def test_firefox_reuses_the_chrome_js_build(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    _round(pytester, "--target", "chrome,firefox").assert_outcomes(passed=6)  # chrome adds its 2 integration items
+    assert _events(root, "build ") == ["build web"]
+
+
+def test_firefox_launch_failure_is_env_naming_firefox(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_tree(pytester, monkeypatch, WEB_DRIVER, {"firefox_launch_fail": 99})
+    _round(pytester, "--target", "firefox").assert_outcomes(errors=2)
+    cells = _cells(_summary(pytester))
+    first = cells["test_e2e.py::test_web_driver_a"]["firefox"]
+    assert first["class"] == "env"
+    assert first["reason"].startswith("firefox launch failed: ")
+
+
+@pytest.mark.parametrize(
+    ("device_args", "launched"),
+    [(("--device", "firefox"), "firefox launch"), (("--device", "chrome"), "chrome launch"), ((), "chrome launch")],
+)
+def test_legacy_web_run_launches_the_browser_its_device_names(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, device_args: tuple[str, ...], launched: str
+) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    build = pytester.path / "web_build"
+    build.mkdir()
+    _round(pytester, "--platform", "web", *device_args, "--app", str(build), "--app-id", "x")
+    assert _events(root, "chrome launch", "firefox launch") == [launched]
 
 
 TALKBACK_TESTS = """\
