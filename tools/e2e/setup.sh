@@ -62,27 +62,38 @@ requirements_pin() { # $1: distribution name
   sed -n "s/^${1}==\(.*\)\$/\1/p" "${REQUIREMENTS}" | head -n 1
 }
 
-# Print the folder name Playwright installs its pinned Firefox into (for example firefox-1555), or nothing.
-# The dry run reads the pin from the installed playwright package and downloads nothing.
+# Print the folder name Playwright installs its pinned Firefox into (for example firefox-1555) and return 0.
+# When it cannot be read, print the cause instead and return 1. The dry run reads the pin from the installed
+# playwright package and downloads nothing. Other browsers (FFmpeg) list their own location; only firefox-* counts.
 firefox_wanted() {
   local plan line
-  [[ -x "${VENV_DIR}/bin/python" ]] || return 0
-  plan="$(PLAYWRIGHT_BROWSERS_PATH="${BROWSERS_DIR}" "${VENV_DIR}/bin/python" -m playwright install --dry-run firefox 2>/dev/null || true)"
+  if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
+    printf 'no venv python at %s\n' "${VENV_DIR}/bin/python"
+    return 1
+  fi
+  if ! plan="$(PLAYWRIGHT_BROWSERS_PATH="${BROWSERS_DIR}" "${VENV_DIR}/bin/python" -m playwright install --dry-run firefox 2>&1)"; then
+    printf 'playwright dry run failed: %s\n' "$(printf '%s' "${plan}" | tail -n 1)"
+    return 1
+  fi
   while IFS= read -r line; do
     if [[ "${line}" =~ ^[[:space:]]*Install\ location:[[:space:]]*(.+)$ ]]; then
-      basename -- "${BASH_REMATCH[1]}"
-      return 0
+      local name
+      name="$(basename -- "${BASH_REMATCH[1]}")"
+      if [[ "${name}" == firefox-* ]]; then
+        printf '%s\n' "${name}"
+        return 0
+      fi
     fi
   done <<<"${plan}"
+  printf 'playwright dry run printed no firefox location\n'
+  return 1
 }
 
-# Print the wanted Firefox folder name when that exact folder holds a complete install, or nothing.
+# Print $1 (a wanted Firefox folder name) when that exact folder holds a complete install, or nothing.
 # Playwright writes an INSTALLATION_COMPLETE marker in a folder only after the download finished.
-firefox_installed() {
-  local wanted
-  wanted="$(firefox_wanted)"
-  [[ -n "${wanted}" && -f "${BROWSERS_DIR}/${wanted}/INSTALLATION_COMPLETE" ]] || return 0
-  printf '%s\n' "${wanted}"
+firefox_installed() { # $1: wanted folder name
+  [[ -f "${BROWSERS_DIR}/${1}/INSTALLATION_COMPLETE" ]] || return 0
+  printf '%s\n' "$1"
 }
 
 # Print the version of the appium CLI, or nothing.
@@ -137,11 +148,9 @@ setup_venv() {
   "${VENV_DIR}/bin/python" -m pip install --disable-pip-version-check -r "${REQUIREMENTS}"
 }
 
-setup_browsers() {
-  local wanted
-  wanted="$(firefox_wanted)"
-  if [[ -n "${wanted}" && "$(firefox_installed)" == "${wanted}" ]]; then
-    log "firefox ${wanted} already installed"
+setup_browsers() { # $1: wanted firefox folder name
+  if [[ "$(firefox_installed "$1")" == "$1" ]]; then
+    log "firefox $1 already installed"
     return 0
   fi
   PLAYWRIGHT_BROWSERS_PATH="${BROWSERS_DIR}" "${VENV_DIR}/bin/python" -m playwright install firefox
@@ -180,15 +189,20 @@ setup_drivers() {
 }
 
 run_setup() {
+  local wanted
   require_commands
   require_python3
   setup_venv
-  setup_browsers
+  if ! wanted="$(firefox_wanted)"; then
+    log "cannot read the firefox revision: ${wanted}"
+    exit 1
+  fi
+  setup_browsers "${wanted}"
   setup_npm
   setup_drivers
   log "toolchain ready (appium ${APPIUM_PIN}, uiautomator2 ${UIA2_DRIVER_PIN}," \
     "xcuitest ${XCUITEST_DRIVER_PIN}, mac2 ${MAC2_DRIVER_PIN}," \
-    "playwright $(requirements_pin playwright), $(firefox_wanted))"
+    "playwright $(requirements_pin playwright), ${wanted})"
 }
 
 CHECK_FAILED=0
@@ -203,7 +217,7 @@ check_tool() { # $1: label, $2: installed version, $3: wanted version
 }
 
 run_check() {
-  local pytest_pin client_pin playwright_pin
+  local pytest_pin client_pin playwright_pin wanted
   pytest_pin="$(requirements_pin pytest)"
   client_pin="$(requirements_pin Appium-Python-Client)"
   playwright_pin="$(requirements_pin playwright)"
@@ -214,7 +228,11 @@ run_check() {
   check_tool Appium-Python-Client "$(pip_pkg_version Appium-Python-Client)" "${client_pin}"
   check_tool pytest "$(pip_pkg_version pytest)" "${pytest_pin}"
   check_tool playwright "$(pip_pkg_version playwright)" "${playwright_pin}"
-  check_tool firefox "$(firefox_installed || true)" "$(firefox_wanted)"
+  if wanted="$(firefox_wanted)"; then
+    check_tool firefox "$(firefox_installed "${wanted}")" "${wanted}"
+  else
+    check_tool firefox "" "${wanted}"
+  fi
   exit "${CHECK_FAILED}"
 }
 
