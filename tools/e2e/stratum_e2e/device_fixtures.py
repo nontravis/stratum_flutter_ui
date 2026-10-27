@@ -28,7 +28,7 @@ from playwright.sync_api import Error as PlaywrightError
 from selenium.common.exceptions import WebDriverException
 from urllib3.exceptions import HTTPError
 
-from stratum_e2e.android.adb import DEDICATED_AVD_BY_MARKER, dedicated_avds
+from stratum_e2e.android.adb import AVD_ONLY_MARKERS, DEDICATED_AVD_BY_MARKER, dedicated_avds
 from stratum_e2e.android.session import android_capabilities, install_apk
 from stratum_e2e.android.talkback import (
     TalkBackLog,
@@ -325,18 +325,26 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 def _refuse_items_for_two_dedicated_avds(items: list[pytest.Item]) -> None:
-    """Fail collection on an e2e item whose markers map to more than one dedicated AVD.
+    """Fail collection on an e2e item no dedicated AVD can run.
 
-    Such an item has no AVD to run on: the selection and the skip hook would drop it on every target, silently.
+    That is an item whose markers map to more than one dedicated AVD, or one carrying an AVD-only marker without
+    `android`. The selection and the skip hook would drop either on every target, silently.
     """
     for item in items:
         if not in_round_scope(Path(str(item.path))):
             continue
-        marked = {marker.name for marker in item.iter_markers() if marker.name in DEDICATED_AVD_BY_MARKER}
+        names = {marker.name for marker in item.iter_markers()}
+        marked = names & DEDICATED_AVD_BY_MARKER.keys()
         if len(dedicated_avds(marked)) > 1:
             raise pytest.UsageError(
                 f"{item.nodeid} is marked for more than one dedicated AVD ({', '.join(sorted(marked))}); "
                 "mark it for one"
+            )
+        avd_only = sorted(marked & AVD_ONLY_MARKERS)
+        if avd_only and "android" not in names:
+            raise pytest.UsageError(
+                f"{item.nodeid} is marked {', '.join(avd_only)} but not android; "
+                "a dedicated AVD runs Android items only"
             )
 
 

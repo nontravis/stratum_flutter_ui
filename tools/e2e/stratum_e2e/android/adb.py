@@ -14,6 +14,8 @@ DEDICATED_AVD_BY_MARKER: Mapping[str, str] = MappingProxyType(
     {"talkback_avd": TALKBACK_AVD, "level2": TALKBACK_AVD, "stylus_avd": STYLUS_AVD}
 )
 DEDICATED_AVDS = frozenset(DEDICATED_AVD_BY_MARKER.values())
+# `level2` also marks iOS and Mac items; every other dedicated marker means an Android AVD and nothing else.
+AVD_ONLY_MARKERS = frozenset(DEDICATED_AVD_BY_MARKER) - {"level2"}
 UNSET = "null"
 
 

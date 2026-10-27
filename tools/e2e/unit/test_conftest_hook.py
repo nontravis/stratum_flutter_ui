@@ -196,6 +196,34 @@ def test_an_item_marked_for_two_dedicated_avds_fails_collection(
     result.stderr.fnmatch_lines(["*test_marked_for_both is marked for more than one dedicated AVD*stylus_avd*"])
 
 
+@pytest.mark.parametrize("marker", ["talkback_avd", "stylus_avd"])
+def test_an_avd_marker_without_android_fails_collection(
+    marker: str, pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dedicated AVD runs Android items only, so such an item would vanish from every run; collection names it."""
+    build_sandbox(pytester, monkeypatch)
+    (suite_dir(pytester) / "test_no_android.py").write_text(
+        f"import pytest\n\n@pytest.mark.ios\n@pytest.mark.{marker}\ndef test_marked_without_android(): pass\n"
+    )
+
+    result = run_sandbox(pytester, "e2e/test_no_android.py", "-p", "no:cacheprovider", "--platform", "ios")
+
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines([f"*test_marked_without_android is marked {marker} but not android*"])
+
+
+def test_level2_without_android_still_collects(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`level2` also marks iOS and Mac items, so it needs no `android`."""
+    build_sandbox(pytester, monkeypatch)
+    (suite_dir(pytester) / "test_level2_ios.py").write_text(
+        "import pytest\n\n@pytest.mark.ios\n@pytest.mark.level2\ndef test_level2_on_ios(): pass\n"
+    )
+
+    result = run_sandbox(pytester, "e2e/test_level2_ios.py", "-p", "no:cacheprovider", "--collect-only")
+
+    assert result.ret == pytest.ExitCode.OK
+
+
 def test_baseline_folder_name_matches_round_segment(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
