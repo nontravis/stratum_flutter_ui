@@ -107,3 +107,38 @@ def test_runs_e2e_perf_items_run_only_on_mac() -> None:
 def test_runs_e2e_target_without_e2e_runs_nothing() -> None:
     assert not runs_e2e(_target("linux", "linux", e2e=False), {"android", "ios", "macos", "web", "perf"})
     assert not runs_e2e(_target("mac", "macos", e2e=False), {"macos", "perf"})
+
+
+HOST_MARKERS = {"level2", "level2_host"}
+
+
+@pytest.mark.parametrize("platform", ["macos", "web"])
+def test_skip_reason_skips_a_level2_host_item_without_the_opt_in(platform: str) -> None:
+    """A command-line `-m` replaces the addopts default; only --host-voiceover lets a host leg start VoiceOver."""
+    assert skip_reason({platform, *HOST_MARKERS}, platform) == "level2_host runs only with --host-voiceover"
+    assert skip_reason({platform, *HOST_MARKERS}, platform, host_voiceover=False) is not None
+
+
+@pytest.mark.parametrize("platform", ["macos", "web"])
+def test_skip_reason_runs_a_level2_host_item_with_the_opt_in(platform: str) -> None:
+    assert skip_reason({platform, *HOST_MARKERS}, platform, host_voiceover=True) is None
+    assert skip_reason({platform, *HOST_MARKERS}, None, host_voiceover=True) == "no --platform given"
+
+
+def test_skip_reason_opt_in_never_runs_a_perf_item() -> None:
+    assert skip_reason({"perf", "macos"}, "macos", host_voiceover=True) == "perf runs only in a device round"
+
+
+@pytest.mark.parametrize(
+    ("target", "platform"),
+    [(_target("mac", "macos"), "macos"), (_target("chrome", "web", browser="chrome"), "web")],
+)
+def test_runs_e2e_runs_a_level2_host_item_only_with_the_opt_in(target: Target, platform: str) -> None:
+    assert not runs_e2e(target, {platform, *HOST_MARKERS})
+    assert not runs_e2e(target, {platform, *HOST_MARKERS}, host_voiceover=False)
+    assert runs_e2e(target, {platform, *HOST_MARKERS}, host_voiceover=True)
+
+
+def test_runs_e2e_opt_in_runs_no_level2_host_item_on_android() -> None:
+    assert not runs_e2e(TALKBACK, {"macos", *HOST_MARKERS}, host_voiceover=True)
+    assert not runs_e2e(SHARED_ANDROID, {"web", *HOST_MARKERS}, host_voiceover=True)

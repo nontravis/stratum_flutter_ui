@@ -57,6 +57,49 @@ def test_hook_skips_wrong_platform_in_tests_dir(pytester: pytest.Pytester) -> No
     result.assert_outcomes(passed=1, skipped=2)
 
 
+HOST_LEG_SOURCE = """\
+import pytest
+
+
+@pytest.mark.macos
+@pytest.mark.level2
+@pytest.mark.level2_host
+def test_host_leg(): pass
+
+
+@pytest.mark.macos
+@pytest.mark.level2
+def test_level2_leg(): pass
+"""
+
+
+def _make_host_leg_tree(pytester: pytest.Pytester) -> None:
+    _make_tree(pytester)
+    (pytester.path / "tests" / "test_host_leg.py").write_text(HOST_LEG_SOURCE)
+
+
+def test_a_replaced_marker_expression_skips_the_host_leg_without_the_opt_in(pytester: pytest.Pytester) -> None:
+    """`-m level2` replaces the addopts `not level2_host`; the hook still skips the host leg (no VoiceOver starts)."""
+    _make_host_leg_tree(pytester)
+    result = pytester.runpytest_subprocess("tests/test_host_leg.py", "-m", "level2", "--platform", "macos", "-rs")
+    result.assert_outcomes(passed=1, skipped=1)
+    result.stdout.fnmatch_lines(["*level2_host runs only with --host-voiceover*"])
+
+
+def test_the_opt_in_runs_the_host_leg(pytester: pytest.Pytester) -> None:
+    _make_host_leg_tree(pytester)
+    result = pytester.runpytest_subprocess(
+        "tests/test_host_leg.py", "-m", "level2", "--platform", "macos", "--host-voiceover"
+    )
+    result.assert_outcomes(passed=2)
+
+
+def test_the_default_marker_expression_deselects_the_host_leg_even_with_the_opt_in(pytester: pytest.Pytester) -> None:
+    _make_host_leg_tree(pytester)
+    result = pytester.runpytest_subprocess("tests/test_host_leg.py", "--platform", "macos", "--host-voiceover")
+    result.assert_outcomes(passed=1, deselected=1)
+
+
 TALKBACK_TESTS_SOURCE = """\
 import pytest
 

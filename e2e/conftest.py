@@ -49,6 +49,16 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         metavar="ID",
         help="Android package name or iOS bundle id of the app under test.",
     )
+    group.addoption(
+        "--host-voiceover",
+        dest="host_voiceover",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the level2_host legs, which start VoiceOver on this Mac (owner command only, ruling O1). "
+            "Without it they skip, whatever -m selects."
+        ),
+    )
 
 
 @pytest.fixture(scope="session")

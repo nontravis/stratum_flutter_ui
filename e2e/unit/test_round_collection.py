@@ -282,6 +282,31 @@ def test_perf_is_out_of_default_runs(pytester: pytest.Pytester, monkeypatch: pyt
     assert selected == ["test_perf.py::test_perf[mac]"]
 
 
+HOST_LEG_SOURCE = """\
+import pytest
+
+
+@pytest.mark.macos
+@pytest.mark.web
+@pytest.mark.level2
+@pytest.mark.level2_host
+def test_host_leg(): pass
+"""
+
+
+def test_a_round_runs_the_host_leg_only_with_the_opt_in(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A round's `-m level2` replaces the addopts default; only --host-voiceover selects the host leg."""
+    root = _make_tree(pytester, monkeypatch)
+    (root / "tests" / "test_host_leg.py").write_text(HOST_LEG_SOURCE)
+    without = _ids(_collect(pytester, "-m", "level2", "--target", "mac,chrome"))
+    assert not [item for item in without if item.startswith("test_host_leg.py::")]
+    with_opt_in = _ids(_collect(pytester, "-m", "level2", "--target", "mac,chrome", "--host-voiceover"))
+    assert sorted(item for item in with_opt_in if item.startswith("test_host_leg.py::")) == [
+        "test_host_leg.py::test_host_leg[chrome]",
+        "test_host_leg.py::test_host_leg[mac]",
+    ]
+
+
 def test_collect_only_prints_the_round_plan(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
     root = _make_tree(pytester, monkeypatch)
     result = _collect(pytester, "--target", "pixel_8,pixel_2,small_phone,tablet", "--mode", "full")

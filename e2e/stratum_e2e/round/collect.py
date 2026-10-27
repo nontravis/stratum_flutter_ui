@@ -89,7 +89,8 @@ def runs_item(target: Target, item: pytest.Item, files_by_platform: dict[str, se
     file = item_params(item).get("integration_file")
     if file is not None:
         return target.integration and file in files_by_platform[target.platform]
-    return runs_e2e(target, {marker.name for marker in item.iter_markers()})
+    markers = {marker.name for marker in item.iter_markers()}
+    return runs_e2e(target, markers, host_voiceover=bool(item.config.getoption("host_voiceover")))
 
 
 def order_key(item: pytest.Item, order: dict[str, int]) -> tuple[int, int]:
