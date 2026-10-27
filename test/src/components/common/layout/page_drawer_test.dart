@@ -2646,6 +2646,29 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
+    testWidgets(
+      'fo06/us19/fr04/e12: s03/inv67: a page layout that fills the screen '
+      'sizes its drawer by the screen',
+      (tester) async {
+        _view(tester, _duo);
+        await tester.pumpWidget(
+          _host(
+            RepaintBoundary(
+              key: _shot,
+              child: ColoredBox(color: _behind, child: _page()),
+            ),
+          ),
+        );
+        await _openMenu(tester);
+
+        final colors = await _pixels(tester, const [Offset(460, 500)]);
+
+        expect(tester.getRect(_panel).width, 360);
+        expect(colors.single, isNot(_behind));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
     final sides = <(String, PageSide)>[
       ('slide', const PageSide()),
       ('back', const PageSide(type: PageDrawerType.back)),
