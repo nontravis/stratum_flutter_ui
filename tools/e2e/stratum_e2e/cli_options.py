@@ -31,7 +31,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--device",
         default=None,
         metavar="TARGET",
-        help="Device target: an adb serial, an iOS udid, 'mac', 'chrome', or 'chrome_wasm'.",
+        help="Device target: an adb serial, an iOS udid, 'mac', 'chrome', 'chrome_wasm', or 'firefox'.",
     )
     group.addoption(
         "--app",

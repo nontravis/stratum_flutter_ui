@@ -25,6 +25,15 @@ def launch_browser(playwright: Playwright, name: str, *, headless: bool) -> Brow
     raise ValueError(f"unknown browser '{name}'; the catalog names chrome or firefox")
 
 
+def launch_error(name: str, error: Exception) -> str:
+    """Returns the `RoundEnvError` message of a failed launch of [name]: the error's first line, plus the fix when the browser is not installed."""
+    first_line = next((line.strip() for line in str(error).splitlines() if line.strip()), "")
+    message = f"{name} launch failed: {first_line}"
+    if "Executable doesn't exist" in first_line:
+        message += "; run tools/e2e/setup.sh"
+    return message
+
+
 def browser_engine(page: Page) -> str:
     """Returns the engine that renders [page]: `chromium` or `firefox`."""
     browser = page.context.browser

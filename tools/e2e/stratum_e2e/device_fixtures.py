@@ -52,7 +52,7 @@ from stratum_e2e.round.results import _segment
 from stratum_e2e.round.runner import Runner
 from stratum_e2e.round.state import ROUND_KEY, RoundTarget
 from stratum_e2e.selection import skip_reason
-from stratum_e2e.web.browsers import launch_browser, toolchain_playwright
+from stratum_e2e.web.browsers import launch_browser, launch_error, toolchain_playwright
 from stratum_e2e.web.server import StaticServer
 
 _CONSOLE_LOCKED = re.compile(r'"CGSSessionScreenIsLocked"\s*=\s*Yes')
@@ -167,15 +167,21 @@ def static_server(round_app: Path, _static_servers: _StaticServers) -> StaticSer
 
 @pytest.fixture(scope="session")
 def browser_name(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> str:
-    """The catalog browser the web leg drives: the round target's, else the one `--device` names, else Chrome.
+    """The catalog browser the web leg drives: the round target's, else the web target `--device` names, else Chrome.
 
     A web target's device id is its name, so a legacy run with `--device firefox` reads that target's `browser`.
+    A `--device` that names no web target is a usage error, never a silent Chrome.
     """
     if round_target is not None:
         return round_target.target.browser or "chrome"
     device = request.config.getoption("--device")
-    target = load_catalog(TARGETS_TOML).targets.get(device) if device else None
-    return (target.browser if target is not None else None) or "chrome"
+    if not device:
+        return "chrome"
+    web_targets = {name: target for name, target in load_catalog(TARGETS_TOML).targets.items() if target.platform == "web"}
+    target = web_targets.get(device)
+    if target is None:
+        raise pytest.UsageError(f"--device '{device}' names no web target; the web targets are {', '.join(web_targets)}")
+    return target.browser or "chrome"
 
 
 @pytest.fixture(scope="session")
@@ -201,7 +207,7 @@ def browser(request: pytest.FixtureRequest, browser_name: str) -> Iterator[Calla
                         started.append(stack.enter_context(toolchain_playwright()))
                     launched.append(launch_browser(started[0], browser_name, headless=True))
                 except PlaywrightError as error:
-                    env = RoundEnvError(f"{browser_name} launch failed: {_first_line(str(error))}")
+                    env = RoundEnvError(launch_error(browser_name, error))
                     if not in_round:
                         failure.append(env)
                     raise env from error

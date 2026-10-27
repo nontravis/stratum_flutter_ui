@@ -1526,6 +1526,19 @@ def test_legacy_web_run_launches_the_browser_its_device_names(
     assert _events(root, "chrome launch", "firefox launch") == [launched]
 
 
+@pytest.mark.parametrize("device", ["firefx", "Firefox", "mac"])
+def test_legacy_web_run_refuses_a_device_that_names_no_web_target(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, device: str
+) -> None:
+    root = _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    build = pytester.path / "web_build"
+    build.mkdir()
+    result = _round(pytester, "--platform", "web", "--device", device, "--app", str(build), "--app-id", "x")
+    result.assert_outcomes(skipped=1, errors=2)  # the integration item has no platform marker
+    assert _events(root, "chrome launch", "firefox launch") == []
+    assert f"'{device}' names no web target; the web targets are chrome, firefox" in result.stdout.str()
+
+
 TALKBACK_TESTS = """\
 @pytest.mark.android
 @pytest.mark.talkback_avd

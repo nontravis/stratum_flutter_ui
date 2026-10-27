@@ -55,7 +55,7 @@ from stratum_e2e.macos.host_voiceover import HostVoiceOver, HostVoiceOverError, 
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.waits import wait_until, wait_until_held
 from stratum_e2e.web import snapshot as web_snapshot
-from stratum_e2e.web.browsers import launch_browser, toolchain_playwright
+from stratum_e2e.web.browsers import launch_browser, launch_error, toolchain_playwright
 from stratum_e2e.web.server import StaticServer
 from stratum_e2e.web.session import accessibility_snapshot, open_fixture_route
 
@@ -334,7 +334,7 @@ def _host_browser(base_url: str, browser: str, runner: Callable[..., Any] = subp
         try:
             opened = launch_browser(playwright, browser, headless=False)
         except PlaywrightError as error:
-            raise RoundEnvError(f"{browser} launch failed: {error}") from error
+            raise RoundEnvError(launch_error(browser, error)) from error
         try:
             page = opened.new_page(base_url=base_url)
             open_fixture_route(page, FIXTURE_ID)
@@ -350,6 +350,11 @@ def _host_browser(base_url: str, browser: str, runner: Callable[..., Any] = subp
                 opened.close()
 
 
+def _ere_escape(text: str) -> str:
+    """Return [text] with every ERE metacharacter escaped, so `pgrep -f` matches it literally."""
+    return re.sub(r"([\\.\[\](){}*+?|^$])", r"\\\1", text)
+
+
 def _host_app(browser: str, firefox_executable: str) -> tuple[list[str], str]:
     """Return the `pgrep` argv that finds [browser]'s process and the `osascript` target that names its app.
 
@@ -362,7 +367,7 @@ def _host_app(browser: str, firefox_executable: str) -> tuple[list[str], str]:
     bundle = next((parent for parent in Path(firefox_executable).parents if parent.suffix == ".app"), None)
     if bundle is None:
         raise RoundEnvError(f"the Playwright Firefox at {firefox_executable} is not inside an .app bundle")
-    return ["pgrep", "-f", firefox_executable], str(bundle)
+    return ["pgrep", "-f", _ere_escape(firefox_executable)], str(bundle)
 
 
 def _refuse_a_running_browser(runner: Callable[..., Any], pgrep_args: list[str]) -> None:

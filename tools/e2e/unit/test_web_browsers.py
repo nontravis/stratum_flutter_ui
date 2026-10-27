@@ -107,3 +107,19 @@ def test_browser_engine_reads_the_pages_browser_type(engine: str) -> None:
     page = SimpleNamespace(context=SimpleNamespace(browser=SimpleNamespace(browser_type=SimpleNamespace(name=engine))))
 
     assert browsers.browser_engine(page) == engine  # type: ignore[arg-type]  # fake
+
+
+def test_launch_error_names_the_browser_and_the_first_line() -> None:
+    error = RuntimeError("\n  BrowserType.launch: it broke\nsecond line")
+
+    assert browsers.launch_error("chrome", error) == "chrome launch failed: BrowserType.launch: it broke"
+
+
+@pytest.mark.parametrize("name", BROWSERS)
+def test_launch_error_points_a_missing_executable_at_setup(name: str) -> None:
+    error = RuntimeError("BrowserType.launch: Executable doesn't exist at /t/ms-playwright/firefox-1\nlooks like...")
+
+    assert browsers.launch_error(name, error) == (
+        f"{name} launch failed: BrowserType.launch: Executable doesn't exist at /t/ms-playwright/firefox-1"
+        "; run tools/e2e/setup.sh"
+    )

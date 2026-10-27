@@ -39,6 +39,8 @@ CHROME_PGREP = ["pgrep", "-x", "Google Chrome"]
 CHROME_ACTIVATE = osascript_args('tell application "Google Chrome" to activate')
 FIREFOX_EXECUTABLE = "/t/ms-playwright/firefox-1/firefox/Nightly.app/Contents/MacOS/firefox"
 FIREFOX_BUNDLE = "/t/ms-playwright/firefox-1/firefox/Nightly.app"
+# The same path as a `pgrep -f` ERE: each `.` escaped.
+FIREFOX_PATTERN = r"/t/ms-playwright/firefox-1/firefox/Nightly\.app/Contents/MacOS/firefox"
 
 
 class FakeClock:
@@ -265,8 +267,16 @@ def test_host_app_names_chrome_by_its_app_name() -> None:
 def test_host_app_targets_playwrights_firefox_by_its_paths() -> None:
     pgrep, app = reorder._host_app("firefox", FIREFOX_EXECUTABLE)
 
-    assert pgrep == ["pgrep", "-f", FIREFOX_EXECUTABLE]
+    assert pgrep == ["pgrep", "-f", FIREFOX_PATTERN]
     assert app == FIREFOX_BUNDLE
+
+
+def test_host_app_escapes_the_regex_metacharacters_of_the_firefox_path() -> None:
+    executable = "/t/ms-playwright (1)/c++/firefox-1/Nightly.app/Contents/MacOS/firefox"
+
+    pgrep, _ = reorder._host_app("firefox", executable)
+
+    assert pgrep == ["pgrep", "-f", r"/t/ms-playwright \(1\)/c\+\+/firefox-1/Nightly\.app/Contents/MacOS/firefox"]
 
 
 def test_host_app_refuses_a_firefox_outside_an_app_bundle() -> None:
@@ -332,7 +342,7 @@ def test_the_host_leg_launches_the_target_browser_visible(monkeypatch: pytest.Mo
 
     assert playwright.launches == [("firefox", {"headless": False})]
     assert runner.calls == [
-        ["pgrep", "-f", FIREFOX_EXECUTABLE],
+        ["pgrep", "-f", FIREFOX_PATTERN],
         osascript_args(f'tell application "{FIREFOX_BUNDLE}" to activate'),
     ]
 
