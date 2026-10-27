@@ -47,14 +47,14 @@ migrate_working_dir/
 .history/
 
 # ---------------------------------------------------------------------------
-# e2e toolchain (installed by e2e/tools/setup.sh; nothing global)
+# e2e toolchain (installed by tools/e2e/setup.sh; nothing global)
 # ---------------------------------------------------------------------------
-/e2e/.venv/
-/e2e/.tools/node_modules/
-/e2e/.tools/appium-home/
-/e2e/.wda-derived/
+/tools/e2e/.venv/
+/tools/e2e/.tools/node_modules/
+/tools/e2e/.tools/appium-home/
+/tools/e2e/.wda-derived/
 **/__pycache__/
-/e2e/.pytest_cache/
+/tools/e2e/.pytest_cache/
 
 # ---------------------------------------------------------------------------
 # OS and editor noise

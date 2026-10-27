@@ -1,0 +1,5 @@
+# Python dependencies for the e2e pytest project (design section 16, pinned versions).
+# Installed only into tools/e2e/.venv by tools/e2e/setup.sh; never global.
+Appium-Python-Client==6.0.8
+pytest==9.1.1
+playwright==1.64.1

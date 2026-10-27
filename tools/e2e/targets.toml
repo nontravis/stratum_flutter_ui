@@ -1,0 +1,119 @@
+# The device round catalog: apps, targets, modes, run sequences, and lane limits (design section 7).
+# `stratum_e2e.round.catalog` loads it. A comment that holds an owner ruling or a cause stays beside its value.
+#
+# Per-file features (a `plain_name` or `repeat` table on a target) key a file under `test_app/integration_test/`.
+# Shape:
+#   [targets.pixel_2.plain_name]
+#   "common/web_view_test.dart" = "group B, native only"
+#   [targets.pixel_8.repeat]
+#   "common/web_view_test.dart" = ["co01_02/us03/s1"]   # block prefixes; a comma separates prefixes inside the block
+
+[apps.test_app]
+folder = "test_app"
+android_id = "dev.stratum.stratum_ui_test_app"       # test_app/android/app/build.gradle.kts:21
+apple_id = "dev.stratum.stratumUiTestApp"            # test_app/ios/Runner.xcodeproj/project.pbxproj:386; test_app/macos/Runner/Configs/AppInfo.xcconfig:11
+driver = "test_driver/integration_test.dart"         # web; also required by pixel_8, small_phone, tablet (build_mode = "profile")
+
+[apps.example]
+folder = "example"
+android_id = "dev.stratum.stratum_ui_example"
+apple_id = "dev.stratum.stratumUiExample"
+perf = "dart run tools/perf_abba.dart"                # kind = "perf", macOS only
+
+[targets.pixel_8]
+platform = "android"
+avd = "Pixel_8_API_37"                                 # android-37.2 Play ps16k, WebView 149 (the web view bridge needs 146+), 16G data; owner ruling 2026-10-19 replaces Pixel_8_API_36 (WebView 133)
+alone = true
+build_mode = "profile"                                  # owner ruling 2026-10-17 (RC1 option A): AOT timing, flutter drive
+emulator_args = ["-gpu", "host", "-memory", "4096"]     # owner ruling 2026-10-18: API 36 forces software GLES on 2G RAM, never settles under host load
+
+[targets.pixel_8.repeat]
+"common/web_view_test.dart" = ["co01_02/us03/s1"]
+
+[targets.pixel_2]
+platform = "android"
+avd = "Pixel_2_API_28"                                 # API 28: the engine ignores SystemUiMode.edgeToEdge below API 29
+alone = true
+build_mode = "debug"                                    # plain_name needs flutter test; flutter drive has no test-name filter
+
+[targets.pixel_2.plain_name]
+"common/web_view_test.dart" = "group B, native only"
+
+[targets.small_phone]
+platform = "android"
+avd = "Small_Phone_API_33"                             # API 29-34 band (edge-to-edge opt-in), 360dp wide
+alone = true
+build_mode = "profile"                                  # owner ruling 2026-10-17 (RC1 option A): AOT timing, flutter drive
+
+[targets.tablet]
+platform = "android"
+avd = "Pixel_Tablet_API_35"                            # API 35 (edge-to-edge enforced, immersive honored), 800/1280dp wide
+alone = true
+build_mode = "profile"                                  # owner ruling 2026-10-17 (RC1 option A): AOT timing, flutter drive
+emulator_args = ["-gpu", "host"]                        # API 35 image boots software GLES; System UI misses its startup deadline and its ANR dialog covers the app; measured 2026-10-24 on this AVD: ANR in 1 of 3 default boots (e2e_talkback: 5 of 7, 0 of 8 with host GPU)
+
+[targets.iphone]
+platform = "ios"
+# No runtime pin: the pair resolver takes the newest iOS runtime that holds a device named `device`.
+# Measured 2026-10-23: iOS 27.1 holds only iPhone Duo and iOS 27.0 holds iPhone 17, so the pair resolves to iOS 27.0.
+device = "iPhone 17"
+e2e = false                                             # no e2e legs
+
+[targets.iphone_e2e]
+platform = "ios"
+runtime = "iOS 27.1"
+device = "iPhone Duo"
+integration = false                                     # e2e only; Appium caps stay pinned
+
+[targets.e2e_talkback]
+platform = "android"
+avd = "E2E_TalkBack_API_35"
+alone = true
+integration = false                                     # e2e only, no integration build
+emulator_args = ["-gpu", "host"]                        # API 35 image boots software GLES; System UI misses its startup deadline and its ANR dialog covers the app; measured 2026-10-24: ANR in 5 of 7 default boots, 0 of 8 with host GPU
+
+[targets.mac]
+platform = "macos"
+
+[targets.chrome]
+platform = "web"
+browser = "chrome"
+
+[targets.chrome_wasm]
+platform = "web"
+browser = "chrome"
+wasm = true                                             # owner ruling 2026-10-17 night: every web round covers CanvasKit and skwasm
+
+[targets.linux]
+platform = "linux"                                      # image built from the host flutter version
+apt = ["libsecret-1-dev", "libwebkit2gtk-4.1-dev"]      # flutter_secure_storage_linux, webview_all_linux
+e2e = false
+
+[targets.windows]
+platform = "windows"
+catalog_only = true                                     # unverified: never in a mode, never claimed proven
+integration = false
+e2e = false
+
+[sequences.fo10_cold_restart]
+target = "linux"
+files = [                                               # FO-10 US-01 s2: launch 1 stores, launch 2 restarts (owner ruling 2026-10-21)
+  "common/page_layout_restart_1_linux_test.dart",
+  "common/page_layout_restart_2_linux_test.dart",
+]
+
+[modes.fast]
+targets = ["mac"]
+repeat = 1
+
+[modes.full]
+targets = ["pixel_8", "pixel_2", "small_phone", "tablet", "iphone", "mac", "chrome", "chrome_wasm", "linux", "iphone_e2e", "e2e_talkback"]
+repeat = 10                                             # ruling 2026-10-07; small_phone, tablet 2026-10-16; chrome_wasm 2026-10-17 night
+
+[lane]
+allow_level2 = true                                     # owner ruling 2026-10-18: memory pressure level 2 passes at 30% free
+run_timeout_minutes = 20                                # a hung launch (Android start timeout, DR6 2026-10-16) stalled 41 min at the 60 default; a per-file budget
+boot_settle_timeout_seconds = 300                       # owner ruling 2026-10-25 (was 420): the floor is the API 37 fact of 2026-10-21, Pixel_8_API_37 (API 37 Play) held guest load > 2.0 for ~165 s after boot and once passed the 180 s default
+heavy_processes = ["perf_abba", "perf_freeze"]
+lane_wait_minutes = 10                                  # owner ruling 2026-10-25 (was 30): how long a busy target's lock is awaited before its items report `env: lane busy`
+boot_timeout_minutes = 5                                # owner ruling 2026-10-25 (code default 10): the boot of one emulator or simulator; with the wait and settle, 40 min worst case per target
