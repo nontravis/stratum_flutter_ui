@@ -271,7 +271,7 @@ def test_web_snapshot_places_the_divider_slider_between_the_panes_at_the_percent
 
 # WORKAROUND: Flutter 3.47.7's web engine puts the slider's aria-label on the role-less parent
 # flt-semantics, not on the input that has role=slider (incrementable.dart:31-35,
-# label_and_value.dart:123), so Chrome names the slider ''; any Semantics slider reads the same,
+# label_and_value.dart:123), so Chrome and Firefox name the slider ''; any Semantics slider reads the same,
 # so SplitLayout is not the cause. Remove when the Flutter SDK floor includes f1a05499
 # (flutter#192964, in 3.50.0-0.1.pre); strict=True fails the run once the fix lands.
 @pytest.mark.web

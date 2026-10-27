@@ -61,7 +61,7 @@ def requested_resources(page: Page) -> list[str]:
 
 
 def slider_value_text(page: Page) -> str | None:
-    """Return the `aria-valuetext` of [page]'s slider input, the words Chrome hands the platform API.
+    """Return the `aria-valuetext` of [page]'s slider input, the words the browser hands the platform API.
 
     Neither the ARIA snapshot's text nor the CDP `valuetext` reads it (they print the input's
     number), so a slider's spoken value is read from the attribute. Raises playwright's
