@@ -5,6 +5,7 @@ import 'common/ink_well.dart';
 import 'common/keyboard_visibility_scope.dart';
 import 'common/modal_layout.dart';
 import 'common/page_drawer.dart';
+import 'common/page_drawer_in_safe_area.dart';
 import 'common/page_layout.dart';
 import 'common/page_layout_loading.dart';
 import 'common/reorderable_list_view_layout.dart';
@@ -41,8 +42,9 @@ class FixtureEntry {
 ///
 /// A fixture that builds a `PageLayout` registers `edgeToEdge: true`:
 /// `PageLayout` pads its own slots by the insets, and a host `SafeArea` would
-/// shrink its box below the screen, leaving a strip that paints but takes no
-/// input.
+/// shrink its box below the screen. `common/page_drawer_in_safe_area` keeps
+/// the host `SafeArea` on purpose: it proves a drawer stays inside that
+/// smaller box (FO-06 US-19 FR-04 E09).
 final Map<String, FixtureEntry> fixtures = <String, FixtureEntry>{
   'common/focus_builder': FixtureEntry(
     builder: (context) => const FocusBuilderFixture(),
@@ -57,6 +59,10 @@ final Map<String, FixtureEntry> fixtures = <String, FixtureEntry>{
   'common/page_drawer': FixtureEntry(
     builder: (context) => const PageDrawerFixture(),
     edgeToEdge: true,
+  ),
+  'common/page_drawer_in_safe_area': FixtureEntry(
+    builder: (context) => const PageDrawerInSafeAreaFixture(),
+    edgeToEdge: false,
   ),
   'common/page_layout': FixtureEntry(
     builder: (context) => const PageLayoutFixture(),

@@ -278,8 +278,8 @@ class PageLayout extends StatefulWidget {
   /// pane, as [leftDividerBuilder] does for [left].
   final SplitDividerBuilder? rightDividerBuilder;
 
-  /// Whether a swipe in from a drawer's screen edge opens it; turn it off on
-  /// a page with sideways gestures of its own. On iOS the start edge of a
+  /// Whether a swipe in from a drawer's edge of the box opens it; turn it off
+  /// on a page with sideways gestures of its own. On iOS the start edge of a
   /// page that can go back stays with the back swipe either way.
   final bool edgeSwipe;
 
@@ -1070,8 +1070,8 @@ class _PageLayoutState extends State<PageLayout>
   }
 
   /// [side]'s drawer, or null where it has none: the overlay drawer is a
-  /// `front` drawer exactly [overlayDrawerWidth] wide, with the side's
-  /// label (US-19 FR-01 E04).
+  /// `front` drawer [overlayDrawerWidth] wide, never wider than the box
+  /// (US-19 FR-01, FR-04 E10), with the side's label (US-19 FR-01 E04).
   PageSide? _drawerSide(PageDrawerSide side) {
     if (!_isDrawer(side)) return null;
     if (!_isOverlay(side)) return _sideOf(side);

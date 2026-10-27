@@ -1,6 +1,14 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
-    show defaultDrawerType, drawerWidth, inlinePaneWidth, overlayDrawerWidth;
+    show
+        PageDrawerStage,
+        defaultDrawerType,
+        drawerWidth,
+        inlinePaneWidth,
+        overlayDrawerWidth;
 import 'package:stratum_ui/src/components/common/layout/scrim.dart' show Scrim;
 import 'package:stratum_ui/src/src.dart';
 
@@ -14,6 +22,14 @@ const _phone = Size(360, 780);
 const _tablet = Size(1000, 800);
 const _desktop = Size(1300, 900);
 const _bigDesktop = Size(1700, 900);
+
+/// The iPhone Duo width, whose 84 px inset leaves a 382 px box (FR-04 E09).
+const _duo = Size(466, 1000);
+
+/// What sits behind the PageLayout, in the strip beside its box.
+const _behind = Color(0xFF00FF00);
+
+final GlobalKey _shot = GlobalKey();
 
 /// A test view [size] logical pixels large, reset after the test.
 void _view(WidgetTester tester, [Size size = _phone]) {
@@ -99,6 +115,7 @@ Widget _page({
   PageLayoutController? controller,
   PageLayoutStyle? style,
   bool loading = false,
+  Widget body = const _Menu(),
 }) => PageLayout(
   key: key,
   loading: loading,
@@ -110,7 +127,7 @@ Widget _page({
   customStyle: style,
   left: left,
   right: right,
-  body: const _Menu(),
+  body: body,
 );
 
 /// Pumps [page] in a [size] view under [_host].
@@ -140,6 +157,69 @@ Future<void> _openMenu(WidgetTester tester) async {
   await tester.tap(find.text('Menu'));
   await tester.pumpAndSettle();
 }
+
+/// Pumps [page] in a [_duo] view whose OS reports [inset], under a host
+/// SafeArea over a [_behind] fill, inside the boundary [_pixels] reads.
+Future<void> _pumpInBox(
+  WidgetTester tester,
+  Widget page, {
+  required EdgeInsets inset,
+  TextDirection direction = TextDirection.ltr,
+}) async {
+  _view(tester, _duo);
+  tester.view.padding = FakeViewPadding(left: inset.left, right: inset.right);
+  await tester.pumpWidget(
+    _host(
+      RepaintBoundary(
+        key: _shot,
+        child: ColoredBox(
+          color: _behind,
+          child: SafeArea(child: page),
+        ),
+      ),
+      direction: direction,
+    ),
+  );
+}
+
+/// The colors of [_shot]'s rendered pixels at each logical [points], at a
+/// device pixel ratio of 1.
+Future<List<Color>> _pixels(WidgetTester tester, List<Offset> points) async {
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(_shot),
+  );
+  final colors = await tester.runAsync(() async {
+    final image = await boundary.toImage();
+    final width = image.width;
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    image.dispose();
+    if (bytes == null) return null;
+    Color colorAt(Offset point) {
+      final index = (point.dy.toInt() * width + point.dx.toInt()) * 4;
+      return Color.fromARGB(
+        255,
+        bytes.getUint8(index),
+        bytes.getUint8(index + 1),
+        bytes.getUint8(index + 2),
+      );
+    }
+
+    return [for (final point in points) colorAt(point)];
+  });
+  return colors ?? fail('the boundary rendered no pixels');
+}
+
+/// The clip of the first `ClipRect` in the stage, which bounds the drawers.
+Clip _stageClip(WidgetTester tester) => tester
+    .widget<ClipRect>(
+      find
+          .descendant(
+            of: find.byType(PageDrawerStage),
+            matching: find.byType(ClipRect),
+          )
+          .first,
+    )
+    .clipBehavior;
 
 /// A drawer text only as large as its glyphs: a full-panel text node's
 /// rect, grown by the guideline's 4 px margin, would sample the scrim beside
@@ -356,12 +436,15 @@ void main() {
     });
 
     test(
-      'fo06/us19/fr04/e01: e02: e03: 80% of the screen within min and max',
+      'fo06/us19/fr04/e01: e02: e03: e09: 80% of the box within min and max',
       () {
         expect(drawerWidth(360), 288);
         expect(drawerWidth(500), 360);
         expect(drawerWidth(320, min: 300), 300);
         expect(drawerWidth(500, max: 320), 320);
+        expect(drawerWidth(382), moreOrLessEquals(305.6)); // E09
+        // The minimum stays capped at the default maximum (ruling 2026-10-27).
+        expect(drawerWidth(466, min: 400), 360);
       },
     );
   });
@@ -2543,6 +2626,300 @@ void main() {
       final style = tester.widget<ContainerLayout>(_box('right pane')).style!;
       expect(style.backgroundColor, fill);
       expect(style.dropShadow, fakeTheme.shadow.level4);
+    });
+  });
+
+  group('PageDrawer in a box smaller than the screen', () {
+    testWidgets(
+      'fo06/us19/s1: fo06/us19/fr04/e09: s03/inv67: the drawer is 80% of a box '
+      'the insets narrow',
+      (tester) async {
+        await _pumpInBox(
+          tester,
+          _page(),
+          inset: const EdgeInsets.only(right: 84),
+        );
+        await _openMenu(tester);
+        expect(tester.getRect(_panel).width, moreOrLessEquals(305.6));
+        expect(tester.getRect(_panel).left, 0);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets(
+      'fo06/us19/fr04/e12: s03/inv67: a page layout that fills the screen '
+      'sizes its drawer by the screen',
+      (tester) async {
+        _view(tester, _duo);
+        await tester.pumpWidget(
+          _host(
+            RepaintBoundary(
+              key: _shot,
+              child: ColoredBox(color: _behind, child: _page()),
+            ),
+          ),
+        );
+        await _openMenu(tester);
+
+        final colors = await _pixels(tester, const [Offset(460, 500)]);
+
+        expect(tester.getRect(_panel).width, 360);
+        expect(colors.single, isNot(_behind));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    final sides = <(String, PageSide)>[
+      ('slide', const PageSide()),
+      ('back', const PageSide(type: PageDrawerType.back)),
+    ];
+    final cases = [
+      (
+        name: 'right inset, start drawer',
+        inset: const EdgeInsets.only(right: 84),
+        direction: TextDirection.ltr,
+        endDrawer: false,
+        strip: 424.0,
+        inner: 376.0,
+      ),
+      (
+        name: 'left inset, end drawer',
+        inset: const EdgeInsets.only(left: 84),
+        direction: TextDirection.ltr,
+        endDrawer: true,
+        strip: 42.0,
+        inner: 90.0,
+      ),
+      (
+        name: 'left inset, RTL start drawer',
+        inset: const EdgeInsets.only(left: 84),
+        direction: TextDirection.rtl,
+        endDrawer: false,
+        strip: 42.0,
+        inner: 90.0,
+      ),
+    ];
+    for (final (type, side) in sides) {
+      for (final c in cases) {
+        testWidgets(
+          'fo06/us19/fr04/e09: s03/inv83: nothing paints past the box: $type, '
+          '${c.name}',
+          (tester) async {
+            final page = c.endDrawer
+                ? _page(
+                    right: const Text('end item'),
+                    rightSide: side,
+                    body: const _OpenRight(),
+                  )
+                : _page(leftSide: side);
+            await _pumpInBox(
+              tester,
+              page,
+              inset: c.inset,
+              direction: c.direction,
+            );
+            if (c.endDrawer) {
+              await _openRight(tester);
+            } else {
+              await _openMenu(tester);
+            }
+            final strip = [
+              for (final y in [100.0, 300.0, 500.0, 700.0, 900.0])
+                Offset(c.strip, y),
+            ];
+            expect(await _pixels(tester, strip), everyElement(_behind));
+            final inner = await _pixels(tester, [Offset(c.inner, 500)]);
+            expect(inner.single, isNot(_behind));
+          },
+          variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+        );
+      }
+    }
+
+    for (final type in [
+      PageDrawerType.slide,
+      PageDrawerType.back,
+      PageDrawerType.front,
+    ]) {
+      testWidgets(
+        'fo06/us19/fr04/e10: fo06/us19/fr05/e04: s03/inv68: a drawer as wide as '
+        'the box keeps one Dismiss node, and it closes the drawer: $type',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await _pumpInBox(
+            tester,
+            _page(leftSide: PageSide(type: type, minWidth: 400, maxWidth: 400)),
+            inset: const EdgeInsets.only(right: 84),
+          );
+          await _openMenu(tester);
+          expect(tester.getRect(_panel).width, 382);
+          final dismiss = find.bySemanticsLabel('Dismiss');
+          expect(dismiss, findsOneWidget);
+          expect(
+            tester.getSemantics(dismiss),
+            isSemantics(label: 'Dismiss', hasTapAction: true, isHidden: false),
+          );
+          expect(tester.getRect(dismiss), const Rect.fromLTWH(0, 0, 382, 1000));
+          tester.semantics.tap(find.semantics.byLabel('Dismiss'));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsNothing);
+          await _openMenu(tester);
+          await tester.dragFrom(const Offset(200, 500), const Offset(-200, 0));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsNothing);
+          handle.dispose();
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      );
+    }
+
+    testWidgets(
+      'fo06/us19/fr05/e04: s03/inv68: a drawer as wide as the box reads no '
+      'Dismiss node on this platform, and Esc closes it',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpInBox(
+          tester,
+          _page(leftSide: const PageSide(minWidth: 400, maxWidth: 400)),
+          inset: const EdgeInsets.only(right: 84),
+        );
+        await _openMenu(tester);
+        expect(find.bySemanticsLabel('Dismiss'), findsNothing);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(_drawer, findsNothing);
+        handle.dispose();
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.fuchsia,
+      }),
+    );
+
+    testWidgets(
+      'fo06/us19/fr01: fo06/us19/fr04/e10: s03/inv69: an overlay right drawer '
+      'in a box narrower than 400 takes the box width and keeps its close '
+      'button',
+      (tester) async {
+        _view(tester, _tablet);
+        await tester.pumpWidget(
+          _host(
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: SizedBox(
+                width: 360,
+                child: _sides(overlay: true, left: false),
+              ),
+            ),
+          ),
+        );
+        await _openRight(tester);
+        expect(tester.getSize(_box('right pane')).width, 360);
+        expect(find.bySemanticsLabel('Close'), findsOneWidget);
+        await tester.tap(find.bySemanticsLabel('Close'));
+        await tester.pumpAndSettle();
+        expect(find.text('right pane'), findsNothing);
+      },
+    );
+
+    for (final type in [
+      PageDrawerType.front,
+      PageDrawerType.back,
+      PageDrawerType.slide,
+      PageDrawerType.permanent,
+    ]) {
+      testWidgets('fo06/us19/fr04/e11: s03/inv67: the stage clips to the box only while a '
+          'drawer shows: $type', (tester) async {
+        await _pumpInBox(
+          tester,
+          _page(leftSide: PageSide(type: type)),
+          inset: const EdgeInsets.only(right: 84),
+        );
+        expect(_stageClip(tester), Clip.none);
+        await _openMenu(tester);
+        expect(_stageClip(tester), Clip.hardEdge);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(_stageClip(tester), Clip.none);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    }
+
+    final edgeCases = <(String, TargetPlatform, PageSide)>[
+      ('iOS slide', TargetPlatform.iOS, const PageSide()),
+      (
+        'iOS back',
+        TargetPlatform.iOS,
+        const PageSide(type: PageDrawerType.back),
+      ),
+      (
+        'Android front',
+        TargetPlatform.android,
+        const PageSide(type: PageDrawerType.front),
+      ),
+    ];
+    for (final (type, platform, side) in edgeCases) {
+      Future<void> openInBox(WidgetTester tester) async {
+        await _pumpInBox(
+          tester,
+          _page(leftSide: side),
+          inset: const EdgeInsets.only(right: 84),
+        );
+        await _openMenu(tester);
+      }
+
+      testWidgets(
+        'NFR-U05: NFR-U09: fo06/us19/fr04: s03/inv83: a tap on the scrim at '
+        'the box edge closes the drawer: $type',
+        (tester) async {
+          await openInBox(tester);
+          await tester.tapAt(const Offset(380, 500));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsNothing);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+
+      testWidgets(
+        'NFR-U09: fo06/us19/fr04: s03/inv83: a drag that starts on the scrim '
+        'at the box edge closes the drawer: $type',
+        (tester) async {
+          await openInBox(tester);
+          await tester.dragFrom(const Offset(380, 500), const Offset(-260, 0));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsNothing);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+
+      testWidgets(
+        'fo06/us19/fr04: a tap inside the open panel keeps the drawer open: '
+        '$type',
+        (tester) async {
+          await openInBox(tester);
+          await tester.tapAt(const Offset(150, 500));
+          await tester.pumpAndSettle();
+          expect(_drawer, findsOneWidget);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+    }
+
+    testWidgets('fo06/us19/fr04/e09: opening and closing a drawer in a box '
+        'remounts no page slot', (tester) async {
+      final made = [0];
+      await _pumpInBox(
+        tester,
+        _sides(body: _Kept(made)),
+        inset: const EdgeInsets.only(right: 84),
+      );
+      expect(find.text('right pane'), findsNothing);
+      await _openRight(tester);
+      expect(find.text('right pane'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('right pane'), findsNothing);
+      expect(made.single, 1);
     });
   });
 }
