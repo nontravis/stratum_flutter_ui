@@ -5,8 +5,9 @@ The fixture holds the text field `Note`, a line `Echo: <text>` that shows the fi
 the framework holds it, the button `Show notice`, and the notice `Note saved` with its action
 `Undo`. A user types `abc` into the field, shows the notice, and presses Option+T: focus moves
 to `Undo` and the field still reads `abc`, with no "†". Esc closes the notice and focus returns
-to the field, its text intact. The same steps repeat with F8, the Mac's second key. The notice
-closes 8 s after it shows (FR-04), so the press follows the click at once.
+to the field, its text intact. The same steps repeat with F8, the Mac's second key. test_app
+turns semantics on, which Flutter web reports as a screen reader, so this action notice has no
+close timer here (FR-04); widget tests prove the 8 s close.
 
 FR-05 E06 reads: "Tab on the last control of a page that keeps focus at its edge, on the web in
 an app with its own page stack -> focus leaves for the browser, never into the notice; the
