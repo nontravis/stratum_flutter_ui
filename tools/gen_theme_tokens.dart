@@ -236,9 +236,55 @@ void _colorClass(
       ..writeln('  final $type $name;');
   }
   if (answersColorEnum) _colorEnumLookup(out, node, names);
+  if (path.isEmpty) _colorListing(out, node);
   out.writeln('}');
   for (final key in children) {
     _colorClass(out, _map(node[key], key), [...path, (key, names[key]!)]);
+  }
+}
+
+/// The `byName` listing of the root color class (FO-03 US-10 FR-07): one
+/// entry per typed color getter under [node], keyed by the token path the
+/// theme file writes under `color`, in getter order.
+void _colorListing(StringBuffer out, Map<String, Object?> node) {
+  out
+    ..writeln()
+    ..writeln('  /// Every color token of this set, as an unmodifiable map.')
+    ..writeln('  ///')
+    ..writeln(
+      '  /// A key is the token path as the theme file writes it, hyphens',
+    )
+    ..writeln(
+      '  /// kept (`background.control.input-disabled`). Holds one entry per',
+    )
+    ..writeln('  /// typed getter, in getter order.')
+    ..writeln('  late final Map<String, Color> byName = Map.unmodifiable({');
+  for (final (tokenPath, getter) in _colorEntries(node, '', const [])) {
+    out.writeln("    '$tokenPath': $getter,");
+  }
+  out.writeln('  });');
+}
+
+/// The (token path, Dart getter chain) of each color under [node], depth
+/// first in yaml order; [yamlPath] and [dartPath] lead to [node].
+Iterable<(String, String)> _colorEntries(
+  Map<String, Object?> node,
+  String yamlPath,
+  List<String> dartPath,
+) sync* {
+  final names = _names(
+    node.keys,
+    yamlPath,
+    digitPrefix: yamlPath == 'transparent' ? 'p' : null,
+  );
+  for (final MapEntry(:key, :value) in node.entries) {
+    final keyPath = yamlPath.isEmpty ? key : '$yamlPath.$key';
+    final chain = [...dartPath, names[key]!];
+    if (value is YamlMap) {
+      yield* _colorEntries(_map(value, keyPath), keyPath, chain);
+    } else {
+      yield (keyPath, chain.join('.'));
+    }
   }
 }
 
