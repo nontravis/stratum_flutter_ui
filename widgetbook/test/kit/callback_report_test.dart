@@ -120,4 +120,21 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('row'), findsOneWidget);
   });
+
+  testWidgets('fo11/us04/fr03: the report lays out under an unbounded '
+      'height', (tester) async {
+    await tester.pumpWidget(
+      probeApp(
+        child: SingleChildScrollView(
+          child: Builder(
+            builder: (context) =>
+                reportingSetup(context, const Text('row'), _Args(true)),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('row'), findsOneWidget);
+  });
 }
