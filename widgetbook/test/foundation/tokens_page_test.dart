@@ -94,13 +94,17 @@ void main() {
       for (final MapEntry(:key, :value) in dark.typography.types.entries) {
         final label = _label('typography', key.name);
         expect(label, findsOneWidget, reason: key.name);
-        // The sample size is the type's own size nearest 16 px.
-        final size = value.sizes.keys
-            .map((s) => s.value)
-            .reduce((a, b) => (a - 16).abs() <= (b - 16).abs() ? a : b);
+        // The sample draws the type at one of its own sizes, whichever the
+        // page picks.
+        final style = tester.widget<Text>(label).style;
+        final context = tester.element(label);
         expect(
-          tester.widget<Text>(label).style,
-          StratumTextStyle.type(key).size(size).build(tester.element(label)),
+          value.sizes.keys.any(
+            (size) =>
+                StratumTextStyle.type(key).size(size.value).build(context) ==
+                style,
+          ),
+          isTrue,
           reason: key.name,
         );
       }
@@ -209,6 +213,20 @@ void main() {
       );
     },
   );
+
+  testWidgets('fo11/us05/fr01: a fixed space bar and a radius bar draw the '
+      'token width', (tester) async {
+    await _pump(tester, set, ThemeMode.light);
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('tokens.space.md'))).width,
+      16,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('tokens.radius.sm'))).width,
+      8,
+    );
+  });
 
   test('fo11/us01/fr02: the Tokens page sits under Foundation', () {
     final pages = [
