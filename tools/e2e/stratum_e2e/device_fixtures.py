@@ -165,16 +165,22 @@ def static_server(round_app: Path, _static_servers: _StaticServers) -> StaticSer
     return _static_servers.serve(round_app)
 
 
-@pytest.fixture(scope="session")
-def browser_name(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> str:
-    """The catalog browser the web leg drives: the round target's, else the web target `--device` names, else Chrome.
+_LEGACY_BROWSER_KEY = pytest.StashKey[str]()
 
-    A web target's device id is its name, so a legacy run with `--device firefox` reads that target's `browser`.
-    A `--device` that names no web target is a usage error, never a silent Chrome.
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Resolve the browser of a web run outside a round at startup, so a mistyped `--device` stops before any build.
+
+    Runs after the round plugin's own configure, which decides whether a round is active.
     """
-    if round_target is not None:
-        return round_target.target.browser or "chrome"
-    device = request.config.getoption("--device")
+    if config.stash.get(ROUND_KEY, None) is not None or config.getoption("--platform") != "web":
+        return
+    config.stash[_LEGACY_BROWSER_KEY] = _legacy_browser(config.getoption("--device"))
+
+
+def _legacy_browser(device: str | None) -> str:
+    """The catalog browser the web target `device` names, else Chrome when absent; any other `device` is a usage error."""
     if not device:
         return "chrome"
     web_targets = {name: target for name, target in load_catalog(TARGETS_TOML).targets.items() if target.platform == "web"}
@@ -182,6 +188,17 @@ def browser_name(request: pytest.FixtureRequest, round_target: RoundTarget | Non
     if target is None:
         raise pytest.UsageError(f"--device '{device}' names no web target; the web targets are {', '.join(web_targets)}")
     return target.browser or "chrome"
+
+
+@pytest.fixture(scope="session")
+def browser_name(request: pytest.FixtureRequest, round_target: RoundTarget | None) -> str:
+    """The catalog browser the web leg drives: the round target's, else the one resolved at startup from `--device`.
+
+    A web target's device id is its name, so a legacy run with `--device firefox` reads that target's `browser`.
+    """
+    if round_target is not None:
+        return round_target.target.browser or "chrome"
+    return request.config.stash.get(_LEGACY_BROWSER_KEY, "chrome")
 
 
 @pytest.fixture(scope="session")

@@ -1534,9 +1534,29 @@ def test_legacy_web_run_refuses_a_device_that_names_no_web_target(
     build = pytester.path / "web_build"
     build.mkdir()
     result = _round(pytester, "--platform", "web", "--device", device, "--app", str(build), "--app-id", "x")
-    result.assert_outcomes(skipped=1, errors=2)  # the integration item has no platform marker
-    assert _events(root, "chrome launch", "firefox launch") == []
-    assert f"'{device}' names no web target; the web targets are chrome, firefox" in result.stdout.str()
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    assert _events(root) == []  # no hook ran: no build, no launch, no item
+    assert "passed" not in result.stdout.str()
+    assert f"'{device}' names no web target; the web targets are chrome, firefox" in result.stderr.str()
+
+
+@pytest.mark.parametrize("device_args", [("--device", "firefox"), ()])
+def test_legacy_web_run_with_a_valid_or_absent_device_starts(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, device_args: tuple[str, ...]
+) -> None:
+    _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    build = pytester.path / "web_build"
+    build.mkdir()
+    result = _round(pytester, "--platform", "web", *device_args, "--app", str(build), "--app-id", "x")
+    assert result.ret != pytest.ExitCode.USAGE_ERROR
+
+
+def test_round_run_ignores_the_device_check_at_startup(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_tree(pytester, monkeypatch, WEB_DRIVER)
+    result = _round(pytester, "--target", "chrome", "--platform", "web", "--device", "firefx")
+    assert "names no web target" not in result.stdout.str() + result.stderr.str()
 
 
 TALKBACK_TESTS = """\
