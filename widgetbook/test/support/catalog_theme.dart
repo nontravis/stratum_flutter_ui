@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/stratum_ui.dart';
 
 /// Reads the package's embedded default `theme.yaml` from disk and returns
 /// its four theme data, so catalog pages render the shipped default theme
