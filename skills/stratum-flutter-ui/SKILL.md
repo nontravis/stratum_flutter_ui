@@ -466,7 +466,9 @@ beside `style`, which draws the box.
   or the group has no token of that name. Read a group by name yourself with
   `StratumTheme.of(context).color.icon.color[ColorEnum.blue]`, which gives null for a name the group lacks; a token
   the package's default theme gains joins the lookup in the next package release; an app's own theme can only
-  restyle the names the package already has.
+  restyle the names the package already has. To list every color of the theme and mode shown, read
+  `StratumTheme.of(context).color.byName`, an unmodifiable map from each token path (`brand.normal`,
+  `background.color.blue`) to its color.
 - A component's size hook is `resolveDefaultSize(context)`: the widget's `size` when set, else
   `resolveTheme(context).defaultWidgetSize`, so a subclass that overrides `resolveTheme` sets its own default size.
 

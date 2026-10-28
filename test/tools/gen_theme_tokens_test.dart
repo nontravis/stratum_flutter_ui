@@ -474,4 +474,60 @@ void main() {
     expect(() => StratumShadowTokens.fromMap(const {}), namesKey('1'));
     expect(() => StratumBlurTokens.fromMap(const {}), namesKey('1'));
   });
+
+  group('byName', () {
+    test('fo03/us10/fr07: byName lists each color token with its typed '
+        'value', () {
+      final colors = defaultThemeSet.light.color;
+      final byName = colors.byName;
+      final typed = <String, Color>{
+        'background.color.blue': colors.background.color.blue,
+        'border.color.blue': colors.border.color.blue,
+        'brand.normal': colors.brand.normal,
+        'icon.color.blue': colors.icon.color.blue,
+        'misc.highlight': colors.misc.highlight,
+        'shadow.primary': colors.shadow.primary,
+        'state.hover': colors.state.hover,
+        'text.color.blue': colors.text.color.blue,
+        'transparent.0': colors.transparent.p0,
+      };
+
+      for (final MapEntry(:key, :value) in typed.entries) {
+        expect(byName[key], value, reason: key);
+      }
+      expect(
+        () => byName['brand.normal'] = const Color(0x00000000),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('fo03/us10/fr07/e01: the listing follows the mode shown', () {
+      final light = defaultThemeSet.light.color;
+      final dark = defaultThemeSet.dark?.color;
+      if (dark == null) fail('the default theme set has no dark data');
+      const path = 'background.color.blue';
+
+      expect(light.background.color.blue, isNot(dark.background.color.blue));
+      expect(dark.byName, isNot(light.byName));
+      expect(dark.byName[path], dark.background.color.blue);
+      expect(light.byName[path], light.background.color.blue);
+    });
+
+    test('fo03/us10/fr07/e02: a color key added to the yaml adds its '
+        'entry', () {
+      String generated(Iterable<String> keys) => generateThemeTokens(
+        _yaml('  md: 1').replaceFirst(
+          'brand: { normal: "#000000" }',
+          [for (final key in keys) '$key: "#000000"'].join('\n    '),
+        ),
+      );
+
+      final two = generated(['a', 'b']);
+      final three = generated(['a', 'b', 'c']);
+
+      expect(two, contains("    'b': b,\n"));
+      expect(two, isNot(contains("    'c': c,\n")));
+      expect(three, contains("    'c': c,\n"));
+    });
+  });
 }
