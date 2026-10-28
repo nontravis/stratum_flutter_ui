@@ -10,9 +10,14 @@ bool _isFoundation(Component component) =>
     component.path.split('/').first == CatalogSection.foundation.label;
 
 void main() {
+  test(
+    'fo11/us03/fr02: the catalog holds component pages besides Foundation',
+    () {
+      expect(components.where((c) => !_isFoundation(c)), isNotEmpty);
+    },
+  );
+
   test('fo11/us03/fr02: every catalog page keeps the story set', () {
-    // Vacuous until the first component page lands (M2-T8); it gates every
-    // later page.
     final problems = {
       for (final component in components)
         if (!_isFoundation(component))
