@@ -242,7 +242,7 @@ void main() {
       );
     });
 
-    test('fo06/us04/fr03: themes s03 invariant 46, each data takes the '
+    test('fo06/us04/fr03: themes s03 INV-46, each data takes the '
         'focus set of its own name', () {
       final set = defaultThemeSet;
 

@@ -5,7 +5,7 @@ import 'package:stratum_ui/src/src.dart';
 /// `pageBuilder` (`key: state.pageKey`), or a Navigator 2.0 page list.
 /// Its route brings [child] in with [type], any of the nineteen
 /// [ScreenTransitionType]s, never the type the theme names for the window
-/// size (FO-05 US-05 FR-05; style s03 invariant 22), on the durations and
+/// size (FO-05 US-05 FR-05; style s03 INV-22), on the durations and
 /// curve of FR-01 and FR-03.
 class StratumTransitionPage<T> extends Page<T> {
   const new({
@@ -97,7 +97,7 @@ class _StratumTransitionPageRoute<T> extends PageRoute<T> {
   );
 
   /// The transition the route below leaves by (US-05 FR-01; style s03
-  /// invariant 21), by the one function every route of US-05 shares.
+  /// INV-21), by the one function every route of US-05 shares.
   @override
   DelegatedTransitionBuilder? get delegatedTransition =>
       delegatedScreenTransition(

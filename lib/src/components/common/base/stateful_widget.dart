@@ -67,7 +67,7 @@ abstract class StratumStatefulWidget extends StatefulWidget
 
   /// An element that wraps what the `State`'s `build` returns in the
   /// disabled wrapper, so no component changes its own `build` (base s03
-  /// invariant 12).
+  /// INV-12).
   @override
   StatefulElement createElement() => _StratumStatefulElement(this);
 }

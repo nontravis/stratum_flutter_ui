@@ -17,7 +17,7 @@ enum StratumSplashPhase {
 }
 
 /// The one state [StratumSplashScreen.builder] draws at a time (FO-03 US-12
-/// FR-01; themes `s03_domain.md` invariant 25).
+/// FR-01; themes `s03_domain.md` INV-25).
 sealed class StratumSplashState<T> {
   const new();
 }
@@ -297,7 +297,7 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
 
   /// Reads the package default theme alone, once, for the frames of a
   /// theme-phase failure and its retry (FR-07 E01; themes `s03_domain.md`
-  /// invariant 29). A read that fails is reported, and the failed state
+  /// INV-29). A read that fails is reported, and the failed state
   /// still ends the first-frame hold (FR-02 E03), with no theme above it.
   Future<void> _readPackageDefault() async {
     if (_packageDefault != null) return;

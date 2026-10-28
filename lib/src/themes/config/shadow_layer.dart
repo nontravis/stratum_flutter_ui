@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/themes/value_model.dart';
 part 'generated/shadow_layer.freezed.dart';
 
 /// One layer of a `shadow.<level>` list in `theme.yaml` (config s03 value
-/// objects; invariant 13): a Figma drop shadow as numbers and a color,
+/// objects; INV-13): a Figma drop shadow as numbers and a color,
 /// with no Flutter type, so stage 5 builds it in the Dart VM. FO-03 turns
 /// it into a `BoxShadow` for each color set.
 @immutable

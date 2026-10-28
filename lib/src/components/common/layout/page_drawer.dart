@@ -66,14 +66,14 @@ typedef _Drawn = ({
 
 /// The drawers of a [PageLayout] around [child], the page: both sides below
 /// the drawer cut, and the right overlay drawer at and above it (layout s03
-/// invariants 65 to 69).
+/// INV-65 to INV-69).
 ///
 /// While [shown] names a side, its panel from [panel] sits on that side's
 /// edge of `PageLayout`'s own box at the drawer width, and the page behind
 /// sits under the [Scrim]; [progress] moves them by the side's type, or only
 /// fades the panel under `context.reducesMotion`. While a drawer shows, the
 /// panel, the page, and the scrim stay inside that box (layout s03
-/// invariants 67 and 83). The panel reads as its own named
+/// INV-67 and INV-83). The panel reads as its own named
 /// screen, keeps focus in [focusNode], and closes by Esc; the scrim reads
 /// the dismiss label and closes by a tap; back closes it while [open]
 /// holds, before the route pops. A drag on the shown drawer, or one from a
@@ -179,7 +179,7 @@ class PageDrawerStage extends StatelessWidget {
                   ),
             // The outermost ClipRect inside the stage: bounds the panel, the
             // page, and the scrim to PageLayout's own box while a drawer
-            // shows (layout s03 invariants 67 and 83).
+            // shows (layout s03 INV-67 and INV-83).
             child: ClipRect(
               clipBehavior: drawn == null ? Clip.none : Clip.hardEdge,
               child: StackLayout(
@@ -231,8 +231,8 @@ class PageDrawerStage extends StatelessWidget {
     double box,
   ) {
     // A drawer never runs past PageLayout's own box, even the overlay
-    // drawer in a box narrower than its width (layout s03 invariants 67
-    // and 69).
+    // drawer in a box narrower than its width (layout s03 INV-67
+    // and INV-69).
     return (
       width: math.min(
         drawerWidth(box, min: config.minWidth, max: config.maxWidth),
@@ -258,7 +258,7 @@ class PageDrawerStage extends StatelessWidget {
   /// dismiss label and action merge into this container's node, which sits
   /// outside the page's transform, so a screen reader finds the dismiss at
   /// every drawer width, a drawer as wide as the box included (layout s03
-  /// invariants 67 and 68; US-19 FR-05 E04).
+  /// INV-67 and INV-68; US-19 FR-05 E04).
   Widget _page(BuildContext context, _Drawn? drawn, bool reduced) {
     final motion =
         !reduced &&

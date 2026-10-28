@@ -24,6 +24,7 @@ from unit.sandbox import INI, INTEGRATION_ITEM, build_sandbox, run_sandbox, suit
 
 FILE_A = "smoke/a_test.dart"
 FILE_B = "smoke/b_test.dart"
+ANDROID_FIXTURES = E2E_ROOT / "unit" / "fixtures" / "round" / "android"
 MAC_APP_ID = "dev.stratum.stratumUiTestApp"
 REUSED_SERIAL = "emulator-5554"
 STOP_NOTICE = "stopping: tearing every target down; a further stop signal is ignored, SIGKILL forces"
@@ -55,6 +56,12 @@ build_mode = "profile"
 [targets.e2e_talkback]
 platform = "android"
 avd = "E2E_TalkBack_API_35"
+alone = true
+integration = false
+
+[targets.e2e_stylus]
+platform = "android"
+avd = "E2E_Stylus_API_36"
 alone = true
 integration = false
 
@@ -158,6 +165,8 @@ class FakeRunner:
             stdout = f"{SCENARIO['real_android']}\r\nOK\r\n"
         elif call[-1] == "get-state":
             stdout = "error: device not found\n" if SCENARIO.get("device_lost") else "device\n"
+        elif call[-3:] == ("dumpsys", "window", "windows"):
+            stdout = (ROOT / "focus_normal.txt").read_text()
         elif "ping" in call:
             stdout = "64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms\n"
         elif call[:3] == ("flutter", "--version", "--machine"):
@@ -183,6 +192,10 @@ class FakeRunner:
 _shutdowns = {}
 
 
+# Module-level: the retry's re-run tears the session fixtures down, so a booter's own count would start over.
+_ready_failures: dict[str, int] = {}
+
+
 class FakeBooter:
     """Reuses a host target always and a device target named in `running`; `boot_fail` counts boots that fail."""
 
@@ -206,7 +219,11 @@ class FakeBooter:
         return BootRecord(target.name, target.platform, device, reused=self.is_running(target))
 
     def before_file(self, record):
-        pass
+        event(f"before_file {record.target}")
+        left = _ready_failures.setdefault(record.target, SCENARIO.get("ready_fail", {}).get(record.target, 0))
+        if left:
+            _ready_failures[record.target] = left - 1
+            raise RoundEnvError("ANR dialog never cleared")
 
     def shutdown(self, record):
         """End the device; the target's n-th shutdown fails to restore its n-th listed setting, if any.
@@ -567,6 +584,7 @@ def _make_tree(
     """Build the repo-shaped sandbox: a fixture catalog, the real integration and perf items, fake backends, and `e2e` as test_e2e.py."""
     root = build_sandbox(pytester, monkeypatch, plugin="round_fake")
     (root / "round_fake.py").write_text(FAKE_SOURCE)
+    shutil.copy(ANDROID_FIXTURES / "focus_normal.txt", root / "focus_normal.txt")
     (suite_dir(pytester) / "targets.toml").write_text(TARGETS_TOML.format(mac_app_id=MAC_APP_ID, lane_wait=lane_wait))
     shutil.copytree(E2E_ROOT / "integration", root / "integration", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(TESTS_DIR / "perf", suite_dir(pytester) / "perf", ignore=shutil.ignore_patterns("__pycache__"))
@@ -615,6 +633,58 @@ def _cells(summary: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
 
 def _lifecycle(root: Path) -> list[str]:
     return _events(root, "lane ", "boot ", "item ", "shutdown ", "release ", "run_plan ")
+
+
+TWO_MAC_ITEMS = """\
+@pytest.mark.macos
+def test_mac_a(driver):
+    event("item mac test_mac_a")
+
+
+@pytest.mark.macos
+def test_mac_b(driver):
+    event("item mac test_mac_b")
+"""
+
+
+ONE_MAC_DRIVER_ITEM = """\
+@pytest.mark.macos
+def test_mac_a(driver):
+    event("item mac test_mac_a")
+"""
+
+
+def test_every_driver_item_readies_the_device_after_bring_up_and_before_its_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, TWO_MAC_ITEMS)
+    _round(pytester, "--target", "mac").assert_outcomes(passed=2 + 2)
+    assert _events(root, "boot ", "before_file ", "remote", "item ", "shutdown ") == [
+        "boot mac", "before_file mac", "remote", "item mac test_mac_a", "before_file mac", "remote",
+        "item mac test_mac_b", "shutdown mac",
+    ]
+
+
+def test_a_device_that_cannot_be_readied_reads_env_and_the_item_retries_once(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, ONE_MAC_DRIVER_ITEM, {"ready_fail": {"mac": 1}})
+    _round(pytester, "--target", "mac")
+    assert _events(root, "before_file ", "remote", "item ") == [
+        "before_file mac", "before_file mac", "remote", "item mac test_mac_a",
+    ]
+    assert _cells(_summary(pytester))["test_e2e.py::test_mac_a"]["mac"]["class"] == "pass"
+
+
+def test_a_device_that_stays_unready_reads_env_not_fail(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, ONE_MAC_DRIVER_ITEM, {"ready_fail": {"mac": 9}})
+    _round(pytester, "--target", "mac")
+    cell = _cells(_summary(pytester))["test_e2e.py::test_mac_a"]["mac"]
+    assert cell["class"] == "env"
+    assert "ANR dialog never cleared" in cell["reason"]
+    assert not _events(root, "remote", "item ")
 
 
 def test_round_runs_targets_one_after_another(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1587,6 +1657,61 @@ def test_talkback_avd_check_failure_is_env(pytester: pytest.Pytester, monkeypatc
     assert _events(root, "check ", "item ") == ["check dev-e2e_talkback", "item e2e_talkback test_talkback_a"]
 
 
+STYLUS_TESTS = """\
+@pytest.mark.android
+@pytest.mark.stylus_avd
+def test_stylus_a(round_target):
+    event(f"item {round_target.target.name} test_stylus_a")
+
+
+@pytest.mark.android
+@pytest.mark.talkback_avd
+def test_talkback_a(round_target):
+    event(f"item {round_target.target.name} test_talkback_a")
+
+
+@pytest.mark.android
+def test_android_a(round_target):
+    event(f"item {round_target.target.name} test_android_a")
+"""
+
+
+def test_stylus_avd_check_failure_is_env_and_only_stylus_items_run_there(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, STYLUS_TESTS, {"avd_check": 1})
+    _round(pytester, "--target", "e2e_stylus")
+    assert _events(root, "check ", "item ") == ["check dev-e2e_stylus"]
+    reason = _cells(_summary(pytester))["test_e2e.py::test_stylus_a"]["e2e_stylus"]["reason"]
+    assert reason.startswith("stratum_e2e.e2e_avd create --avd E2E_Stylus_API_36|check: ")
+    assert "stylus:" not in reason
+
+    _write_scenario(root, {"avd_check": 0})
+    _round(pytester, "--target", "e2e_stylus").assert_outcomes(passed=1)
+    assert _events(root, "check ", "item ") == ["check dev-e2e_stylus", "item e2e_stylus test_stylus_a"]
+
+
+TWO_AVD_TESTS = """\
+@pytest.mark.android
+@pytest.mark.talkback_avd
+@pytest.mark.stylus_avd
+def test_two_avds(round_target):
+    event("item test_two_avds")
+"""
+
+
+def test_a_round_refuses_an_item_marked_for_two_dedicated_avds(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, TWO_AVD_TESTS)
+
+    result = _round(pytester, "--target", "e2e_stylus,e2e_talkback")
+
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines(["*test_two_avds*is marked for more than one dedicated AVD (stylus_avd, talkback_avd)*"])
+    assert _events(root, "item ") == []
+
+
 TALKBACK_FIXTURE = """\
 @pytest.mark.android
 @pytest.mark.talkback_avd
@@ -1689,6 +1814,47 @@ def test_round_install_failure_installs_again_on_the_rerun(
     result = _round(pytester, "--target", "tablet")
     result.assert_outcomes(passed=4)
     assert _events(root, "install ") == ["install dev-tablet", "install dev-tablet"]
+
+
+DRIVER_ANDROID = """\
+@pytest.mark.android
+def test_install_a(driver):
+    event("item install_a")
+
+
+@pytest.mark.android
+def test_install_b(driver):
+    event("item install_b")
+"""
+
+
+def test_device_is_readied_after_the_install_and_before_the_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_ANDROID, {"running": ["tablet"]})
+    _round(pytester, "--target", "tablet").assert_outcomes(passed=4)
+    assert _events(root, "install ", "before_file ", "remote", "item install") == [
+        "install dev-tablet", "before_file tablet", "remote", "item install_a",
+        "before_file tablet", "remote", "item install_b",
+    ]
+
+
+PLAIN_MAC = """\
+@pytest.mark.macos
+def test_plain_mac():
+    event("item plain")
+"""
+
+
+def test_a_run_without_a_round_never_readies_the_device(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, PLAIN_MAC)
+    app = pytester.path / "app.app"
+    app.mkdir()
+    _round(pytester, "--platform", "macos", "--device", "mac", "--app", str(app), "--app-id", MAC_APP_ID)
+    assert _events(root, "item plain") == ["item plain"]
+    assert not _events(root, "before_file ")
 
 
 MAC_APP = """\

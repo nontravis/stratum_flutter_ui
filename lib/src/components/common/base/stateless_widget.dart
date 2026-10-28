@@ -64,7 +64,7 @@ abstract class StratumStatelessWidget extends StatelessWidget
   bool get contributesSemantics => true;
 
   /// An element that wraps what [build] returns in the disabled wrapper,
-  /// so no component changes its own `build` (base s03 invariant 12).
+  /// so no component changes its own `build` (base s03 INV-12).
   @override
   StatelessElement createElement() => _StratumStatelessElement(this);
 }

@@ -7,7 +7,7 @@ import '../../common/fakes/fake_stratum_theme.dart';
 // The page-area registration of M4-T27 (N12 to N14, R26): the areas a
 // PageLayout registers with the host and the margins they move — footer,
 // bottom, left pane, keyboard — plus the page `snack` style layer
-// (s03 invariant 16) and the render-level rect reporting that needs no
+// (s03 INV-16) and the render-level rect reporting that needs no
 // page rebuild (N12).
 
 const _desktop = Size(1400, 900);
@@ -431,7 +431,7 @@ void main() {
   });
 
   testWidgets(
-    's03 invariant 16: a call customStyle still wins over the page snack '
+    's03 INV-16: a call customStyle still wins over the page snack '
     'layer',
     (tester) async {
       _view(tester, _phone);

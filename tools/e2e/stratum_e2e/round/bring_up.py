@@ -14,7 +14,7 @@ from typing import Final
 
 import pytest
 
-from stratum_e2e.android.talkback import AVD_NAME
+from stratum_e2e.android.adb import STYLUS_AVD, TALKBACK_AVD
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.android_host import port_directory, sdk_root
 from stratum_e2e.round.app_build import ensure_app_build, resolve_app_packages
@@ -51,6 +51,9 @@ _RESOLVED: Final = ("platform", "device", "app_id")
 _BOOT_KEY: Final = "boot"
 _BOOT_DIR: Final = "boot"
 
+# The `e2e_avd` commands that prepare each dedicated AVD; a target on one runs `e2e_avd check` before its first item.
+_SETUP_STEPS: Final = {TALKBACK_AVD: "talkback|diagnosis", STYLUS_AVD: f"create --avd {STYLUS_AVD}|check"}
+
 
 @contextlib.contextmanager
 def bring_up(state: RoundState, backends: Backends, target: Target) -> Iterator[RoundTarget]:
@@ -72,8 +75,8 @@ def bring_up(state: RoundState, backends: Backends, target: Target) -> Iterator[
         stack.callback(_record_target, state, target, record, finished=True)
         stack.callback(_tear_down, state, target, "shutdown", booter.shutdown, record)
         _record_target(state, target, record)
-        if target.avd == AVD_NAME:
-            _check_talkback_avd(record.device_id)
+        if target.avd in _SETUP_STEPS:
+            _check_dedicated_avd(record.device_id, _SETUP_STEPS[target.avd])
         brought_up = _resolve(state, target, record)
         stack.callback(_restore_options, state.config, {dest: getattr(state.config.option, dest) for dest in _RESOLVED})
         _write_options(state, target, record)
@@ -132,9 +135,12 @@ def _boot(state: RoundState, backends: Backends, booter: Booter, target: Target,
                 raise RoundEnvError(BLOCKED) from error
 
 
-def _check_talkback_avd(serial: str) -> None:
-    """Refuse the dedicated TalkBack AVD unless `stratum_e2e.e2e_avd check` passes on it (pre-flight F12)."""
-    # Imported on use: only a TalkBack round needs it, and it loads the Appium client.
+def _check_dedicated_avd(serial: str, setup_steps: str) -> None:
+    """Refuse a dedicated AVD unless `stratum_e2e.e2e_avd check` passes on it (pre-flight F12).
+
+    [setup_steps] names the `e2e_avd` commands that prepare the AVD, for the failure text.
+    """
+    # Imported on use: only a dedicated-AVD round needs it, and it loads the Appium client.
     from stratum_e2e import e2e_avd
 
     printed = io.StringIO()
@@ -144,7 +150,7 @@ def _check_talkback_avd(serial: str) -> None:
     except (OSError, subprocess.SubprocessError) as error:
         raise RoundEnvError(f"stratum_e2e.e2e_avd check failed on {serial}: {error}") from error
     if status != 0:
-        raise RoundEnvError(f"stratum_e2e.e2e_avd talkback|diagnosis: {' '.join(printed.getvalue().split())}")
+        raise RoundEnvError(f"stratum_e2e.e2e_avd {setup_steps}: {' '.join(printed.getvalue().split())}")
 
 
 def _record_target(state: RoundState, target: Target, record: BootRecord, *, finished: bool = False) -> None:

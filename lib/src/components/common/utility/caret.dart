@@ -141,8 +141,8 @@ class _StratumCaretState extends State<StratumCaret> {
 
   /// Bumped on a false-to-true turn of reduced motion, used as
   /// `TweenAnimationBuilder`'s key: only that edge needs a fresh state
-  /// that starts at the target angle with no animation (spec invariant
-  /// 9). Turning reduced motion back off keeps the live state, whose
+  /// that starts at the target angle with no animation (spec INV-9).
+  /// Turning reduced motion back off keeps the live state, whose
   /// `AnimatedWidgetBaseState` already restarts cleanly toward a new
   /// target, so a direction change in that same frame turns instead of
   /// jumping.
@@ -154,9 +154,9 @@ class _StratumCaretState extends State<StratumCaret> {
   /// Runs in `build`, which sees a new `direction` and a new
   /// [Directionality] of one frame together. A new direction turns the
   /// shorter way, and a half turn the way opposite to the last half turn,
-  /// the first one clockwise (spec `s03_domain.md` invariants 7 and 8).
+  /// the first one clockwise (spec `s03_domain.md` INV-7 and INV-8).
   /// With the direction unchanged, a text-direction flip moves a `start`
-  /// or `end` glyph at once (invariant 10), and any other rebuild changes
+  /// or `end` glyph at once (INV-10), and any other rebuild changes
   /// nothing.
   bool _follow(StratumCaretDirection direction, TextDirection textDirection) {
     final previous = _direction;
@@ -201,7 +201,7 @@ class _StratumCaretState extends State<StratumCaret> {
     );
     // Its side x side default, then the app-wide box style under
     // StratumCaret in componentPartDefaults, then its own, field by field
-    // (PD9; caret s03 invariant 14).
+    // (PD9; caret s03 INV-14).
     final appWide = StratumComponentDefaults.partsOf<StratumCaretStyle>(
       context,
       StratumCaret,
@@ -239,7 +239,7 @@ class _StratumCaretState extends State<StratumCaret> {
             // Keyed by `_reduceKey`, which only a false-to-true turn of
             // reduced motion bumps. Remounting under a new key builds a
             // fresh `TweenAnimationBuilder` state, which starts at its
-            // tween's end value with no animation (spec invariant 9);
+            // tween's end value with no animation (spec INV-9);
             // turning reduced motion back off leaves the key unchanged,
             // so the live state survives and a direction change in that
             // same frame turns instead of jumping.
@@ -247,7 +247,7 @@ class _StratumCaretState extends State<StratumCaret> {
             tween: Tween<double>(end: _quarterTurns * math.pi / 2),
             // The theme's fast level on its standard curve; a level built
             // with no duration or curve takes none and easeInOutSine
-            // (themes s03 invariant 15). Reduced motion and a
+            // (themes s03 INV-15). Reduced motion and a
             // text-direction flip show the new angle at once (US-02
             // FR-03, FR-04).
             duration: jump || reduce
@@ -268,7 +268,7 @@ class _StratumCaretState extends State<StratumCaret> {
               // Foreground: painted after the box's own decoration, so a
               // `customStyle` background never hides the glyph. The
               // box's padding is applied deeper inside that decoration
-              // and never reaches this canvas (spec invariant 14);
+              // and never reaches this canvas (spec INV-14);
               // `margin` is read above instead, because it grows this
               // canvas past `side` and the painter must deflate it back
               // out (US-01 FR-02 E03).
@@ -311,7 +311,7 @@ double _sideOf(WidgetSize size) => switch (size) {
 };
 
 /// Quarter turns clockwise from pointing down that point [direction]
-/// under [textDirection] (spec `s03_domain.md` invariant 7).
+/// under [textDirection] (spec `s03_domain.md` INV-7).
 int _quarterTurnsOf(
   StratumCaretDirection direction,
   TextDirection textDirection,

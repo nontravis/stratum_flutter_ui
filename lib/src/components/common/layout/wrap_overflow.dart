@@ -22,8 +22,8 @@ import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/wrap_cut.dart';
 import 'package:stratum_ui/src/src.dart';
 
-/// The content of a [WrapLayout] in overflow mode (s03 invariants 36 to
-/// 38): [Wrap]'s run rules, cut by [maxRuns] and [maxChildren] at the
+/// The content of a [WrapLayout] in overflow mode (s03 INV-36 to INV-38):
+/// [Wrap]'s run rules, cut by [maxRuns] and [maxChildren] at the
 /// limit that hides more, and the overflow child of [overflowBuilder],
 /// built during layout from the exact hidden count.
 ///
@@ -554,7 +554,7 @@ class _WrapOverflowElement extends RenderObjectElement {
 
   /// Shows the first [shown] children and hides the rest, inside the
   /// render object's layout, so a child the cut hides stops ticking and
-  /// leaves focus in the frame of the cut (s03 invariant 39), which
+  /// leaves focus in the frame of the cut (s03 INV-39), which
   /// [handOffFocus] then hands on. The one place a built child's flag
   /// flips.
   ///
@@ -582,7 +582,7 @@ class _WrapOverflowElement extends RenderObjectElement {
   }
 
   /// Hands focus on after the frame when this layout dropped it (s03
-  /// invariant 39); the render object calls it once per layout, after its
+  /// INV-39); the render object calls it once per layout, after its
   /// last cut.
   ///
   /// When an update dropped the overflow child's focus, an expand that
@@ -1440,7 +1440,7 @@ class _RenderWrapOverflow extends RenderBox
     });
   }
 
-  /// The size to show for the laid-out [target] (s03 invariant 40): a
+  /// The size to show for the laid-out [target] (s03 INV-40): a
   /// `maxRuns` or `maxChildren` change starts a move from the size shown
   /// now to [target] over the theme's default level on its `standard`
   /// curve; under reduced motion, or on any other change, the frame shows

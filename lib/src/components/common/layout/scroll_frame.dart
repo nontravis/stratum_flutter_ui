@@ -840,7 +840,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
 ///
 /// A traversal from a node the view keeps alive off screen, whose rect
 /// reads NaN, first brings that node back into view ([_placeFirst]), so it
-/// starts from the node's own place (R40, invariant 21): the policy does so
+/// starts from the node's own place (R40, INV-21): the policy does so
 /// for a move it runs itself, and [_PlaceFirstActions] for a Tab,
 /// Shift+Tab, or arrow from a node whose nearest group lies inside, such as
 /// a [FocusGroup] in an item.
@@ -906,7 +906,7 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     );
   }
 
-  /// Runs [move] from [origin]'s own place (R40, invariant 21): an origin
+  /// Runs [move] from [origin]'s own place (R40, INV-21): an origin
   /// kept alive off screen reads a NaN rect, so it is brought back first,
   /// by the nearest [ScrollContentBringBack], else by one jump; an origin
   /// the view still cannot place, as when the app holds the scroll, moves
@@ -1059,7 +1059,7 @@ bool movesForward(TraversalDirection direction) =>
 /// Binds Tab, Shift+Tab, and Flutter's arrows inside a content group, so a
 /// move from a node kept alive off screen waits for
 /// [_ScrollContentPolicy._placeFirst] even when a group inside owns the
-/// node's policy (R40, invariant 21). An app's own action for these
+/// node's policy (R40, INV-21). An app's own action for these
 /// intents inside is found first and keeps control.
 class _PlaceFirstActions extends StatefulWidget {
   const new({required this.child});

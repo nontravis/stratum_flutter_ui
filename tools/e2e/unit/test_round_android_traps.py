@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from stratum_e2e.android.adb import STYLUS_AVD, TALKBACK_AVD
 from stratum_e2e.round.android_traps import (
     BOOT_SETTINGS,
     LOAD_LIMIT,
@@ -131,13 +132,29 @@ def test_boot_settings_apply_and_restore() -> None:
         ("stylus_handwriting_enabled", "0"),
         ("immersive_mode_confirmations", "confirmed"),
     )
-    assert settings_apply_argv("adb", "emulator-5554") == [
+    assert settings_apply_argv("adb", "emulator-5554", "Pixel_8_API_37") == [
         ["adb", "-s", "emulator-5554", "shell", "settings", "put", "secure", "stylus_handwriting_enabled", "0"],
         ["adb", "-s", "emulator-5554", "shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed"],
     ]
-    assert settings_restore_argv("adb", "emulator-5554") == [
+    assert settings_restore_argv("adb", "emulator-5554", "Pixel_8_API_37") == [
         ["adb", "-s", "emulator-5554", "shell", "settings", "delete", "secure", "stylus_handwriting_enabled"],
         ["adb", "-s", "emulator-5554", "shell", "settings", "delete", "secure", "immersive_mode_confirmations"],
+    ]
+
+
+@pytest.mark.parametrize("avd", ["Pixel_8_API_37", TALKBACK_AVD])
+def test_boot_settings_keep_both_keys_off_the_stylus_avd(avd: str) -> None:
+    put_keys = [argv[-2] for argv in settings_apply_argv("adb", "emulator-5554", avd)]
+    delete_keys = [argv[-1] for argv in settings_restore_argv("adb", "emulator-5554", avd)]
+    assert put_keys == delete_keys == [key for key, _ in BOOT_SETTINGS]
+
+
+def test_boot_settings_leave_the_stylus_key_alone_on_the_stylus_avd() -> None:
+    assert [argv[-2:] for argv in settings_apply_argv("adb", "emulator-5554", STYLUS_AVD)] == [
+        ["immersive_mode_confirmations", "confirmed"]
+    ]
+    assert [argv[-1] for argv in settings_restore_argv("adb", "emulator-5554", STYLUS_AVD)] == [
+        "immersive_mode_confirmations"
     ]
 
 

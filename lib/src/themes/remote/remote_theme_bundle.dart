@@ -21,7 +21,7 @@ class RemoteThemeBundle extends AssetBundle {
 
   /// Decodes a zip entry as strict UTF-8: the one text decode of install
   /// step 9 and of every later read, so a theme that installed always
-  /// reads again (FO-04 s03 invariant 4).
+  /// reads again (FO-04 s03 INV-4).
   ///
   /// Throws [FormatException] whose `offset` is the byte where decoding
   /// stops.

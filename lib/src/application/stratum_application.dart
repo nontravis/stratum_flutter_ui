@@ -5,7 +5,7 @@ import 'package:stratum_ui/src/src.dart';
 /// (US-01 FR-03, or [controller]), then, inside
 /// [StratumAppConfig.builder], `StratumThemeApplication`, [updateGate],
 /// the notice host, and [webZoom], around the app widget [appBuilder]
-/// returns (themes s03 invariant 34).
+/// returns (themes s03 INV-34).
 ///
 /// - Add the two `## Install` override lines to the app's `pubspec.yaml`
 ///   (`dependency_overrides: equatable: ^3.0.0`) per US-13 FR-01's last
@@ -290,7 +290,7 @@ class _StratumApplicationState extends State<StratumApplication> {
 
   /// Builds the config for [controller]'s active theme, again when the
   /// theme, the window size class, the text scale, or the platform locale
-  /// changes (FR-02 E03; themes s03 invariant 35); under a
+  /// changes (FR-02 E03; themes s03 INV-35); under a
   /// [StratumWidgetSettings] scope only for a controller this app placed
   /// itself (PD8, PD9).
   Widget _assemble(BuildContext context, StratumThemeController controller) {
@@ -344,7 +344,7 @@ class _StratumApplicationState extends State<StratumApplication> {
   /// The layers inside the app widget's builder, outer to inner:
   /// `StratumThemeApplication`, [StratumApplication.updateGate], the
   /// notice host, [StratumApplication.webZoom], then the navigator
-  /// `stratum.builder` is given (themes s03 invariant 34).
+  /// `stratum.builder` is given (themes s03 INV-34).
   TransitionBuilder _inner(StratumThemeController controller) {
     return (context, child) {
       var w = child ?? const SizedBox.shrink();

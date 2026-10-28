@@ -1,6 +1,6 @@
 // The system-style declarations of `PageLayout`, `Scrim`, and `ModalLayout`
 // (US-18 FR-07; US-19 FR-04 E08; US-20 FR-06 E07, E08; layout s03
-// invariants 77 to 79): the page wraps a given system style, every solid
+// INV-77 to INV-79): the page wraps a given system style, every solid
 // slot fill declares itself to the bar resolver, the scrim declares the
 // color it paints at this frame, and a modal layout's surface declares its
 // own fill.

@@ -74,7 +74,7 @@ mixin StratumWidgetProps {
   /// only the fields it sets. A component whose `customStyle` is a type of
   /// its own reads no entry of this styles map: it lays its own type's
   /// app-wide default and its `customStyle` over its defaults itself (base
-  /// s03 invariants 5 and 21). The FO-08 L4 subclass default style is not
+  /// s03 INV-5 and INV-21). The FO-08 L4 subclass default style is not
   /// a layer yet.
   WidgetStyle resolveStyle(
     BuildContext context,

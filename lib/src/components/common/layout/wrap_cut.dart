@@ -43,7 +43,7 @@ final class WrapCut {
 /// child under the same rule, opens a new run while that run stays within
 /// [maxRuns], and at the cap hides shown children from the end, one at a
 /// time, asking [overflowExtent] again for each new count, until it fits
-/// or sits alone in the last allowed run (s03 invariant 38).
+/// or sits alone in the last allowed run (s03 INV-38).
 WrapCut cutWrap({
   required List<double> extents,
   required double limit,

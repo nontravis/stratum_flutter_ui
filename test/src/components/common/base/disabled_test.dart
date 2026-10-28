@@ -267,7 +267,7 @@ void main() {
     );
 
     testWidgets(
-      'fo08/us07/fr03, base s03 invariant 15: a semantics-only change '
+      'fo08/us07/fr03, base s03 INV-15: a semantics-only change '
       'under a disabled component is right after one pump',
       (tester) async {
         final handle = tester.ensureSemantics();
@@ -299,7 +299,7 @@ void main() {
   });
 
   group('StratumDisabled structure', () {
-    testWidgets('fo08/us07/fr01/e01, base s03 invariant 13: a toggle changes '
+    testWidgets('fo08/us07/fr01/e01, base s03 INV-13: a toggle changes '
         'values only; the semantics layer, the elements, and the State '
         'stay', (tester) async {
       final handle = tester.ensureSemantics();
@@ -336,7 +336,7 @@ void main() {
     bool scopeAt(WidgetTester tester) =>
         StratumDisabledScope.of(tester.element(find.byType(_Kept)));
 
-    testWidgets('base s03 invariant 14: true inside a disabled component, '
+    testWidgets('base s03 INV-14: true inside a disabled component, '
         'false inside an enabled one and outside every component', (
       tester,
     ) async {

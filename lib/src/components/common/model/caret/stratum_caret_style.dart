@@ -6,7 +6,7 @@ import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/stratum_caret_style.freezed.dart';
 
-/// The caret's box style (CO-01-03 US-01 FR-04; caret s03 invariant 14), a
+/// The caret's box style (CO-01-03 US-01 FR-04; caret s03 INV-14), a
 /// style type of its own (FO-08 US-02 FR-01 E04): the caret's box holds no
 /// child, so it shows only these 16 of `WidgetStyle`'s fields, each of its
 /// `WidgetStyle` type, and leaves out `padding`, `alignment`,

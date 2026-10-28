@@ -2,7 +2,7 @@ import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The scrim a modal layout's route and a page drawer share (layout s03
-/// invariants 67 and 72): the theme's `normal-inverse` color, its own
+/// INV-67 and INV-72): the theme's `normal-inverse` color, its own
 /// alpha times the `opacity.scrim` opacity as a Figma layer opacity,
 /// blurred by `blur/1`, fading with [animation], over a [ModalBarrier] that
 /// blocks what sits under it for taps

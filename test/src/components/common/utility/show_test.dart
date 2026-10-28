@@ -249,7 +249,7 @@ void main() {
       ('an empty AnimationStyle', const AnimationStyle()),
     ]) {
       testWidgets(
-        'fo06/us15/fr01/e06, themes s03 invariant 15: a default level of '
+        'fo06/us15/fr01/e06, themes s03 INV-15: a default level of '
         '$name shows '
         'and hides at once',
         (tester) async {
@@ -472,7 +472,7 @@ void main() {
       expect(tester.state(find.byType(_Box)), isNot(same(state)));
     });
 
-    testWidgets('layout s03 invariant 47: the show is not wrapped in the '
+    testWidgets('layout s03 INV-47: the show is not wrapped in the '
         'disabled wrapper', (tester) async {
       await tester.pumpWidget(_row(_show(visible: true)));
 
@@ -774,7 +774,7 @@ void main() {
       return Curves.easeInOutSine.transform(visible ? raw : 1 - raw);
     }
 
-    /// The line a change aims at (invariant 50), read at the motion value
+    /// The line a change aims at (INV-50), read at the motion value
     /// [elapsed] ms carries, given it was [atChange] ms in when [now] was
     /// captured and [target] is the new transition's track at the
     /// motion's end.
@@ -830,7 +830,7 @@ void main() {
             expectLook(look(tester), before);
 
             // One motion step later: the blended line, not the held value
-            // and not the end (invariant 50).
+            // and not the end (INV-50).
             await tester.pump(const Duration(milliseconds: 16));
             expectLook(
               look(tester),
@@ -1123,7 +1123,7 @@ void main() {
       );
 
       // The flip advances no time: still at the hidden size, not the
-      // stale full size the old `fade` layout left behind (invariant 50).
+      // stale full size the old `fade` layout left behind (INV-50).
       expect(_size(tester), Size.zero);
     });
 

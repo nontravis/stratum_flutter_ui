@@ -39,8 +39,8 @@ final class ResolvedTheme {
 
 /// Stage 4 (spec section 7.3): resolves every alias in the token groups of
 /// [merged] and in the `system` and `focus` groups, which no alias may name
-/// (config s03 invariants 16, 19), then each shadow layer's color alias
-/// (config s03 invariant 13). Every problem goes to [errors].
+/// (config s03 INV-16, INV-19), then each shadow layer's color alias
+/// (config s03 INV-13). Every problem goes to [errors].
 ResolvedTheme resolveThemeAliases(
   MergedTheme merged,
   ThemeSchema schema,
@@ -67,7 +67,7 @@ final class _Resolve {
   final _visiting = <String>[];
 
   /// The groups whose aliases name a token of their own group only (config
-  /// s03 invariant 4).
+  /// s03 INV-4).
   static const _ownGroupOnly = {'border', 'blur'};
 
   ResolvedTheme run() {
@@ -205,7 +205,7 @@ final class _Resolve {
   }
 
   /// Stage 4 for the `color` of each shadow layer (FO-01 US-03 FR-01 E05,
-  /// E06; config s03 invariant 13). A layer is no alias target, so this
+  /// E06; config s03 INV-13). A layer is no alias target, so this
   /// runs once the token groups have resolved: a palette or transparent
   /// alias takes its final target's value and records its chain; a
   /// `"{color.<group>.<name>}"` reference stays as written once every

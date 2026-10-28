@@ -18,7 +18,7 @@ mixin _$SystemBars {
 /// The status bar fields, and the navigation bar fields when the
 /// navigation bar's point was read; every bar color in it is
 /// transparent, since the root paints the bar colors itself (themes s03
-/// invariant 45).
+/// INV-45).
  SystemUiOverlayStyle get overlay;/// Null when no layer sets one this frame; the resolver falls back to
 /// `edgeToEdge` only once some layer has set it during its life, and
 /// before that leaves the platform's own bar mode untouched (R11).
@@ -114,7 +114,7 @@ class _SystemBars implements SystemBars {
 /// The status bar fields, and the navigation bar fields when the
 /// navigation bar's point was read; every bar color in it is
 /// transparent, since the root paints the bar colors itself (themes s03
-/// invariant 45).
+/// INV-45).
 @override final  SystemUiOverlayStyle overlay;
 /// Null when no layer sets one this frame; the resolver falls back to
 /// `edgeToEdge` only once some layer has set it during its life, and

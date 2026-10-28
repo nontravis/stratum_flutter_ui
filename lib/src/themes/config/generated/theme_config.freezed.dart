@@ -24,17 +24,17 @@ mixin _$StratumThemeConfig {
 /// component (FO-08 US-07), and `scrim`, a modal layout's background
 /// scrim (FO-06 US-20), each from 0 to 1; 0.5 in the package default.
  Map<String, double> get opacity;/// The merged `border` group: `sm`, `md`, `lg`, each a width in logical
-/// pixels of 0 or more (config s03 invariant 12); 0.5, 1, 1.5 in the
+/// pixels of 0 or more (config s03 INV-12); 0.5, 1, 1.5 in the
 /// package default.
  Map<String, double> get border;/// The merged `shadow` group: `"1"` to `"6"`, each a list of layers in
-/// the Figma effect order (config s03 invariant 13); an empty list is no
+/// the Figma effect order (config s03 INV-13); an empty list is no
 /// shadow.
  Map<String, List<StratumShadowLayer>> get shadow;/// The merged `blur` group: `"1"` to `"6"`, each a Figma background blur
-/// radius of 0 or more (config s03 invariant 14).
- Map<String, double> get blur;/// The merged `system` group (config s03 invariant 16): `light`,
+/// radius of 0 or more (config s03 INV-14).
+ Map<String, double> get blur;/// The merged `system` group (config s03 INV-16): `light`,
 /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
 /// of the system bars, a high-contrast set laid over its base set.
- Map<String, SystemStyle> get system;/// The merged `focus` group (config s03 invariant 19): `light`, `dark`,
+ Map<String, SystemStyle> get system;/// The merged `focus` group (config s03 INV-19): `light`, `dark`,
 /// `highContrastLight`, and `highContrastDark`, each the focus ring's
 /// level 0, a high-contrast set laid over its base set; a set the parse
 /// could not read whole has no entry.
@@ -216,11 +216,11 @@ class _StratumThemeConfig implements StratumThemeConfig {
 }
 
 /// The merged `border` group: `sm`, `md`, `lg`, each a width in logical
-/// pixels of 0 or more (config s03 invariant 12); 0.5, 1, 1.5 in the
+/// pixels of 0 or more (config s03 INV-12); 0.5, 1, 1.5 in the
 /// package default.
  final  Map<String, double> _border;
 /// The merged `border` group: `sm`, `md`, `lg`, each a width in logical
-/// pixels of 0 or more (config s03 invariant 12); 0.5, 1, 1.5 in the
+/// pixels of 0 or more (config s03 INV-12); 0.5, 1, 1.5 in the
 /// package default.
 @override Map<String, double> get border {
   if (_border is EqualUnmodifiableMapView) return _border;
@@ -229,11 +229,11 @@ class _StratumThemeConfig implements StratumThemeConfig {
 }
 
 /// The merged `shadow` group: `"1"` to `"6"`, each a list of layers in
-/// the Figma effect order (config s03 invariant 13); an empty list is no
+/// the Figma effect order (config s03 INV-13); an empty list is no
 /// shadow.
  final  Map<String, List<StratumShadowLayer>> _shadow;
 /// The merged `shadow` group: `"1"` to `"6"`, each a list of layers in
-/// the Figma effect order (config s03 invariant 13); an empty list is no
+/// the Figma effect order (config s03 INV-13); an empty list is no
 /// shadow.
 @override Map<String, List<StratumShadowLayer>> get shadow {
   if (_shadow is EqualUnmodifiableMapView) return _shadow;
@@ -242,21 +242,21 @@ class _StratumThemeConfig implements StratumThemeConfig {
 }
 
 /// The merged `blur` group: `"1"` to `"6"`, each a Figma background blur
-/// radius of 0 or more (config s03 invariant 14).
+/// radius of 0 or more (config s03 INV-14).
  final  Map<String, double> _blur;
 /// The merged `blur` group: `"1"` to `"6"`, each a Figma background blur
-/// radius of 0 or more (config s03 invariant 14).
+/// radius of 0 or more (config s03 INV-14).
 @override Map<String, double> get blur {
   if (_blur is EqualUnmodifiableMapView) return _blur;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableMapView(_blur);
 }
 
-/// The merged `system` group (config s03 invariant 16): `light`,
+/// The merged `system` group (config s03 INV-16): `light`,
 /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
 /// of the system bars, a high-contrast set laid over its base set.
  final  Map<String, SystemStyle> _system;
-/// The merged `system` group (config s03 invariant 16): `light`,
+/// The merged `system` group (config s03 INV-16): `light`,
 /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
 /// of the system bars, a high-contrast set laid over its base set.
 @override Map<String, SystemStyle> get system {
@@ -265,12 +265,12 @@ class _StratumThemeConfig implements StratumThemeConfig {
   return EqualUnmodifiableMapView(_system);
 }
 
-/// The merged `focus` group (config s03 invariant 19): `light`, `dark`,
+/// The merged `focus` group (config s03 INV-19): `light`, `dark`,
 /// `highContrastLight`, and `highContrastDark`, each the focus ring's
 /// level 0, a high-contrast set laid over its base set; a set the parse
 /// could not read whole has no entry.
  final  Map<String, StratumFocusTokens> _focus;
-/// The merged `focus` group (config s03 invariant 19): `light`, `dark`,
+/// The merged `focus` group (config s03 INV-19): `light`, `dark`,
 /// `highContrastLight`, and `highContrastDark`, each the focus ring's
 /// level 0, a high-contrast set laid over its base set; a set the parse
 /// could not read whole has no entry.

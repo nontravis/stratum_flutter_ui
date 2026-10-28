@@ -1,14 +1,14 @@
 // Proves, in code, on every target, the reorder live-region leaf queued
-// from the reorder a11y gate round (master 69019c8;
-// docs/specs/stratum_ui/components/common/layout/s03_domain.md invariant
-// 60, lines 185-191; invariant 58, lines 177-178):
+// from the reorder a11y gate round (master 69019c8; INV-60 and INV-58 of
+// docs/specs/stratum_ui/components/common/layout/reorderable_list_view_layout/
+// s03_domain.md):
 //
 // - a screen-reader move announces within the leaf's 4 s hold
-//   (`_liveHold`), gone right after (s03_domain.md:189; FR-06 E06:
+//   (`_liveHold`), gone right after (INV-60; FR-06 E06:
 //   `functional_requirements/fr06_screen_reader_hears_size_and_moves.md:37`);
 // - the leaf sits beside the scroll view's own item-count node, which still
-//   reports the right count while the leaf shows (invariant 58,
-//   s03_domain.md:177-178; `_ReorderScrollView.semanticChildCount`,
+//   reports the right count while the leaf shows (INV-58;
+//   `_ReorderScrollView.semanticChildCount`,
 //   `reorderable_list_view_layout.dart:3403`) — the node a screen reader's
 //   own "showing items" collection readout reads; that readout's wording
 //   and timing are not in any spec line found, so this file does not test
@@ -18,7 +18,7 @@
 //   (`reorderable_list_view_layout.dart:3336`, `key: ValueKey(_liveCount)`;
 //   FR-06 E06);
 // - the leaf is 1x1 logical px, so touch exploration never lands on it
-//   (s03_domain.md:187, "1×1 px live-region leaf";
+//   (INV-60, "1×1 px live-region leaf";
 //   `reorderable_list_view_layout.dart:3328-3330`).
 //
 // This file forces `supportsAnnounce: false` (every target this ran on so
@@ -220,7 +220,7 @@ void main() {
       countNode.scrollChildCount,
       5,
       reason:
-          's03_domain.md:177-178 (invariant 58): semanticChildCount '
+          'INV-58: semanticChildCount '
           'stays the data count, the node a screen reader reads as its '
           'own "showing items" collection readout',
     );
@@ -233,7 +233,7 @@ void main() {
       first,
       isSemantics(isLiveRegion: true),
       reason:
-          's03_domain.md:185-191 (invariant 60): the move speaks '
+          'INV-60: the move speaks '
           'through a live-region leaf when the platform does not take a '
           'direct announcement',
     );
@@ -247,14 +247,14 @@ void main() {
       rect.size,
       const Size(1, 1),
       reason:
-          's03_domain.md:187: "1×1 px live-region leaf"; '
+          'INV-60: "1×1 px live-region leaf"; '
           'reorderable_list_view_layout.dart:3328-3330: a larger node '
           'can take touch exploration over the items',
     );
 
     // The count node still reports the right count while the leaf
     // shows: the leaf sits beside it, never in place of it
-    // (s03_domain.md:177-178, :185-188).
+    // (INV-58, INV-60).
     expect(
       find.semantics
           .byFlag(SemanticsFlag.hasImplicitScrolling)
@@ -297,7 +297,7 @@ void main() {
       find.semantics.byLabel(secondText),
       findsOne,
       reason:
-          's03_domain.md:189: "the leaf leaves the tree 4 s after '
+          'INV-60: "the leaf leaves the tree 4 s after '
           'its last announcement"; at 3 s it still holds',
     );
 
@@ -305,7 +305,7 @@ void main() {
     expect(
       find.semantics.byLabel(secondText),
       findsNothing,
-      reason: 's03_domain.md:189: gone once the 4 s hold passes',
+      reason: 'INV-60: gone once the 4 s hold passes',
     );
     expect(tester.takeException(), isNull);
 

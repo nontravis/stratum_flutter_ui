@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 
-/// Builds the one native dispatch script (`s03_domain.md` invariant 15): a
+/// Builds the one native dispatch script (`s03_domain.md` INV-15): a
 /// strict-mode IIFE that delivers [data] to the page as a `message` event
 /// and returns `true`, or dispatches nothing and returns `false`.
 ///

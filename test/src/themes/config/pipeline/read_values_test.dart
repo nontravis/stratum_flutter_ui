@@ -1619,7 +1619,7 @@ shadow:
             'is outside the token groups [alias_not_token]',
       ),
       (
-        'config s03 invariant 16: an alias elsewhere names the system group',
+        'config s03 INV-16: an alias elsewhere names the system group',
         'space:\n  md: "{system.light.statusBarColor}"',
         'layer1 space.md: "{system.light.statusBarColor}" is outside the '
             'token groups [alias_not_token]',
@@ -1712,7 +1712,7 @@ shadow:
       expect(plain.focus['dark'], dark);
     });
 
-    test('fo01/us01/fr01: config s03 invariant 19, a high-contrast focus '
+    test('fo01/us01/fr01: config s03 INV-19, a high-contrast focus '
         'set reads its color aliases in its own color set', () {
       final (plain, errors) = _plain([
         layer(

@@ -6,7 +6,7 @@
 //   dart run stratum_ui:stratum_theme check <file.zip> [options]
 //
 // It reaches no Flutter library, so `dart run` compiles it in the Dart VM
-// (FO-04 s03 invariant 13); of the CLI, only this file reads and writes
+// (FO-04 s03 INV-13); of the CLI, only this file reads and writes
 // files.
 import 'dart:convert';
 import 'dart:io';

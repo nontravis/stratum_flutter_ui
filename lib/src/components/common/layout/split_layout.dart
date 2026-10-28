@@ -145,7 +145,7 @@ class SplitLayoutController extends ChangeNotifier {
 /// The split needs a bounded extent along [axis]. It builds on
 /// `MultiSplitView` of `multi_split_view` for its layout and its pane
 /// limits, and draws its own translucent hit layer over the seams (layout
-/// s03 invariant 75).
+/// s03 INV-75).
 class SplitLayout extends StatefulWidget {
   const new({
     super.key,
@@ -200,8 +200,8 @@ class SplitLayout extends StatefulWidget {
   /// side pane (US-19 FR-06): End then takes that pane to its maximum and
   /// Home to its minimum, and the slider reads its share and widens it by
   /// increase. False keeps all of this on the pane before the divider. The
-  /// arrow keys move by screen direction either way (layout s03 invariant
-  /// 75). Kept inside the package.
+  /// arrow keys move by screen direction either way (layout s03 INV-75).
+  /// Kept inside the package.
   @internal
   final bool endPrimary;
 

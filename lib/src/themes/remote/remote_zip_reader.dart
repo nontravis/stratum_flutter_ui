@@ -270,7 +270,7 @@ const _allowedExtraIds = {0x000a, 0x5455, 0x5855, 0x7875, 0xcafe};
 
 /// Whether the [size]-byte body at [at] of an extra-field record of the
 /// allowed [id] fills EITHER of that id's two layouts, the local header's
-/// or the central one (FO-04 US-01 FR-02 E02, s03 invariant 14; design
+/// or the central one (FO-04 US-01 FR-02 E02, s03 INV-14; design
 /// FU4, RZF4). A tool that copies one header's record into the other
 /// unchanged, such as Python's `zipfile` or Java's `ZipOutputStream`,
 /// writes a body that fills only one of the two layouts; this reads

@@ -6,7 +6,7 @@
 
 /// The google_fonts version [googleFontNames] was generated from. The
 /// test fails when the package resolves another version (FO-04 s03
-/// invariant 17).
+/// INV-17).
 const googleFontNamesVersion = '9.0.0';
 
 /// Every family name of `GoogleFonts.asMap()`, for the Flutter-free

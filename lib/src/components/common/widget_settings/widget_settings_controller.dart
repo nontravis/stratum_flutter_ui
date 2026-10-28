@@ -160,7 +160,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   /// latest token's load swaps, so of two quick switches the last one
   /// wins and the earlier load is dropped. A switch to the current user
   /// reads nothing and drops a pending switch. A write made before the
-  /// swap goes to the user shown when it was made (s03 invariant 7). A
+  /// swap goes to the user shown when it was made (s03 INV-7). A
   /// read the store refuses swaps to an empty box with one report.
   Future<void> switchUser(String? userId) async {
     await load();
@@ -214,7 +214,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
 
   /// Drops the cached keys under [logicalPrefix], notifies with exactly
   /// those, then queues removal of every storage key under the prefix the
-  /// cache or a store read holds (s03 invariant 8); unless disposed, which
+  /// cache or a store read holds (s03 INV-8); unless disposed, which
   /// drops and notifies nothing but still queues the removal.
   Future<void> _reset(String logicalPrefix) async {
     assert(isLoaded, _notLoadedMessage);
@@ -245,7 +245,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
 
   /// Sets [changedKeys] to [keys] and notifies once; the one gate every
   /// mutating call routes its notify through, so a disposed controller
-  /// notifies nothing (PD12, s03 invariant 7).
+  /// notifies nothing (PD12, s03 INV-7).
   void _notifyChanged(Set<String>? keys) {
     if (_isDisposed) return;
     _changedKeys = keys;

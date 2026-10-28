@@ -1,8 +1,9 @@
-"""The dedicated e2e AVD: create it, turn TalkBack and Diagnosis mode on, check it (ruling Q3).
+"""The dedicated e2e AVDs: create them, set them up, check them (ruling Q3 and its 2026-10-27 amendment).
 
-Run from tools/e2e/: `.venv/bin/python -m stratum_e2e.e2e_avd create | talkback --serial S |
-diagnosis --serial S | check --serial S`. Only this AVD gets TalkBack, Diagnosis mode, or
-settings changes; every device command refuses any other AVD (design section 8).
+Run from tools/e2e/: `.venv/bin/python -m stratum_e2e.e2e_avd create [--avd NAME] | talkback --serial S |
+diagnosis --serial S | check --serial S`. `create` builds the TalkBack AVD unless `--avd` names the stylus AVD.
+`talkback` and `diagnosis` run only on the TalkBack AVD and `check` on either; every device command refuses any
+other AVD (design section 8). The stylus AVD needs no setup step after `create`: its `check` reads static facts.
 """
 
 from __future__ import annotations
@@ -12,8 +13,10 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
@@ -21,9 +24,10 @@ from appium.webdriver.common.appiumby import AppiumBy
 from appium.webdriver.webdriver import WebDriver
 from appium.webdriver.webelement import WebElement
 
+from stratum_e2e.android.adb import STYLUS_AVD, TALKBACK_AVD
 from stratum_e2e.android.session import android_capabilities
+from stratum_e2e.android.stylus import read_gboard_stylus_support
 from stratum_e2e.android.talkback import (
-    AVD_NAME,
     TALKBACK_SERVICE,
     TalkBackSession,
     TalkBackSilent,
@@ -36,13 +40,42 @@ from stratum_e2e.ports import free_port
 
 SYSTEM_IMAGE = "system-images;android-35;google_apis_playstore_tablet;arm64-v8a"
 DEVICE_PROFILE = "pixel_tablet"
+# Measured on the hand-made `E2E_Stylus_API_36` (Gboard 15.1.08 preload, 2026-10-27).
+STYLUS_SYSTEM_IMAGE = "system-images;android-36;google_apis_playstore;arm64-v8a"
+STYLUS_DEVICE_PROFILE = "pixel_8"
 KEYBOARD_KEY = "hw.keyboard"
 # Cold boot only: quick boot saves a ~3.8 GB snapshot on every exit, even under -no-snapshot-load.
-CONFIG_VALUES = {
-    KEYBOARD_KEY: "yes",
+COLD_BOOT_VALUES = {
     "fastboot.forceColdBoot": "yes",
     "fastboot.forceFastBoot": "no",
 }
+CONFIG_VALUES = {KEYBOARD_KEY: "yes", **COLD_BOOT_VALUES}
+STYLUS_CONFIG_VALUES = {
+    KEYBOARD_KEY: "no",
+    "disk.dataPartition.size": "16G",
+    "hw.ramSize": "4096",
+    "hw.gpu.enabled": "yes",
+    "hw.gpu.mode": "host",
+    "PlayStore.enabled": "true",
+    **COLD_BOOT_VALUES,
+}
+
+
+@dataclass(frozen=True)
+class AvdProfile:
+    """What `create` builds a dedicated AVD from: its system image, device definition, and config.ini values."""
+
+    system_image: str
+    device: str
+    config: Mapping[str, str]
+
+
+PROFILES: Mapping[str, AvdProfile] = MappingProxyType(
+    {
+        TALKBACK_AVD: AvdProfile(SYSTEM_IMAGE, DEVICE_PROFILE, MappingProxyType(CONFIG_VALUES)),
+        STYLUS_AVD: AvdProfile(STYLUS_SYSTEM_IMAGE, STYLUS_DEVICE_PROFILE, MappingProxyType(STYLUS_CONFIG_VALUES)),
+    }
+)
 
 KEY_REPEAT_SETTING = "key_repeat_timeout"
 KEY_REPEAT_TIMEOUT_MS = 10000
@@ -101,18 +134,20 @@ def avd_home() -> Path:
     return Path(from_env) if from_env else Path.home() / ".android" / "avd"
 
 
-def config_path() -> Path:
-    """Return the config.ini of the AVD named AVD_NAME."""
-    return avd_home() / f"{AVD_NAME}.avd" / "config.ini"
+def config_path(avd: str = TALKBACK_AVD) -> Path:
+    """Return the config.ini of the AVD named [avd]."""
+    return avd_home() / f"{avd}.avd" / "config.ini"
 
 
-def create() -> int:
-    """Create the AVD with avdmanager, then write CONFIG_VALUES into its config.ini.
+def create(avd: str = TALKBACK_AVD) -> int:
+    """Create the AVD [avd] with avdmanager, then write its profile's config values into its config.ini.
 
-    Returns EXIT_AVD_EXISTS, creating nothing, when the AVD already exists.
+    Returns EXIT_AVD_EXISTS, creating nothing, when the AVD already exists. Raises KeyError
+    for an AVD with no entry in PROFILES.
     """
-    if (avd_home() / f"{AVD_NAME}.ini").exists():
-        print(f"{AVD_NAME} already exists in {avd_home()}", file=sys.stderr)
+    profile = PROFILES[avd]
+    if (avd_home() / f"{avd}.ini").exists():
+        print(f"{avd} already exists in {avd_home()}", file=sys.stderr)
         return EXIT_AVD_EXISTS
     subprocess.run(
         [
@@ -120,23 +155,23 @@ def create() -> int:
             "create",
             "avd",
             "-n",
-            AVD_NAME,
+            avd,
             "-k",
-            SYSTEM_IMAGE,
+            profile.system_image,
             "-d",
-            DEVICE_PROFILE,
+            profile.device,
         ],
         check=True,
         input="no\n",  # answers "Do you wish to create a custom hardware profile?"
         text=True,
     )
-    config = config_path()
+    config = config_path(avd)
     text = config.read_text()
-    for key, value in CONFIG_VALUES.items():
+    for key, value in profile.config.items():
         text = set_ini_value(text, key, value)
     config.write_text(text)
-    settings = ", ".join(f"{key}={value}" for key, value in CONFIG_VALUES.items())
-    print(f"created {AVD_NAME}: {settings} in {config}")
+    settings = ", ".join(f"{key}={value}" for key, value in profile.config.items())
+    print(f"created {avd}: {settings} in {config}")
     return EXIT_OK
 
 
@@ -189,12 +224,22 @@ def diagnosis(serial: str) -> int:
 
 
 def check(serial: str) -> int:
-    """Print the AVD's keyboard, TalkBack version, key repeat timeout, and Diagnosis mode.
+    """Run the check of the dedicated AVD on [serial]; raises ValueError for any other AVD."""
+    name = avd_name(serial)
+    if name == TALKBACK_AVD:
+        return check_talkback(serial)
+    if name == STYLUS_AVD:
+        return check_stylus(serial)
+    raise ValueError(f"no check for {serial}: AVD is {name!r}")
+
+
+def check_talkback(serial: str) -> int:
+    """Print the TalkBack AVD's keyboard, TalkBack version, key repeat timeout, and Diagnosis mode.
 
     0 when all hold: the keyboard is on, TalkBack is installed, the key repeat timeout is
     KEY_REPEAT_TIMEOUT_MS, and Diagnosis mode speaks.
     """
-    keyboard = ini_value(config_path().read_text(), KEYBOARD_KEY)
+    keyboard = ini_value(config_path(TALKBACK_AVD).read_text(), KEYBOARD_KEY)
     version = talkback_version(serial)
     repeat = key_repeat_timeout(serial)
     speaks = diagnosis_speaks(serial)
@@ -230,26 +275,53 @@ def diagnosis_speaks(serial: str) -> bool:
         return False
 
 
+def check_stylus(serial: str) -> int:
+    """Print the stylus AVD's keyboard and whether Gboard supports stylus handwriting.
+
+    0 when `hw.keyboard` is `no` and `dumpsys input_method` reads Gboard's `mSupportsStylusHandwriting=true`.
+    Reads static facts only: the screen is never touched, so the check cannot move Gboard's state.
+    """
+    keyboard = ini_value(config_path(STYLUS_AVD).read_text(), KEYBOARD_KEY)
+    supported = read_gboard_stylus_support(serial)
+    print(f"{KEYBOARD_KEY}={keyboard or 'unset'}")
+    print(f"gboard_stylus_handwriting={'supported' if supported else 'missing'}")
+    return EXIT_OK if keyboard == "no" and supported else EXIT_FAILED
+
+
+# The AVDs each device command runs on; every other AVD is refused.
+_COMMAND_AVDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "talkback": (TALKBACK_AVD,),
+        "diagnosis": (TALKBACK_AVD,),
+        "check": (TALKBACK_AVD, STYLUS_AVD),
+    }
+)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run one subcommand; the device ones refuse any AVD but AVD_NAME (exit 1)."""
+    """Run one subcommand; the device ones refuse any AVD their command does not run on (exit 1)."""
     parser = argparse.ArgumentParser(prog="python -m stratum_e2e.e2e_avd", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("create", help=f"create {AVD_NAME}: {KEYBOARD_KEY}=yes, cold boot only")
+    create_command = commands.add_parser("create", help="create a dedicated AVD from its profile")
+    create_command.add_argument(
+        "--avd", choices=sorted(PROFILES), default=TALKBACK_AVD, help=f"the AVD to create (default {TALKBACK_AVD})"
+    )
     for name, summary in (
-        ("talkback", "turn TalkBack on"),
-        ("diagnosis", "switch TalkBack's Diagnosis mode on"),
-        ("check", "print hw.keyboard, talkback, key_repeat_timeout, and diagnosis"),
+        ("talkback", "turn TalkBack on (TalkBack AVD)"),
+        ("diagnosis", "switch TalkBack's Diagnosis mode on (TalkBack AVD)"),
+        ("check", "check the dedicated AVD: hw.keyboard plus its TalkBack or Gboard stylus facts"),
     ):
         command = commands.add_parser(name, help=summary)
         command.add_argument("--serial", required=True, help="adb serial of the booted AVD")
     args = parser.parse_args(argv)
 
     if args.command == "create":
-        return create()
+        return create(args.avd)
     serial: str = args.serial
     name = avd_name(serial)
-    if name != AVD_NAME:
-        print(f"refusing {serial}: AVD is {name!r}, not {AVD_NAME!r}", file=sys.stderr)
+    allowed = _COMMAND_AVDS[args.command]
+    if name not in allowed:
+        print(f"refusing {serial}: AVD is {name!r}, `{args.command}` runs only on {list(allowed)!r}", file=sys.stderr)
         return EXIT_FAILED
     device_commands = {"talkback": talkback, "diagnosis": diagnosis, "check": check}
     return device_commands[args.command](serial)

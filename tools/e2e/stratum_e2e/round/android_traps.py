@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 
+from stratum_e2e.android.adb import STYLUS_AVD
 from stratum_e2e.android.window_list import live_window_blocks, window_title
 
 LOAD_LIMIT = 2.0
@@ -15,6 +17,9 @@ BOOT_SETTINGS: tuple[tuple[str, str], ...] = (
     ("stylus_handwriting_enabled", "0"),
     ("immersive_mode_confirmations", "confirmed"),
 )
+
+# A 0 at boot makes the boot's first stylus tap show the full keyboard (RCA 2026-10-27, test-foundation design section 8).
+_KEY_OWNER_AVD: Mapping[str, str] = MappingProxyType({"stylus_handwriting_enabled": STYLUS_AVD})
 
 _CURRENT_ID = "mCurId="
 _BOUND_TO_METHOD = "mBoundToMethod=true"
@@ -91,14 +96,20 @@ def clock_jumped(ping_out: str) -> bool:
     return match is not None and float(match.group(1)) == 0.0
 
 
-def settings_apply_argv(adb: str, serial: str) -> list[list[str]]:
-    """One `settings put secure` command per `BOOT_SETTINGS` row."""
-    return [[adb, "-s", serial, "shell", "settings", "put", "secure", key, value] for key, value in BOOT_SETTINGS]
+def _boot_settings_for(avd: str) -> tuple[tuple[str, str], ...]:
+    """The `BOOT_SETTINGS` rows the round writes on `avd`; a key `avd` owns is left to its own settings."""
+    return tuple((key, value) for key, value in BOOT_SETTINGS if _KEY_OWNER_AVD.get(key) != avd)
 
 
-def settings_restore_argv(adb: str, serial: str) -> list[list[str]]:
-    """One `settings delete secure` command per `BOOT_SETTINGS` key; the AVDs are shared with manual use."""
-    return [[adb, "-s", serial, "shell", "settings", "delete", "secure", key] for key, _ in BOOT_SETTINGS]
+def settings_apply_argv(adb: str, serial: str, avd: str) -> list[list[str]]:
+    """One `settings put secure` command per `BOOT_SETTINGS` row, minus the keys `avd` owns."""
+    rows = _boot_settings_for(avd)
+    return [[adb, "-s", serial, "shell", "settings", "put", "secure", key, value] for key, value in rows]
+
+
+def settings_restore_argv(adb: str, serial: str, avd: str) -> list[list[str]]:
+    """One `settings delete secure` command per key `settings_apply_argv` writes; AVDs are shared with manual use."""
+    return [[adb, "-s", serial, "shell", "settings", "delete", "secure", key] for key, _ in _boot_settings_for(avd)]
 
 
 def strip_drive_prefix(text: str) -> str:

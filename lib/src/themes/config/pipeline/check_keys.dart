@@ -24,7 +24,7 @@ final class ThemeSchema {
   new(this.base);
 
   /// The token groups an alias may name (spec section 7.3); a `border` or
-  /// `blur` alias names a token of its own group (config s03 invariant 4).
+  /// `blur` alias names a token of its own group (config s03 INV-4).
   static const tokenGroups = {
     'space',
     'radius',
@@ -36,7 +36,7 @@ final class ThemeSchema {
   };
 
   /// The groups that hold one map per color set: `color`, and `system` and
-  /// `focus`, whose sets mirror it (config s03 invariants 16, 19).
+  /// `focus`, whose sets mirror it (config s03 INV-16, INV-19).
   static const setGroups = {'color', 'system', 'focus'};
 
   /// Each color set, and the set whose keys it takes.

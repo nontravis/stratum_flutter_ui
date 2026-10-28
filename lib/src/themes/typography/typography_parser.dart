@@ -537,7 +537,7 @@ class _TypographyParser {
       _reader.report(code, path, message);
 }
 
-/// FO-02 typography s03 invariant 14: at text scale 1, every text the app
+/// FO-02 typography s03 INV-14: at text scale 1, every text the app
 /// can draw under a parsed typography has a font size and a line box above
 /// 0 px.
 ///

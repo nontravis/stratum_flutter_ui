@@ -128,7 +128,7 @@ abstract final class TypographyResolver {
       : font.qualifiedFamily;
 
   /// The weight [font] draws [weight] in. A Google font draws only in its
-  /// weight set (`GoogleFontWeights.of`, FO-02 typography s03 invariant 13):
+  /// weight set (`GoogleFontWeights.of`, FO-02 typography s03 INV-13):
   /// a weight outside a non-empty set snaps to the nearest one, the heavier
   /// on a tie, with one debug warning per family and requested weight per
   /// run. An app or theme font keeps [weight]: the engine picks its face

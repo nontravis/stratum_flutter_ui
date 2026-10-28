@@ -63,7 +63,7 @@ class _Component extends StratumStatelessWidget {
 /// A component on the stateless base that resolves its own [WidgetStyle]
 /// (own default, then the app-wide default) and passes the resolved
 /// radius to its tap surface, as a real button would stand on
-/// [StratumInkWell] and share its app-wide shape (base s03 invariant 5;
+/// [StratumInkWell] and share its app-wide shape (base s03 INV-5;
 /// FO-03 US-06 FR-01).
 class _ButtonStandIn extends StratumStatelessWidget {
   const new();

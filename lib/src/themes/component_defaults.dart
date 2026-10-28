@@ -66,7 +66,7 @@ class StratumComponentDefaults extends InheritedWidget {
 /// Throws a [FlutterError] when the `componentDefaults` styles map above
 /// [context] holds an entry under [component], a package component whose
 /// `customStyle` is the narrower [styleType] and which reads no entry of
-/// that map (FO-03 US-06 FR-01 E05; base s03 invariant 21). Returns true,
+/// that map (FO-03 US-06 FR-01 E05; base s03 INV-21). Returns true,
 /// so a caller wraps it in an `assert`. It reads the map without a
 /// dependency, so it adds no rebuild.
 ///

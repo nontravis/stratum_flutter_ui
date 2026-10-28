@@ -46,25 +46,25 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
     required Map<String, double> opacity,
 
     /// The merged `border` group: `sm`, `md`, `lg`, each a width in logical
-    /// pixels of 0 or more (config s03 invariant 12); 0.5, 1, 1.5 in the
+    /// pixels of 0 or more (config s03 INV-12); 0.5, 1, 1.5 in the
     /// package default.
     required Map<String, double> border,
 
     /// The merged `shadow` group: `"1"` to `"6"`, each a list of layers in
-    /// the Figma effect order (config s03 invariant 13); an empty list is no
+    /// the Figma effect order (config s03 INV-13); an empty list is no
     /// shadow.
     required Map<String, List<StratumShadowLayer>> shadow,
 
     /// The merged `blur` group: `"1"` to `"6"`, each a Figma background blur
-    /// radius of 0 or more (config s03 invariant 14).
+    /// radius of 0 or more (config s03 INV-14).
     required Map<String, double> blur,
 
-    /// The merged `system` group (config s03 invariant 16): `light`,
+    /// The merged `system` group (config s03 INV-16): `light`,
     /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
     /// of the system bars, a high-contrast set laid over its base set.
     required Map<String, SystemStyle> system,
 
-    /// The merged `focus` group (config s03 invariant 19): `light`, `dark`,
+    /// The merged `focus` group (config s03 INV-19): `light`, `dark`,
     /// `highContrastLight`, and `highContrastDark`, each the focus ring's
     /// level 0, a high-contrast set laid over its base set; a set the parse
     /// could not read whole has no entry.

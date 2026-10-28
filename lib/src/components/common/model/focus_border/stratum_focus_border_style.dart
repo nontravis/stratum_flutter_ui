@@ -20,7 +20,7 @@ enum StratumFocusBorderPlacement {
 
 /// The look of a `StratumFocusBorder` ring at one of its four levels, low
 /// to high, a higher level winning field by field (FO-06 US-04 FR-03; layout
-/// s03 invariant 80): the theme's `focus` group, the app-wide style of every
+/// s03 INV-80): the theme's `focus` group, the app-wide style of every
 /// ring, the app-wide style of the ring's host type, and one host instance.
 ///
 /// Every field is optional; a null field takes the next lower level. Every

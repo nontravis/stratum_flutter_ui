@@ -185,7 +185,7 @@ void _colorClass(
   final dartPath = [for (final (_, name) in path) name];
   final className = _colorClassName(dartPath);
   final inTransparent = path.length == 1 && path.single.$1 == 'transparent';
-  // A `<group>.color` class (spec FO-03 s03 invariant 33): the one depth
+  // A `<group>.color` class (spec FO-03 s03 INV-33): the one depth
   // whose classes hold the colors named after the palette.
   final answersColorEnum = path.length == 2 && path.last.$1 == 'color';
   final names = _names(
@@ -243,7 +243,7 @@ void _colorClass(
 }
 
 /// The `operator []` of a `<group>.color` class (spec FO-03 s03
-/// invariant 33): one case per [ColorEnum] value, in enum order, whose
+/// INV-33): one case per [ColorEnum] value, in enum order, whose
 /// name is the Dart name of a color of [node]; null for every other name.
 /// A semantic key such as `negative` is no [ColorEnum] name, so it never
 /// matches.
@@ -444,7 +444,7 @@ void _assets(StringBuffer out, Iterable<String> slots) {
 }
 
 /// The `opacity` group as `StratumOpacityTokens`, one `double` per key
-/// (themes s01 "Token generator"; config s03 invariant 11).
+/// (themes s01 "Token generator"; config s03 INV-11).
 void _opacityClass(StringBuffer out, Iterable<String> keys) {
   final names = _names(keys, 'opacity');
   out
@@ -468,7 +468,7 @@ void _opacityClass(StringBuffer out, Iterable<String> keys) {
 /// A class of one [type] field per key of the yaml group [group], built by
 /// `fromMap` from the theme data's map, which throws an `ArgumentError`
 /// naming a key the map lacks (themes s01 "Token generator"; config s03
-/// invariants 12 to 14). A key made only of digits is named `level<N>`.
+/// INV-12 to INV-14). A key made only of digits is named `level<N>`.
 void _tokenClass(
   StringBuffer out, {
   required String group,

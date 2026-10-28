@@ -203,7 +203,7 @@ Future<void> _warmUpKeyboard(WidgetTester tester, List<bool> builds) async {
 }
 
 /// Whether this host is the one the OS flag covers at all (US-04 FR-02 E05,
-/// s03 invariant 10): every other host reads the keyboard closed without
+/// s03 INV-10): every other host reads the keyboard closed without
 /// asking it.
 ///
 /// Reads [hostOSName], the real host OS, never `defaultTargetPlatform`:

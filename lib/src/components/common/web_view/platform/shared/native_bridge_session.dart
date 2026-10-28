@@ -53,7 +53,7 @@ Future<Object?> dispatchScriptAnswer(Future<Object> evaluation) async {
 const int _secretLength = 32;
 
 /// Resource error codes that report a navigation a newer one replaced, per
-/// platform (`s03_domain.md` invariant 10): `NSURLErrorCancelled` on WebKit,
+/// platform (`s03_domain.md` INV-10): `NSURLErrorCancelled` on WebKit,
 /// and the index of `WebErrorStatusOperationCanceled`, which
 /// `webview_all_windows` reports with type `unknown`, on WebView2. Linux
 /// emits no cancelled load, and Android has no cancel code.
