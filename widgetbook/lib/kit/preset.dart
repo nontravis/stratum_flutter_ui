@@ -13,7 +13,11 @@ final class Preset<T> {
 /// A knob that picks one [Preset] from a dropdown; the query value is the
 /// preset's name (s03 INV-10).
 class PresetArg<T> extends Arg<Preset<T>> with SingleFieldOnly {
-  PresetArg(super.value, {super.name, required this.values});
+  PresetArg(super.value, {super.name, required this.values})
+    : assert(
+        values.map((preset) => preset.name).toSet().length == values.length,
+        'Preset names must be unique',
+      );
 
   final List<Preset<T>> values;
 

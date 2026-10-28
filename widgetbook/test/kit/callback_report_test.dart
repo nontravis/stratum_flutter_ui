@@ -78,4 +78,25 @@ void main() {
     expect(find.text('count 0'), findsOneWidget);
     expect(find.text('onPressed called'), findsOneWidget);
   });
+
+  testWidgets('fo11/us04/fr03: reporting without reportingSetup fails loudly', (
+    tester,
+  ) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      probeApp(
+        child: Builder(
+          builder: (inner) {
+            context = inner;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(
+      () => CallbackReport.report(context, 'onPressed'),
+      throwsAssertionError,
+    );
+  });
 }

@@ -55,6 +55,21 @@ void main() {
     expect(storySetProblems(page), isEmpty);
   });
 
+  test('fo11/us03/fr02: a misplaced Example gets one message, not a false '
+      'missing-Example one', () {
+    final page = _page([
+      StoryNames.playground,
+      StoryNames.variants,
+      StoryNames.example('a'),
+      StoryNames.responsive,
+      StoryNames.accessibility,
+    ]);
+
+    expect(storySetProblems(page), [
+      contains('"Example: a" must come after Accessibility'),
+    ]);
+  });
+
   test('fo11/us03/fr02: storySetProblems reports a story out of order', () {
     final page = _page([StoryNames.variants, StoryNames.playground, ..._tail]);
 
@@ -192,7 +207,26 @@ void main() {
           closeTo(10 * 320 / catalogWindowSizes[size]!.width, 0.01),
           reason: size.name,
         );
+        final frame = find
+            .ancestor(of: probe, matching: find.byType(ContainerLayout))
+            .first;
+        expect(
+          tester.getSize(frame).height,
+          closeTo(
+            320 *
+                catalogWindowSizes[size]!.height /
+                catalogWindowSizes[size]!.width,
+            0.01,
+          ),
+          reason: '${size.name} frame height',
+        );
       }
+
+      final tops = [
+        for (final size in WindowSize.values)
+          tester.getTopLeft(find.text(size.name)).dy,
+      ];
+      expect(tops, [...tops]..sort(), reason: 'frames follow WindowSize order');
     },
   );
 

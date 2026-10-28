@@ -60,6 +60,7 @@ List<String> storySetProblems(Component component) {
   for (var i = 0; i < names.length; i++) {
     if (fixed.contains(names[i])) continue;
     final isExample = names[i].startsWith(StoryNames.example(''));
+    if (isExample) hasExample = true;
     if (i < lastFixed) {
       problems.add('$path: "${names[i]}" must come after Accessibility');
     } else if (!isExample) {
@@ -67,8 +68,6 @@ List<String> storySetProblems(Component component) {
         '$path: "${names[i]}" after Accessibility must start '
         'with "Example: "',
       );
-    } else {
-      hasExample = true;
     }
   }
   if (!hasExample) {

@@ -73,6 +73,18 @@ void main() {
     expect(arg.valueToQueryGroup(_presets[2]).toParam(), contains('Outlined'));
   });
 
+  test('fo11/us04/fr04: two presets with the same name are rejected', () {
+    final dup = <Preset<WidgetStyle>>[
+      const Preset('Filled', _none),
+      const Preset('Filled', _none),
+    ];
+
+    expect(
+      () => PresetArg<WidgetStyle>(dup.first, values: dup),
+      throwsAssertionError,
+    );
+  });
+
   testWidgets('fo11/us04/fr05: a preset reads the locale through its '
       'context', (tester) async {
     final preset = Preset<String>(

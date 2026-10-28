@@ -10,9 +10,9 @@ class CallbackReport extends StatefulWidget {
 
   /// Shows `'$name called'` in the nearest report above [context].
   static void report(BuildContext context, String name) {
-    context.findAncestorStateOfType<_CallbackReportState>()?._show(
-      '$name called',
-    );
+    final state = context.findAncestorStateOfType<_CallbackReportState>();
+    assert(state != null, 'reportCallback needs setup: reportingSetup');
+    state?._show('$name called');
   }
 
   @override
