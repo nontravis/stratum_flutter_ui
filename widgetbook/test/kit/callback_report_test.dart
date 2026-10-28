@@ -99,4 +99,25 @@ void main() {
       throwsAssertionError,
     );
   });
+
+  testWidgets('fo11/us04/fr03: the report passes a bounded height to a story '
+      'that needs one', (tester) async {
+    await tester.pumpWidget(
+      probeApp(
+        child: SizedBox(
+          height: 300,
+          child: Builder(
+            builder: (context) => reportingSetup(
+              context,
+              ListView(children: const [Text('row')]),
+              _Args(true),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('row'), findsOneWidget);
+  });
 }

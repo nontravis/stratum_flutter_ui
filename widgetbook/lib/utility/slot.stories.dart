@@ -61,6 +61,9 @@ final _paddings = <Preset<EdgeInsets>>[
 
 EdgeInsets? _noPadding(BuildContext context) => null;
 
+/// Knobs for a story that has no Playground: fixed, so the panel hides them.
+SlotKnobsArgs _fixedKnobs() => SlotKnobsArgs.fixed(padding: _paddings.first);
+
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumSlot _frameChild(BuildContext context, SlotKnobsArgs args) =>
@@ -77,19 +80,19 @@ final $Playground = _Story(
 );
 
 final $Variants = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => const StratumSlot(),
 );
 
 final $Responsive = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => responsiveFrames((context) => const StratumSlot()),
 );
 
 final $Accessibility = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) =>
       accessibilityFrames(build: (context) => const StratumSlot()),
@@ -97,7 +100,7 @@ final $Accessibility = _Story(
 
 final $ExampleAvatarPlaceholder = _Story(
   name: StoryNames.example('avatar placeholder'),
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: (context, args) =>
       const StratumSlot(name: 'Avatar', width: 64, height: 64),
 );

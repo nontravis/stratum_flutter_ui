@@ -46,6 +46,9 @@ final componentMeta = ComponentMeta(
 /// The slot every story but the example puts inside the zoom.
 const _slotName = 'content';
 
+/// Knobs for a story that has no Playground: fixed, so the panel hides them.
+WebZoomKnobsArgs _fixedKnobs() => WebZoomKnobsArgs.fixed();
+
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumWebZoom _frameChild(BuildContext context, WebZoomKnobsArgs args) =>
@@ -63,13 +66,13 @@ final $Playground = _Story(
 );
 
 final $Variants = _Story(
-  args: WebZoomKnobsArgs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => const StratumWebZoom(child: StratumSlot(name: _slotName)),
 );
 
 final $Responsive = _Story(
-  args: WebZoomKnobsArgs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => responsiveFrames(
     (context) => const StratumWebZoom(child: StratumSlot(name: _slotName)),
@@ -77,7 +80,7 @@ final $Responsive = _Story(
 );
 
 final $Accessibility = _Story(
-  args: WebZoomKnobsArgs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => accessibilityFrames(
     build: (context) =>
@@ -87,7 +90,7 @@ final $Accessibility = _Story(
 
 final $ExampleZoomableMap = _Story(
   name: StoryNames.example('zoomable map'),
-  args: WebZoomKnobsArgs(),
+  args: _fixedKnobs(),
   builder: (context, args) => const StratumWebZoom(
     maxScale: 3,
     child: StratumSlot(name: 'Map', width: 320, height: 240),

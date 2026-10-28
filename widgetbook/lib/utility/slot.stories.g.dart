@@ -20,7 +20,8 @@ final StratumSlotComponent = Component<StratumSlot, StoryArgs<StratumSlot>>(
   name: componentMeta.name ?? 'StratumSlot',
   path: componentMeta.path ?? 'utility',
   docsBuilder: componentMeta.docsBuilder,
-  docComment: null,
+  docComment: r'''Marks where content goes: a dashed, labelled placeholder that stands in
+for a widget not built yet.''',
   stories: [
     $Playground..$generatedName = 'Playground',
     $Variants..$generatedName = 'Variants',

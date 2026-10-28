@@ -27,7 +27,10 @@ class _CallbackReportState extends State<CallbackReport> {
   @override
   Widget build(BuildContext context) => ColumnLayout(
     mainAxisSize: MainAxisSize.min,
-    children: [widget.child, if (_last != null) Text(_last!)],
+    children: [
+      Flexible(child: widget.child),
+      if (_last != null) Text(_last!),
+    ],
   );
 }
 

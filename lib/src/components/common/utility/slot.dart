@@ -1,5 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
+/// Marks where content goes: a dashed, labelled placeholder that stands in
+/// for a widget not built yet.
 class StratumSlot extends StatelessWidget {
   const new({
     super.key,

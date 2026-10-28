@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
+import 'package:stratum_ui_widgetbook/components.g.dart';
 import 'package:stratum_ui_widgetbook/kit/docs/accessibility_notes_doc_block.dart';
 import 'package:stratum_ui_widgetbook/kit/docs/figma_link_doc_block.dart';
 import 'package:stratum_ui_widgetbook/kit/docs/usage_doc_block.dart';
@@ -65,5 +66,34 @@ void main() {
 
   test('fo11/us01/fr02: the Web view page sits under Utility', () {
     expect(StratumWebViewComponent.path, 'Utility');
+    expect(components, contains(StratumWebViewComponent));
+  });
+
+  testWidgets('fo11/us03/fr02: the Playground lays out in a bounded story '
+      'area', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 600,
+            child: Builder(
+              builder: (context) => $Playground.setup(
+                context,
+                Builder(
+                  builder: (inner) =>
+                      $Playground.builder(inner, $Playground.args),
+                ),
+                $Playground.args,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(StratumWebView), findsOneWidget);
   });
 }

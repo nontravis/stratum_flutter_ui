@@ -30,4 +30,33 @@ void main() {
       reason: '$problems',
     );
   });
+
+  test('fo11/us04/fr01: only the Playground shows knobs', () {
+    final shown = {
+      for (final component in components)
+        if (!_isFoundation(component))
+          for (final story in component.stories)
+            if (story.name != StoryNames.playground &&
+                story.args.safeList.isNotEmpty)
+              story.path: [for (final arg in story.args.safeList) arg.name],
+    };
+
+    expect(
+      shown,
+      isEmpty,
+      reason:
+          'these stories show knobs that change '
+          'nothing: $shown',
+    );
+  });
+
+  test('fo11/us03/fr01: every catalog page has a description', () {
+    final missing = [
+      for (final component in components)
+        if (!_isFoundation(component) && component.docComment == null)
+          component.fullPath,
+    ];
+
+    expect(missing, isEmpty, reason: 'no /// summary on: $missing');
+  });
 }

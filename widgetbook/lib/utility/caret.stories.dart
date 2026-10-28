@@ -81,6 +81,10 @@ final _customStyles = <Preset<StratumCaretStyle>>[
 
 StratumCaretStyle? _noStyle(BuildContext context) => null;
 
+/// Knobs for a story that has no Playground: fixed, so the panel hides them.
+CaretKnobsArgs _fixedKnobs() =>
+    CaretKnobsArgs.fixed(customStyle: _customStyles.first);
+
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumCaret _frameChild(BuildContext context, CaretKnobsArgs args) =>
@@ -167,19 +171,19 @@ final $Playground = _Story(
 );
 
 final $Variants = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => _variantsGrid(),
 );
 
 final $Responsive = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => responsiveFrames((context) => const StratumCaret()),
 );
 
 final $Accessibility = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => accessibilityFrames(
     build: (context) => const StratumCaret(),
@@ -189,7 +193,7 @@ final $Accessibility = _Story(
 
 final $ExampleDropdownTrigger = _Story(
   name: StoryNames.example('dropdown trigger'),
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => const _DropdownTriggers(),
 );

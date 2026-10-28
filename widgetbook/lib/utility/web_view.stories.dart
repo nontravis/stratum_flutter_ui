@@ -109,6 +109,14 @@ WebViewKnobsArgs _knobs() => WebViewKnobsArgs(
   ),
 );
 
+/// Knobs for a story that has no Playground: fixed, so the panel hides them.
+WebViewKnobsArgs _fixedKnobs() => WebViewKnobsArgs.fixed(
+  source: _sources.first,
+  controller: _controllers.first,
+  allowedOrigins: _origins.first,
+  onNavigationRequest: _decisions.first,
+);
+
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumWebView _frameChild(BuildContext context, WebViewKnobsArgs args) =>
@@ -146,7 +154,7 @@ final $Playground = _Story(
 );
 
 final $Variants = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => ColumnLayout(
     scroll: const Scroll(),
@@ -169,7 +177,7 @@ final $Variants = _Story(
 );
 
 final $Responsive = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => responsiveFrames(
     (context) => _boxedView(_valueOf(_sources.first, context)),
@@ -177,7 +185,7 @@ final $Responsive = _Story(
 );
 
 final $Accessibility = _Story(
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => accessibilityFrames(
     build: (context) => _boxedView(_valueOf(_sources.first, context)),
@@ -186,7 +194,7 @@ final $Accessibility = _Story(
 
 final $ExampleHelpPage = _Story(
   name: StoryNames.example('embedded help page'),
-  args: _knobs(),
+  args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => Builder(
     builder: (context) {

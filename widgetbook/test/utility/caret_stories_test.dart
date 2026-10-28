@@ -5,56 +5,15 @@ import 'package:stratum_ui_widgetbook/kit/docs/accessibility_notes_doc_block.dar
 import 'package:stratum_ui_widgetbook/kit/docs/figma_link_doc_block.dart';
 import 'package:stratum_ui_widgetbook/kit/docs/usage_doc_block.dart';
 import 'package:stratum_ui_widgetbook/kit/preset.dart';
-import 'package:stratum_ui_widgetbook/shell/catalog_config.dart';
 import 'package:stratum_ui_widgetbook/utility/caret.stories.dart';
-import 'package:widgetbook/src/core/widgetbook_app.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
-import '../support/catalog_theme.dart';
+import '../support/open_story.dart';
 
 final _figma = Uri.parse(
   'https://www.figma.com/design/wjRe9eL7863nMRfFats8jZ/'
   'Design-System-4-by-Nonthawit?node-id=56236-100390',
 );
-
-/// Opens the Caret story [story] in the catalog with the knob values [knobs]
-/// (arg name to field value) and asserts it really opened.
-Future<void> _open(
-  WidgetTester tester,
-  String story, {
-  Map<String, String> knobs = const {},
-}) async {
-  tester.view.physicalSize = const Size(1200, 800);
-  tester.view.devicePixelRatio = 1.0;
-  addTearDown(tester.view.resetPhysicalSize);
-  addTearDown(tester.view.resetDevicePixelRatio);
-
-  final set = await loadDefaultThemeSet();
-  final route = Uri(
-    path: '/',
-    queryParameters: {
-      'path': 'Utility/Caret/$story',
-      for (final MapEntry(:key, :value) in knobs.entries)
-        key: QueryGroup({'value': value}).toParam(),
-    },
-  ).toString();
-  await tester.pumpWidget(
-    WidgetbookApp(
-      key: UniqueKey(),
-      config: Config(
-        components: catalogConfig(
-          components: components,
-          themes: {'default': set},
-        ).components,
-        addons: catalogAddons({'default': set}),
-        initialRoute: route,
-      ),
-    ),
-  );
-  await tester.pumpAndSettle();
-
-  expect(find.byType(StratumCaret), findsWidgets);
-}
 
 /// The caret's own box: the widget itself fills a tight parent.
 final _glyphBox = find.descendant(
@@ -95,7 +54,11 @@ void main() {
   testWidgets('fo11/us04/fr01/e01: the disabled knob disables the caret', (
     tester,
   ) async {
-    await _open(tester, 'Playground', knobs: {'disabled': 'true'});
+    await openStory<StratumCaret>(
+      tester,
+      'Utility/Caret/Playground',
+      knobs: {'disabled': 'true'},
+    );
 
     expect(
       tester.widget<StratumCaret>(find.byType(StratumCaret)).disabled,
@@ -104,10 +67,18 @@ void main() {
   });
 
   testWidgets('fo11/us04/s1: the size knob resizes the caret', (tester) async {
-    await _open(tester, 'Playground', knobs: {'size': 'small'});
+    await openStory<StratumCaret>(
+      tester,
+      'Utility/Caret/Playground',
+      knobs: {'size': 'small'},
+    );
     final small = tester.getSize(_glyphBox);
 
-    await _open(tester, 'Playground', knobs: {'size': 'large'});
+    await openStory<StratumCaret>(
+      tester,
+      'Utility/Caret/Playground',
+      knobs: {'size': 'large'},
+    );
     final large = tester.getSize(_glyphBox);
 
     expect(small.width, lessThan(large.width));
@@ -116,7 +87,7 @@ void main() {
 
   testWidgets('fo11/us03/s2: the caret Variants show every glyph, direction, '
       'size, and state', (tester) async {
-    await _open(tester, 'Variants');
+    await openStory<StratumCaret>(tester, 'Utility/Caret/Variants');
 
     expect(
       find.byType(StratumCaret),
@@ -158,7 +129,7 @@ void main() {
     expect(StratumCaretComponent.stories, hasLength(5));
 
     for (final story in StratumCaretComponent.stories) {
-      await _open(tester, story.name);
+      await openStory<StratumCaret>(tester, 'Utility/Caret/${story.name}');
       expect(tester.takeException(), isNull, reason: story.name);
     }
   });
