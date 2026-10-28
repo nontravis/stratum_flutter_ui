@@ -57,9 +57,11 @@ final class StratumColorTokens {
   /// `transparent`
   final StratumColorTransparentTokens transparent;
 
-  /// Every color token of this set, keyed by its token path.
+  /// Every color token of this set, as an unmodifiable map.
   ///
-  /// Holds one entry per typed getter, in getter order.
+  /// A key is the token path as the theme file writes it, hyphens
+  /// kept (`background.control.input-disabled`). Holds one entry per
+  /// typed getter, in getter order.
   late final Map<String, Color> byName = Map.unmodifiable({
     'background.color.blue': background.color.blue,
     'background.color.brand': background.color.brand,

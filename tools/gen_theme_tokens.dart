@@ -249,9 +249,15 @@ void _colorClass(
 void _colorListing(StringBuffer out, Map<String, Object?> node) {
   out
     ..writeln()
-    ..writeln('  /// Every color token of this set, keyed by its token path.')
+    ..writeln('  /// Every color token of this set, as an unmodifiable map.')
     ..writeln('  ///')
-    ..writeln('  /// Holds one entry per typed getter, in getter order.')
+    ..writeln(
+      '  /// A key is the token path as the theme file writes it, hyphens',
+    )
+    ..writeln(
+      '  /// kept (`background.control.input-disabled`). Holds one entry per',
+    )
+    ..writeln('  /// typed getter, in getter order.')
     ..writeln('  late final Map<String, Color> byName = Map.unmodifiable({');
   for (final (tokenPath, getter) in _colorEntries(node, '', const [])) {
     out.writeln("    '$tokenPath': $getter,");

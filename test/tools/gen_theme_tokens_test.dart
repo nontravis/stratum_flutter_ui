@@ -26,6 +26,24 @@ shadow: { 1: [] }
 blur: { 1: 4 }
 ''';
 
+/// The `color.light` map of the default theme yaml, without `app`.
+YamlMap _lightColors() {
+  final root = loadYaml(File(themePath).readAsStringSync()) as YamlMap;
+  final light = Map<Object?, Object?>.of(
+    (root['color'] as YamlMap)['light'] as YamlMap,
+  )..remove('app');
+  return YamlMap.wrap(light);
+}
+
+/// The dotted path of each leaf under [node], in yaml order.
+List<String> _leafPaths(YamlMap node, String prefix) => [
+  for (final MapEntry(:key, :value) in node.entries)
+    if (value is YamlMap)
+      ..._leafPaths(value, '$prefix$key.')
+    else
+      '$prefix$key',
+];
+
 /// `#RRGGBBAA` as the Dart color `0xAARRGGBB`.
 Color _color(String hex) =>
     Color(int.parse('${hex.substring(7, 9)}${hex.substring(1, 7)}', radix: 16));
@@ -483,6 +501,8 @@ void main() {
       final typed = <String, Color>{
         'background.color.blue': colors.background.color.blue,
         'border.color.blue': colors.border.color.blue,
+        'background.control.input-disabled':
+            colors.background.control.inputDisabled,
         'brand.normal': colors.brand.normal,
         'icon.color.blue': colors.icon.color.blue,
         'misc.highlight': colors.misc.highlight,
@@ -495,6 +515,7 @@ void main() {
       for (final MapEntry(:key, :value) in typed.entries) {
         expect(byName[key], value, reason: key);
       }
+      expect(byName.keys, _leafPaths(_lightColors(), ''));
       expect(
         () => byName['brand.normal'] = const Color(0x00000000),
         throwsUnsupportedError,
@@ -525,6 +546,7 @@ void main() {
       final two = generated(['a', 'b']);
       final three = generated(['a', 'b', 'c']);
 
+      expect(two, contains("    'a': a,\n"));
       expect(two, contains("    'b': b,\n"));
       expect(two, isNot(contains("    'c': c,\n")));
       expect(three, contains("    'c': c,\n"));
