@@ -1,5 +1,4 @@
-// ignore: implementation_imports, StratumLabels is internal and no barrel exports it; its delegates are the only list that holds the Stratum, Material, Cupertino, and widgets delegates together.
-import 'package:stratum_ui/src/components/common/l10n/stratum_labels.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
@@ -20,7 +19,7 @@ List<Addon<dynamic>> catalogAddons(Map<String, StratumThemeSet> setsById) => [
   LocaleAddon(const [
     Locale('en'),
     Locale('th'),
-  ], StratumLabels.localizationsDelegates),
+  ], GlobalMaterialLocalizations.delegates),
   RtlAddon(),
   TextScaleAddon(),
   stratumThemeAddon(catalogThemes(setsById)),

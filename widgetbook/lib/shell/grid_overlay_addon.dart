@@ -17,6 +17,7 @@ class GridOverlayAddon extends Addon<bool> with SingleFieldOnly {
   Widget apply(BuildContext context, Widget child, bool setting) {
     if (!setting) return child;
     return StackLayout(
+      fit: StackFit.passthrough,
       children: [
         child,
         // A childless GridPaper sizes to zero under a loose Stack child

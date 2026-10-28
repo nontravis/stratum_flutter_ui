@@ -85,4 +85,32 @@ void main() {
 
     expect(reading.direction, TextDirection.ltr);
   });
+
+  testWidgets('fo11/us02/fr01: a Thai locale renders a Stratum built-in label '
+      'in Thai', (tester) async {
+    final handle = tester.ensureSemantics();
+    final set = await loadDefaultThemeSet();
+    final addons = catalogAddons({'default': set});
+    final localeAddon = addons.whereType<LocaleAddon>().single;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => localeAddon.apply(
+            context,
+            StratumThemeApplication(
+              themes: set,
+              themeMode: ThemeMode.light,
+              child: ModalLayout(body: const Text('body'), onClose: () {}),
+            ),
+            const Locale('th'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('ปิด'), findsOneWidget);
+    handle.dispose();
+  });
 }

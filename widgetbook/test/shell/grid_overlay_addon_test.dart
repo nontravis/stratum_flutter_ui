@@ -157,4 +157,46 @@ void main() {
     expect(taps, 1);
     handle.dispose();
   });
+
+  testWidgets('fo11/us02/fr03: the grid leaves the story constraints '
+      'unchanged', (tester) async {
+    final set = await loadDefaultThemeSet();
+
+    Future<BoxConstraints> constraintsWith({required bool grid}) async {
+      late BoxConstraints seen;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 300,
+              height: 200,
+              child: StratumThemeApplication(
+                themes: set,
+                themeMode: ThemeMode.light,
+                child: Builder(
+                  builder: (context) => GridOverlayAddon().apply(
+                    context,
+                    LayoutBuilder(
+                      builder: (_, constraints) {
+                        seen = constraints;
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    grid,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return seen;
+    }
+
+    final off = await constraintsWith(grid: false);
+    final on = await constraintsWith(grid: true);
+
+    expect(off, BoxConstraints.tight(const Size(300, 200)));
+    expect(on, off);
+  });
 }
