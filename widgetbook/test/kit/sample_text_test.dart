@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/stratum_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui_widgetbook/kit/sample_text.dart';
 
@@ -11,7 +11,7 @@ class _AllTexts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = Localizations.localeOf(context);
-    return Column(
+    return ColumnLayout(
       children: [
         for (final text in [
           SampleTexts.label,

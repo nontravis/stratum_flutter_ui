@@ -68,18 +68,22 @@ void main() {
           children: [
             UsageDocBlock(_docs('Stub()')),
             const AccessibilityNotesDocBlock(['Reads as a button']),
-            const ArgsDocBlock(args: []),
+            ArgsDocBlock(args: [StringArg('hello', name: 'label')]),
           ],
         ),
       ),
     );
 
-    expect(find.text('Stub()'), findsOneWidget);
+    final code = tester.widget<SelectableText>(find.byType(SelectableText));
+    expect(code.data, 'Stub()');
+    expect(code.style?.fontFamily, 'monospace');
     expect(find.text('Copy'), findsOneWidget);
     expect(find.text('Do'), findsOneWidget);
     expect(find.text("Don't"), findsOneWidget);
     expect(find.text('Accessibility'), findsOneWidget);
     expect(find.text('Reads as a button'), findsOneWidget);
+    expect(find.text('label'), findsOneWidget);
+    expect(find.text('hello'), findsOneWidget);
   });
 
   testWidgets('fo11/us03/s1: under Thai the labels read in Thai', (
