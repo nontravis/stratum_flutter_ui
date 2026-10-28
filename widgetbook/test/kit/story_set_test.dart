@@ -64,7 +64,29 @@ void main() {
   test('fo11/us03/fr02: storySetProblems reports a missing story', () {
     final page = _page([StoryNames.playground, ..._tail]);
 
-    expect(storySetProblems(page), isNotEmpty);
+    expect(storySetProblems(page), [contains('missing story "Variants"')]);
+  });
+
+  test('fo11/us03/fr02: a story after Accessibility must be an Example', () {
+    final page = _page([
+      StoryNames.playground,
+      StoryNames.variants,
+      ..._tail,
+      'Extras',
+    ]);
+
+    expect(storySetProblems(page), [contains('"Extras" after Accessibility')]);
+  });
+
+  test('fo11/us03/fr02: a story between the fixed ones is reported', () {
+    final page = _page([
+      StoryNames.playground,
+      'Extras',
+      StoryNames.variants,
+      ..._tail,
+    ]);
+
+    expect(storySetProblems(page), [contains('"Extras" must come after')]);
   });
 
   test('fo11/us03/fr02/e03: a page with no Example story fails', () {
@@ -150,17 +172,27 @@ void main() {
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: responsiveFrames(
-              (context) => const SizedBox(key: Key('probe'), width: 10),
+              (context) => SizedBox(
+                key: Key('probe-${WindowSizeScope.of(context).name}'),
+                width: 10,
+              ),
             ),
           ),
         ),
       );
 
-      // The watch frame is 240 wide, so it scales by 320 / 240; the corners
-      // apply the frame's transform.
-      final probe = find.byKey(const Key('probe')).first;
-      final width = tester.getTopRight(probe).dx - tester.getTopLeft(probe).dx;
-      expect(width, closeTo(10 * 320 / 240, 0.01));
+      // The corners apply the frame's transform: a probe 10 wide in a window
+      // `w` wide shows 10 * 320 / w wide.
+      for (final size in WindowSize.values) {
+        final probe = find.byKey(Key('probe-${size.name}'));
+        final width =
+            tester.getTopRight(probe).dx - tester.getTopLeft(probe).dx;
+        expect(
+          width,
+          closeTo(10 * 320 / catalogWindowSizes[size]!.width, 0.01),
+          reason: size.name,
+        );
+      }
     },
   );
 
@@ -240,5 +272,15 @@ void main() {
     expect(reads['rtl']!.$2, TextDirection.rtl);
     expect(reads['disabled']!.$1, TextScaler.noScaling);
     expect(reads['disabled']!.$2, TextDirection.ltr);
+  });
+
+  test('fo11/us03/fr02: accessibilityFrames rejects an unknown state key', () {
+    expect(
+      () => accessibilityFrames(
+        build: (_) => const SizedBox.shrink(),
+        states: {'Busy': (_) => const SizedBox.shrink()},
+      ),
+      throwsArgumentError,
+    );
   });
 }

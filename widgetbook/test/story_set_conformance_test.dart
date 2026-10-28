@@ -1,12 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui_widgetbook/components.g.dart';
 import 'package:stratum_ui_widgetbook/kit/story_set.dart';
+import 'package:stratum_ui_widgetbook/shell/catalog_section.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
 /// Whether [component] sits under the Foundation section, which has no story
 /// set.
 bool _isFoundation(Component component) =>
-    component.path.split('/').first == 'Foundation';
+    component.path.split('/').first == CatalogSection.foundation.label;
 
 void main() {
   test('fo11/us03/fr02: every catalog page keeps the story set', () {

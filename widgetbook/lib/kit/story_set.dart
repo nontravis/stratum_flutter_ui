@@ -46,30 +46,40 @@ List<String> storySetProblems(Component component) {
     StoryNames.responsive,
     StoryNames.accessibility,
   ];
-  final problems = <String>[];
-  for (var i = 0; i < fixed.length; i++) {
-    final found = i < names.length ? '"${names[i]}"' : 'nothing';
-    if (i >= names.length || names[i] != fixed[i]) {
+  final path = component.fullPath;
+  final problems = <String>[
+    for (final name in fixed)
+      if (!names.contains(name)) '$path: missing story "$name"',
+  ];
+  final present = names.where(fixed.contains).toList();
+  if (!_sameList(present, fixed.where(names.contains).toList())) {
+    problems.add('$path: stories must read ${fixed.join(', ')} in that order');
+  }
+  final lastFixed = names.lastIndexWhere(fixed.contains);
+  var hasExample = false;
+  for (var i = 0; i < names.length; i++) {
+    if (fixed.contains(names[i])) continue;
+    final isExample = names[i].startsWith(StoryNames.example(''));
+    if (i < lastFixed) {
+      problems.add('$path: "${names[i]}" must come after Accessibility');
+    } else if (!isExample) {
       problems.add(
-        '${component.fullPath}: story ${i + 1} must be '
-        '"${fixed[i]}", found $found',
+        '$path: "${names[i]}" after Accessibility must start '
+        'with "Example: "',
       );
+    } else {
+      hasExample = true;
     }
   }
-  final examples = names.skip(fixed.length).toList();
-  if (examples.isEmpty) {
-    problems.add('${component.fullPath}: needs at least one "Example: " story');
-  }
-  for (final name in examples) {
-    if (!name.startsWith(StoryNames.example(''))) {
-      problems.add(
-        '${component.fullPath}: "$name" after Accessibility must '
-        'start with "Example: "',
-      );
-    }
+  if (!hasExample) {
+    problems.add('$path: needs at least one "Example: " story');
   }
   return problems;
 }
+
+bool _sameList(List<String> a, List<String> b) =>
+    a.length == b.length &&
+    Iterable.generate(a.length).every((i) => a[i] == b[i]);
 
 bool _isLayoutPage(Component component) =>
     component.path.split('/').first == CatalogSection.layout.label;
@@ -93,6 +103,8 @@ Widget responsiveFrames(WidgetBuilder build) => ColumnLayout(
 /// `Right to left`, `Disabled` when [disabled] is set, then one frame per
 /// [states] key (`Loading`, `Error`, or `Empty`) (s03 INV-5).
 ///
+/// Throws an [ArgumentError] for a [states] key outside that set.
+///
 /// Pass [disabled] only when the widget takes the shared `disabled` prop
 /// (RL10).
 Widget accessibilityFrames({
@@ -100,10 +112,15 @@ Widget accessibilityFrames({
   WidgetBuilder? disabled,
   Map<String, WidgetBuilder> states = const {},
 }) {
-  assert(
-    states.keys.every(_stateFrameLabels.contains),
-    'states keys must come from $_stateFrameLabels',
-  );
+  for (final key in states.keys) {
+    if (!_stateFrameLabels.contains(key)) {
+      throw ArgumentError.value(
+        key,
+        'states',
+        'key must be one of $_stateFrameLabels',
+      );
+    }
+  }
   return ColumnLayout(
     scroll: const Scroll(),
     crossAxisAlignment: CrossAxisAlignment.start,
