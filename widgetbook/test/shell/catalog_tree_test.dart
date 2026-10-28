@@ -1,11 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/src.dart' hide Config;
+import 'package:stratum_ui/stratum_ui.dart';
 import 'package:stratum_ui_widgetbook/shell/catalog_section.dart';
 import 'package:stratum_ui_widgetbook/shell/catalog_tree.dart';
-import 'package:widgetbook/src/core/framework/config.dart';
+// WidgetbookApp is @internal and unexported; widgetbook's own tests pump it.
 import 'package:widgetbook/src/core/widgetbook_app.dart';
-import 'package:widgetbook/widgetbook.dart'
-    show Arg, Component, Story, StoryArgs;
+import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
 /// One stub page per named section, each with one stub story (s03 INV-2).
 Component _stub(String name, CatalogSection section) => Component(
@@ -70,6 +71,14 @@ void main() {
     },
   );
 
+  test('fo11/us01/fr02: pages of one section sort by name', () {
+    final ordered = orderBySection([
+      _stub('Zed', CatalogSection.control),
+      _stub('Alpha', CatalogSection.control),
+    ]);
+    expect(ordered.map((c) => c.name), ['Alpha', 'Zed']);
+  });
+
   test(
     'fo11/us01/fr02: a page outside the ten sections is refused (s03 INV-2)',
     () {
@@ -120,12 +129,13 @@ void main() {
         WidgetbookApp(
           config: Config(
             components: orderBySection([toast, slot]),
-            initialRoute: 'Feedback/Toast/${toastStory.name}',
+            initialRoute: '/?path=Feedback/Toast/${toastStory.name}',
           ),
         ),
       );
       await tester.pumpAndSettle();
 
+      expect(find.byType(StratumSlot), findsOneWidget);
       expect(find.text('Toast'), findsOneWidget);
       expect(find.text('Slot'), findsOneWidget);
       // INV-1 order: Utility (third section) sits above Feedback (seventh).

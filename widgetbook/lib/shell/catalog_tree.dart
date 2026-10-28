@@ -9,27 +9,21 @@ import 'catalog_section.dart';
 /// Throws an [ArgumentError] naming a component whose path's first segment is
 /// no section label, so a page cannot sit outside the ten sections.
 List<Component> orderBySection(List<Component> components) {
-  final sections = <String, int>{
-    for (final section in CatalogSection.values) section.label: section.index,
-  };
   // Validate every component up front: `sort` never compares a one-element
   // list, so a bad path would slip through a comparator-only check.
   for (final component in components) {
-    _sectionIndex(component, sections);
+    _sectionIndex(component);
   }
   return [...components]..sort((a, b) {
-    final bySection = _sectionIndex(
-      a,
-      sections,
-    ).compareTo(_sectionIndex(b, sections));
+    final bySection = _sectionIndex(a).compareTo(_sectionIndex(b));
     if (bySection != 0) return bySection;
     return a.name.compareTo(b.name);
   });
 }
 
-int _sectionIndex(Component component, Map<String, int> sections) {
+int _sectionIndex(Component component) {
   final firstSegment = component.path.split('/').first;
-  final index = sections[firstSegment];
+  final index = CatalogSection.fromLabel(firstSegment)?.index;
   if (index == null) {
     throw ArgumentError(
       'Component "${component.name}" sits outside the ten sections: '
