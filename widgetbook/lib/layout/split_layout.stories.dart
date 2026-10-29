@@ -88,11 +88,25 @@ SplitLayoutKnobsArgs _knobs() => SplitLayoutKnobsArgs(
 
 final _controllers = <Preset<SplitLayoutController>>[
   const Preset('None', _noController),
-  Preset(
-    'Start pane 30%',
-    (_) => SplitLayoutController(fractions: const [0.3, 0.7]),
-  ),
+  Preset('Start pane 30%', (_) => SplitLayoutController()),
 ];
+
+/// The share the `Start pane 30%` preset gives the first pane.
+const _startShare = 0.3;
+
+/// [controller] holding [_startShare] for the first of [panes] panes and an
+/// even share of the rest for each other, so the preset keeps its meaning at
+/// every pane count; a split discards a list whose length differs from its
+/// panes'.
+SplitLayoutController? _fitToPanes(
+  SplitLayoutController? controller,
+  int panes,
+) {
+  if (controller == null) return null;
+  final rest = (1 - _startShare) / (panes - 1);
+  return controller
+    ..fractions = [_startShare, for (var i = 1; i < panes; i++) rest];
+}
 
 SplitLayoutController? _noController(BuildContext context) => null;
 
@@ -128,7 +142,7 @@ final _customStyles = <Preset<SplitLayoutStyle>>[
     'Heavy focus ring',
     (context) => SplitLayoutStyle(
       focus: StratumFocusBorderStyle(
-        width: const WidgetStatePropertyAll(4),
+        width: WidgetStatePropertyAll(context.theme.focus.outsideWidth),
         color: WidgetStatePropertyAll(context.theme.color.border.color.gray),
       ),
     ),
@@ -176,7 +190,7 @@ final $Playground = _Story(
     panes: _panes(args.panes),
     axis: args.axis,
     resizable: args.resizable,
-    controller: args.controller.build(context),
+    controller: _fitToPanes(args.controller.build(context), args.panes),
     dividerLabel: args.dividerLabel.build(context),
     dividerBuilder: args.dividerBuilder.build(context),
     customStyle: args.customStyle.build(context),
