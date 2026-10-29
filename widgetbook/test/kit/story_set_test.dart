@@ -4,6 +4,8 @@ import 'package:stratum_ui_widgetbook/kit/story_set.dart';
 import 'package:stratum_ui_widgetbook/shell/window_size_addon.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
+import '../support/catalog_theme.dart';
+
 /// Story args of [_Story].
 class _StoryArgs extends StoryArgs<SizedBox> {
   const _StoryArgs();
@@ -229,6 +231,122 @@ void main() {
       expect(tops, [...tops]..sort(), reason: 'frames follow WindowSize order');
     },
   );
+
+  testWidgets('fo11/us03/fr02: each responsive frame resolves the Material '
+      'theme at its own window size', (tester) async {
+    final themes = await loadDefaultThemeSet();
+    final sizes = <WindowSize, double?>{};
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(size: Size(800, 600)),
+        child: MaterialApp(
+          home: StratumThemeApplication(
+            themes: themes,
+            themeMode: ThemeMode.light,
+            child: responsiveFrames((context) {
+              sizes[WindowSizeScope.of(context)] = Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.fontSize;
+              return const SizedBox(width: 10, height: 10);
+            }),
+          ),
+        ),
+      ),
+    );
+
+    for (final size in WindowSize.values) {
+      expect(
+        sizes[size],
+        themes.light
+            .toThemeData(
+              locale: const Locale('en'),
+              windowSize: size,
+              textScaler: TextScaler.noScaling,
+            )
+            .textTheme
+            .bodyMedium
+            ?.fontSize,
+        reason: size.name,
+      );
+    }
+    expect(sizes[WindowSize.watch], isNot(sizes[WindowSize.bigDesktop]));
+  });
+
+  testWidgets('fo11/us03/fr02: every responsive frame has an Overlay of its '
+      'own', (tester) async {
+    final overlays = <OverlayState>[];
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(size: Size(800, 600)),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: responsiveFrames((context) {
+            overlays.add(Overlay.of(context));
+            return const SizedBox(width: 10, height: 10);
+          }),
+        ),
+      ),
+    );
+
+    expect(overlays, hasLength(WindowSize.values.length));
+    expect(overlays.toSet(), hasLength(WindowSize.values.length));
+  });
+
+  testWidgets('fo11/us03/fr02: every accessibility frame has an Overlay of '
+      'its own, under that frame\'s text scale and direction', (tester) async {
+    final reads = <({OverlayState overlay, double scale, TextDirection dir})>[];
+    Widget probe(BuildContext context) {
+      reads.add((
+        overlay: Overlay.of(context),
+        scale: MediaQuery.textScalerOf(context).scale(10),
+        dir: Directionality.of(context),
+      ));
+      return const SizedBox(width: 10, height: 10);
+    }
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(size: Size(800, 6000)),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: accessibilityFrames(build: probe, disabled: probe),
+        ),
+      ),
+    );
+
+    expect(reads, hasLength(3));
+    expect(reads.map((read) => read.overlay).toSet(), hasLength(3));
+    expect(reads[0].scale, 20);
+    expect(reads[1].dir, TextDirection.rtl);
+  });
+
+  testWidgets('fo11/us03/fr02: fixedBox gives a child that fills its parent a '
+      'bounded size inside a scrolling frame list', (tester) async {
+    BoxConstraints? seen;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: ColumnLayout(
+          scroll: const Scroll(),
+          children: [
+            fixedBox(
+              width: 320,
+              height: 240,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  seen = constraints;
+                  return const SizedBox.expand();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(seen, BoxConstraints.tight(const Size(320, 240)));
+  });
 
   testWidgets(
     'fo11/us03/fr02/e01: a widget with no loading, error, or empty state '

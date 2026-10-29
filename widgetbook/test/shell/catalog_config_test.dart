@@ -6,6 +6,7 @@ import 'package:stratum_ui_widgetbook/shell/catalog_config.dart';
 import 'package:stratum_ui_widgetbook/shell/grid_overlay_addon.dart';
 import 'package:stratum_ui_widgetbook/shell/rtl_addon.dart';
 import 'package:stratum_ui_widgetbook/shell/stage_addon.dart';
+import 'package:stratum_ui_widgetbook/shell/text_scale_addon.dart';
 import 'package:stratum_ui_widgetbook/shell/window_size_addon.dart';
 import 'package:widgetbook/src/core/widgetbook_app.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
@@ -108,7 +109,7 @@ void main() {
       isA<WindowSizeAddon>(),
       isA<LocaleAddon>(),
       isA<RtlAddon>(),
-      isA<TextScaleAddon>(),
+      isA<CatalogTextScaleAddon>(),
       isA<ThemeAddon<dynamic>>(),
       isA<GridOverlayAddon>(),
       isA<SemanticsAddon>(),

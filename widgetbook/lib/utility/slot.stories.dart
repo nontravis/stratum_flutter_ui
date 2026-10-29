@@ -47,19 +47,16 @@ final componentMeta = ComponentMeta(
 );
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
-SlotKnobsArgs _knobs() => SlotKnobsArgs(
-  padding: PresetArg(_paddings.first, name: 'padding', values: _paddings),
-);
+SlotKnobsArgs _knobs() =>
+    SlotKnobsArgs(padding: presetKnob('padding', _paddings));
 
 final _paddings = <Preset<EdgeInsets>>[
-  const Preset('None', _noPadding),
+  const Preset.none(),
   Preset(
     'space.md all sides',
     (context) => EdgeInsets.all(context.theme.space.md),
   ),
 ];
-
-EdgeInsets? _noPadding(BuildContext context) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 SlotKnobsArgs _fixedKnobs() => SlotKnobsArgs.fixed(padding: _paddings.first);

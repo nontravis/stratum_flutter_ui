@@ -24,42 +24,19 @@ WidgetStyleKnobsArgs _knobs() => WidgetStyleKnobsArgs(
     name: 'opacity',
     style: const SliderDoubleArgStyle(min: 0, max: 1, divisions: 20),
   ),
-  alignment: PresetArg(
-    _alignments.first,
-    name: 'alignment',
-    values: _alignments,
-  ),
-  backgroundGradient: PresetArg(
-    _gradients.first,
-    name: 'backgroundGradient',
-    values: _gradients,
-  ),
-  backgroundImage: PresetArg(
-    _images.first,
-    name: 'backgroundImage',
-    values: _images,
-  ),
-  foregroundGradient: PresetArg(
-    _gradients.first,
-    name: 'foregroundGradient',
-    values: _gradients,
-  ),
-  foregroundImage: PresetArg(
-    _images.first,
-    name: 'foregroundImage',
-    values: _images,
-  ),
-  innerShadow: PresetArg(_shadows.first, name: 'innerShadow', values: _shadows),
-  dropShadow: PresetArg(_shadows.first, name: 'dropShadow', values: _shadows),
+  alignment: presetKnob('alignment', _alignments),
+  backgroundGradient: presetKnob('backgroundGradient', _gradients),
+  backgroundImage: presetKnob('backgroundImage', _images),
+  foregroundGradient: presetKnob('foregroundGradient', _gradients),
+  foregroundImage: presetKnob('foregroundImage', _images),
+  innerShadow: presetKnob('innerShadow', _shadows),
+  dropShadow: presetKnob('dropShadow', _shadows),
 );
-
-/// The `None` choice of a preset knob: it builds no value.
-Preset<T> _none<T>() => Preset<T>('None', (_) => null);
 
 /// `None`, then the nine `Alignment` constants (`Alignment` is a class, so
 /// `EnumArg` cannot take it).
 final _alignments = <Preset<AlignmentGeometry>>[
-  _none(),
+  const Preset.none(),
   const Preset('topLeft', _topLeft),
   const Preset('topCenter', _topCenter),
   const Preset('topRight', _topRight),
@@ -83,7 +60,7 @@ AlignmentGeometry _bottomRight(BuildContext context) => Alignment.bottomRight;
 
 /// `None`, then a two-stop gradient of two theme brand colors.
 final _gradients = <Preset<Gradient>>[
-  _none(),
+  const Preset.none(),
   Preset(
     'brand.normal to brand.active',
     (context) => LinearGradient(
@@ -97,7 +74,7 @@ final _gradients = <Preset<Gradient>>[
 
 /// `None`, then the sample image the catalog bundles.
 final _images = <Preset<DecorationImage>>[
-  _none(),
+  const Preset.none(),
   Preset(
     'sample_image.png',
     (_) => const DecorationImage(
@@ -109,7 +86,7 @@ final _images = <Preset<DecorationImage>>[
 
 /// `None`, then the theme's shadow tokens `shadow.1` to `shadow.6`.
 final _shadows = <Preset<List<BoxShadow>>>[
-  _none(),
+  const Preset.none(),
   Preset('shadow.1', (context) => context.theme.shadow.level1),
   Preset('shadow.2', (context) => context.theme.shadow.level2),
   Preset('shadow.3', (context) => context.theme.shadow.level3),
@@ -123,6 +100,9 @@ final _shadows = <Preset<List<BoxShadow>>>[
 /// set.
 final $Playground = _Story(
   args: _knobs(),
+  // The default setup rebuilds the sample on every knob change; keeping the
+  // box lets its `animationStyle` play each change.
+  setup: (context, child, args) => child,
   builder: (context, args) => ContainerLayout(
     key: widgetStyleSampleKey,
     style: WidgetStyleKnobs(

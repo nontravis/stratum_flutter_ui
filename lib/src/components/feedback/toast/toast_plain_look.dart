@@ -18,9 +18,12 @@ Duration? toastCloseTime({
 ///
 /// The host builds it unless an app `builder` replaces it; an app also draws
 /// it on its own, outside any host, or inside its own look. Drawn alone it
-/// starts no timer and makes no announcement: the close button, running the
-/// notice's `close`, is the one way to remove it (FR-06 E07, E08; s03
-/// INV-21).
+/// starts no timer and makes no announcement: the close button and the
+/// action both run the notice's `close`, which is the one way it leaves
+/// (FR-06 E07, E08; s03 INV-21). Give it a bounded width, as a child of a
+/// `Column` or a box with a width: it fills the width it gets, so an
+/// unbounded width, as in a `Row` or a horizontal list, throws a layout
+/// error.
 class StratumToastPlainLook extends StatelessWidget {
   const new({super.key, required this.notice, this.corners});
 

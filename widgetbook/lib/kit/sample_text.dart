@@ -10,11 +10,15 @@ final class SampleText {
 
   /// Returns [th] under a Thai [locale], [en] under any other.
   String resolve(Locale locale) => locale.languageCode == 'th' ? th : en;
+
+  /// Returns the text for the locale [context] sees, which is the toolbar's
+  /// language inside a story.
+  String of(BuildContext context) => resolve(Localizations.localeOf(context));
 }
 
 /// The sample texts every story draws from.
 ///
-/// Resolve each with `resolve(Localizations.localeOf(context))` so the
+/// Read each with `of(context)` so the
 /// toolbar language switches them all (s03 INV-11).
 abstract final class SampleTexts {
   static const label = SampleText(th: 'ป้ายกำกับ', en: 'Label');

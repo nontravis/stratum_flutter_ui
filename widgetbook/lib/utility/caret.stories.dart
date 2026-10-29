@@ -51,16 +51,11 @@ final componentMeta = ComponentMeta(
 );
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
-CaretKnobsArgs _knobs() => CaretKnobsArgs(
-  customStyle: PresetArg(
-    _customStyles.first,
-    name: 'customStyle',
-    values: _customStyles,
-  ),
-);
+CaretKnobsArgs _knobs() =>
+    CaretKnobsArgs(customStyle: presetKnob('customStyle', _customStyles));
 
 final _customStyles = <Preset<StratumCaretStyle>>[
-  const Preset('None', _noStyle),
+  const Preset.none(),
   Preset(
     'Filled box',
     (context) => StratumCaretStyle(
@@ -78,8 +73,6 @@ final _customStyles = <Preset<StratumCaretStyle>>[
     ),
   ),
 ];
-
-StratumCaretStyle? _noStyle(BuildContext context) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 CaretKnobsArgs _fixedKnobs() =>
@@ -204,7 +197,7 @@ class _DropdownTriggers extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = SampleTexts.label.resolve(Localizations.localeOf(context));
+    final label = SampleTexts.label.of(context);
     return ColumnLayout(
       crossAxisAlignment: CrossAxisAlignment.start,
       gap: 12,

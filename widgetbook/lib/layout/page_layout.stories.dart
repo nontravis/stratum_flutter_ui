@@ -9,6 +9,7 @@ import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'layout_page.dart';
 import 'page_layout_knobs.dart';
@@ -64,53 +65,27 @@ const _height = 480.0;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 PageLayoutKnobsArgs _knobs() => PageLayoutKnobsArgs(
-  safeArea: PresetArg(_safeAreas.first, name: 'safeArea', values: _safeAreas),
-  loadingBuilder: PresetArg(
-    _loadingBuilders.first,
-    name: 'loadingBuilder',
-    values: _loadingBuilders,
-  ),
-  controller: PresetArg(
-    _controllers.first,
-    name: 'controller',
-    values: _controllers,
-  ),
-  leftSide: PresetArg(_sides.first, name: 'leftSide', values: _sides),
-  rightSide: PresetArg(_sides.first, name: 'rightSide', values: _sides),
-  leftDividerBuilder: PresetArg(
-    _leftDividers.first,
-    name: 'leftDividerBuilder',
-    values: _leftDividers,
-  ),
-  rightDividerBuilder: PresetArg(
-    _rightDividers.first,
-    name: 'rightDividerBuilder',
-    values: _rightDividers,
-  ),
-  customStyle: PresetArg(
-    _customStyles.first,
-    name: 'customStyle',
-    values: _customStyles,
-  ),
-  systemStyle: PresetArg(
-    _systemStyles.first,
-    name: 'systemStyle',
-    values: _systemStyles,
-  ),
-  setting: PresetArg(_settings.first, name: 'setting', values: _settings),
+  safeArea: presetKnob('safeArea', _safeAreas),
+  loadingBuilder: presetKnob('loadingBuilder', _loadingBuilders),
+  controller: presetKnob('controller', _controllers),
+  leftSide: presetKnob('leftSide', _sides),
+  rightSide: presetKnob('rightSide', _sides),
+  leftDividerBuilder: presetKnob('leftDividerBuilder', _leftDividers),
+  rightDividerBuilder: presetKnob('rightDividerBuilder', _rightDividers),
+  customStyle: presetKnob('customStyle', _customStyles),
+  systemStyle: presetKnob('systemStyle', _systemStyles),
+  setting: presetKnob('setting', _settings),
 );
 
 final _safeAreas = <Preset<PageSafeArea>>[
   const Preset('Default', _defaultSafeArea),
-  const Preset('None', _noSafeArea),
+  const Preset.none(),
 ];
 
 PageSafeArea? _defaultSafeArea(BuildContext context) => const PageSafeArea();
-PageSafeArea? _noSafeArea(BuildContext context) =>
-    const PageSafeArea(top: false, bottom: false, left: false, right: false);
 
 final _loadingBuilders = <Preset<WidgetBuilder>>[
-  const Preset('None', _noWidgetBuilder),
+  const Preset.none(),
   Preset(
     'Slot',
     (_) =>
@@ -118,14 +93,10 @@ final _loadingBuilders = <Preset<WidgetBuilder>>[
   ),
 ];
 
-WidgetBuilder? _noWidgetBuilder(BuildContext context) => null;
-
 final _controllers = <Preset<PageLayoutController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   const Preset('Story controller', _StoryScope.controllerOf),
 ];
-
-PageLayoutController? _noController(BuildContext context) => null;
 
 final _sides = <Preset<PageSide>>[
   const Preset('Default', _defaultSide),
@@ -137,7 +108,7 @@ PageSide? _wideSide(BuildContext context) =>
     const PageSide(minWidth: 320, maxWidth: 400);
 
 final _leftDividers = <Preset<SplitDividerBuilder>>[
-  const Preset('None', _noDividerBuilder),
+  const Preset.none(),
   Preset(
     'Slot',
     (_) =>
@@ -146,7 +117,7 @@ final _leftDividers = <Preset<SplitDividerBuilder>>[
 ];
 
 final _rightDividers = <Preset<SplitDividerBuilder>>[
-  const Preset('None', _noDividerBuilder),
+  const Preset.none(),
   Preset(
     'Slot',
     (_) =>
@@ -154,10 +125,8 @@ final _rightDividers = <Preset<SplitDividerBuilder>>[
   ),
 ];
 
-SplitDividerBuilder? _noDividerBuilder(BuildContext context) => null;
-
 final _customStyles = <Preset<PageLayoutStyle>>[
-  const Preset('None', _noStyle),
+  const Preset.none(),
   Preset('Framed areas', (context) {
     final card = stylePreset('Card').build(context);
     return PageLayoutStyle(
@@ -174,15 +143,12 @@ final _customStyles = <Preset<PageLayoutStyle>>[
   }),
 ];
 
-PageLayoutStyle? _noStyle(BuildContext context) => null;
-
 final _systemStyles = <Preset<SystemStyle>>[
-  const Preset('None', _noSystemStyle),
+  const Preset.none(),
   const Preset('Light icons', _lightIcons),
   const Preset('Dark icons', _darkIcons),
 ];
 
-SystemStyle? _noSystemStyle(BuildContext context) => null;
 SystemStyle? _lightIcons(BuildContext context) =>
     const SystemStyle(statusBarIcons: SystemBarIcons.light);
 SystemStyle? _darkIcons(BuildContext context) =>
@@ -191,12 +157,11 @@ SystemStyle? _darkIcons(BuildContext context) =>
 /// The setting keys this page offers; a keyed one needs the
 /// `StratumWidgetSettings` the Playground setup places above the page.
 final _settings = <Preset<WidgetSettingKey>>[
-  const Preset('None', _noSetting),
+  const Preset.none(),
   const Preset('Global', _globalSetting),
   const Preset('Catalog id', _catalogSetting),
 ];
 
-WidgetSettingKey? _noSetting(BuildContext context) => null;
 WidgetSettingKey? _globalSetting(BuildContext context) =>
     const WidgetSettingKey.global();
 WidgetSettingKey? _catalogSetting(BuildContext context) =>

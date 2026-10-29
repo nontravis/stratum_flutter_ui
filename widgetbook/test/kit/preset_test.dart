@@ -85,11 +85,30 @@ void main() {
     );
   });
 
+  testWidgets('fo11/us04/fr04: Preset.none is named None and builds no '
+      'value', (tester) async {
+    const none = Preset<WidgetStyle>.none();
+    late WidgetStyle? built;
+    await tester.pumpWidget(
+      probeApp(
+        child: Builder(
+          builder: (context) {
+            built = none.build(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(none.name, 'None');
+    expect(built, isNull);
+  });
+
   testWidgets('fo11/us04/fr05: a preset reads the locale through its '
       'context', (tester) async {
     final preset = Preset<String>(
       'Label',
-      (context) => SampleTexts.label.resolve(Localizations.localeOf(context)),
+      (context) => SampleTexts.label.of(context),
     );
     late String shown;
     await tester.pumpWidget(

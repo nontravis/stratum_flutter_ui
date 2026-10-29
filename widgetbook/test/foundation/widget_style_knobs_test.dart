@@ -4,6 +4,7 @@ import 'package:stratum_ui_widgetbook/components.g.dart';
 import 'package:stratum_ui_widgetbook/foundation/widget_style.stories.dart';
 import 'package:stratum_ui_widgetbook/foundation/widget_style_knobs.dart';
 import 'package:stratum_ui_widgetbook/kit/preset.dart';
+import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
 import '../support/open_story.dart';
 
@@ -209,6 +210,23 @@ void main() {
         curve: Curves.easeInOutSine,
       ),
     );
+  });
+
+  testWidgets('fo11/us05/fr02: a knob change keeps the sample box, so its '
+      'animation style plays the change', (tester) async {
+    await openStory<ContainerLayout>(tester, _playground);
+    final before = tester.element(find.byKey(_sampleKey));
+    expect(_sampleStyle(tester)!.width, isNot(120));
+
+    WidgetbookState.of(before).updateQueryField(
+      groupName: 'width',
+      fieldName: 'value',
+      fieldValue: '120.0',
+    );
+    await tester.pump();
+
+    expect(_sampleStyle(tester)!.width, 120);
+    expect(tester.element(find.byKey(_sampleKey)), same(before));
   });
 
   test('fo11/us01/fr02: the WidgetStyle page sits under Foundation', () {

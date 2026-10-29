@@ -24,6 +24,7 @@ class _Page {
     required this.example,
     required this.slots,
     required this.knobChange,
+    required this.expectChanged,
   });
 
   final String name;
@@ -44,6 +45,10 @@ class _Page {
 
   /// One knob and a value that keeps the slot names.
   final MapEntry<String, String> knobChange;
+
+  /// Expects the built layout to carry the [knobChange] value, so a deleted
+  /// knob line in the Playground fails here.
+  final void Function(WidgetTester tester) expectChanged;
 
   String get playground => 'Layout/$name/Playground';
 
@@ -109,6 +114,11 @@ final _pages = <_Page>[
       'snack',
     ],
     knobChange: const MapEntry('resizeToAvoidKeyboard', 'false'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<PageLayout>(tester)
+          .map((layout) => layout.resizeToAvoidKeyboard),
+      contains(false),
+    ),
   ),
   _Page(
     name: 'ModalLayout',
@@ -132,8 +142,22 @@ final _pages = <_Page>[
     example: 'confirmation',
     slots: ['top', 'tab', 'body'],
     knobChange: const MapEntry('showClose', 'false'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<ModalLayout>(tester).map((layout) => layout.showClose),
+      contains(false),
+    ),
   ),
 ];
+
+/// Every [T] above the first slot painted on screen, among them the layout
+/// the Playground's knobs build.
+Iterable<T> _layoutsAbove<T extends Widget>(WidgetTester tester) =>
+    tester.widgetList<T>(
+      find.ancestor(
+        of: find.textContaining('❖', skipOffstage: false).first,
+        matching: find.byType(T),
+      ),
+    );
 
 /// The slot placeholder named [name], hidden ones included.
 Finder _slot(String name) => find.text('❖ $name', skipOffstage: false);
@@ -200,6 +224,7 @@ void main() {
         );
 
         expect(tester.takeException(), isNull);
+        p.expectChanged(tester);
         for (final name in p.slots) {
           expect(_slot(name), findsOneWidget, reason: name);
         }

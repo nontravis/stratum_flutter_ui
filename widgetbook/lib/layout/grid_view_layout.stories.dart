@@ -6,10 +6,10 @@ import '../kit/docs/catalog_docs.dart';
 import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'grid_view_layout_knobs.dart';
 import 'layout_page.dart';
-import 'layout_slots.dart';
 import 'recipes.dart';
 
 part 'grid_view_layout.stories.g.dart';
@@ -91,11 +91,9 @@ GridViewLayoutKnobsArgs _knobs() => GridViewLayoutKnobsArgs(
 /// The scroll controllers this page offers: the default null, then a
 /// controller that starts the view scrolled.
 final _controllers = <Preset<ScrollController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   Preset('Start at item 2', (_) => ScrollController(initialScrollOffset: 80)),
 ];
-
-ScrollController? _noController(BuildContext context) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 GridViewLayoutKnobsArgs _fixedKnobs() => GridViewLayoutKnobsArgs.fixed(

@@ -1224,7 +1224,9 @@ beside `style`, which draws the box.
   plain look at the host's placement, timing, and announcement. Or draw one notice alone, outside any host, from a
   `StratumToastNotice` you build yourself (a catalog page does): it shows the kind's icon, the message, the action, and
   the close button, with the kind's name and the close label from the notice and the platform tap target, but it
-  starts no timer and makes no announcement, so only the notice's `close` (run by the close button) removes it.
+  starts no timer and makes no announcement, so only the notice's `close` (run by the close button and by the action)
+  removes it. Give it a bounded width: it fills the width it gets, and an unbounded one (a `Row` child, a horizontal
+  list) throws a layout error.
 - **`StratumToastHost(closeButtonLabel:, kindLabels:)`** — replace the built-in close-button label and, per
   `FeedbackState`, the kind's name; each reaches the announcement and the accessible names alike, and a kind missing
   from `kindLabels` keeps its built-in name.

@@ -7,6 +7,7 @@ import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'layout_page.dart';
 import 'modal_layout_knobs.dart';
@@ -63,37 +64,25 @@ const _height = 480.0;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 ModalLayoutKnobsArgs _knobs() => ModalLayoutKnobsArgs(
-  borderRadius: PresetArg(
-    _borderRadii.first,
-    name: 'borderRadius',
-    values: _borderRadii,
-  ),
-  customStyle: PresetArg(
-    _customStyles.first,
-    name: 'customStyle',
-    values: _customStyles,
-  ),
+  borderRadius: presetKnob('borderRadius', _borderRadii),
+  customStyle: presetKnob('customStyle', _customStyles),
 );
 
 final _borderRadii = <Preset<BorderRadiusGeometry>>[
-  const Preset('None', _noRadius),
+  const Preset.none(),
   Preset(
     'radius.lg',
     (context) => BorderRadius.circular(context.theme.radius.lg),
   ),
 ];
 
-BorderRadiusGeometry? _noRadius(BuildContext context) => null;
-
 final _customStyles = <Preset<ModalLayoutStyle>>[
-  const Preset('None', _noStyle),
+  const Preset.none(),
   Preset('Card', (context) {
     final card = stylePreset('Card').build(context);
     return ModalLayoutStyle(top: card, tab: card, body: card);
   }),
 ];
-
-ModalLayoutStyle? _noStyle(BuildContext context) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 ModalLayoutKnobsArgs _fixedKnobs() => ModalLayoutKnobsArgs.fixed(

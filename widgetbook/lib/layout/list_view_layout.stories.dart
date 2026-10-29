@@ -7,9 +7,9 @@ import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'layout_page.dart';
-import 'layout_slots.dart';
 import 'list_view_layout_knobs.dart';
 import 'recipes.dart';
 
@@ -81,11 +81,9 @@ ListViewLayoutKnobsArgs _knobs() => ListViewLayoutKnobsArgs(
 /// The scroll controllers a layout page offers: the default null, then a
 /// controller that starts the view at the second item.
 final _controllers = <Preset<ScrollController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   Preset('Start at item 2', (_) => ScrollController(initialScrollOffset: 80)),
 ];
-
-ScrollController? _noController(BuildContext context) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 ListViewLayoutKnobsArgs _fixedKnobs() => ListViewLayoutKnobsArgs.fixed(

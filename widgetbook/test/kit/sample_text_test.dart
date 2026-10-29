@@ -25,6 +25,14 @@ class _AllTexts extends StatelessWidget {
   }
 }
 
+/// Shows [SampleTexts.label] read through its `of` form.
+class _LabelOf extends StatelessWidget {
+  const _LabelOf();
+
+  @override
+  Widget build(BuildContext context) => Text(SampleTexts.label.of(context));
+}
+
 final _thai = RegExp('[฀-๿]');
 
 void main() {
@@ -72,5 +80,19 @@ void main() {
 
   test('fo11/us04/fr05: a locale other than Thai resolves to English', () {
     expect(SampleTexts.title.resolve(const Locale('fr')), 'Title');
+  });
+
+  testWidgets('fo11/us04/fr05: of reads the language the story sees', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      probeApp(locale: const Locale('th'), child: const _LabelOf()),
+    );
+    expect(find.text(SampleTexts.label.th), findsOneWidget);
+
+    await tester.pumpWidget(
+      probeApp(locale: const Locale('en'), child: const _LabelOf()),
+    );
+    expect(find.text(SampleTexts.label.en), findsOneWidget);
   });
 }

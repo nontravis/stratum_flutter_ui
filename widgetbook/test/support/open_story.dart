@@ -38,17 +38,56 @@ Future<void> openStory<T extends Widget>(
         key: QueryGroup(value).toParam(),
     },
   ).toString();
-  await tester.pumpWidget(
-    WidgetbookApp(
-      key: UniqueKey(),
-      config: catalogConfig(
-        components: components,
-        themes: {'default': set},
-        initialRoute: route,
-      ),
-    ),
+  final config = catalogConfig(
+    components: components,
+    themes: {'default': set},
+    initialRoute: route,
   );
+  await tester.pumpWidget(WidgetbookApp(key: UniqueKey(), config: config));
   await tester.pumpAndSettle();
 
   expect(find.byType(T), findsWidgets);
+  _expectApplied(
+    WidgetbookState.of(tester.element(find.byType(T).first)),
+    config.addons ?? const [],
+    knobs: knobs,
+    toolbar: toolbar,
+  );
+}
+
+/// Fails when a knob or toolbar value passed to [openStory] did not reach the
+/// story: Widgetbook ignores a key that names no knob or addon and decodes a
+/// value it does not know as the default, so the story would open at its
+/// defaults and a test would pass against them.
+void _expectApplied(
+  WidgetbookState state,
+  List<Addon<dynamic>> toolbarAddons, {
+  required Map<String, String> knobs,
+  required Map<String, Map<String, String>> toolbar,
+}) {
+  final args = {for (final arg in state.story!.args.safeList) arg.name: arg};
+  for (final MapEntry(:key, :value) in knobs.entries) {
+    final arg = args[key];
+    if (arg == null) {
+      fail('openStory: no knob "$key"; the story has ${args.keys.toList()}');
+    }
+    expect(
+      arg.toQueryGroup()?.toParam(),
+      QueryGroup({'value': value}).toParam(),
+      reason: 'openStory: knob "$key" did not decode "$value"',
+    );
+  }
+  final addons = {for (final addon in toolbarAddons) addon.groupName: addon};
+  for (final MapEntry(:key, :value) in toolbar.entries) {
+    final addon = addons[key];
+    if (addon == null) {
+      fail('openStory: no toolbar addon "$key"; there are ${addons.keys}');
+    }
+    final group = QueryGroup(value);
+    expect(
+      addon.valueToQueryGroup(addon.valueFromQueryGroup(group)).toParam(),
+      group.toParam(),
+      reason: 'openStory: toolbar "$key" did not decode $value',
+    );
+  }
 }

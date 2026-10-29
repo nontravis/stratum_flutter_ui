@@ -6,6 +6,7 @@ import '../kit/docs/catalog_docs.dart';
 import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'flex_layout_knobs.dart';
 import 'layout_page.dart';

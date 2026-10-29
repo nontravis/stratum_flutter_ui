@@ -60,11 +60,9 @@ StratumWebViewSource _htmlSample(BuildContext context) =>
     const StratumWebViewSource.html('<p>สวัสดี Hello</p>');
 
 final _controllers = <Preset<StratumWebViewController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   const Preset('Story controller', _StoryController.of),
 ];
-
-StratumWebViewController? _noController(BuildContext context) => null;
 
 final _origins = <Preset<Set<Uri>>>[
   const Preset('Default', _defaultOrigins),
@@ -74,34 +72,19 @@ final _origins = <Preset<Set<Uri>>>[
 Set<Uri> _defaultOrigins(BuildContext context) => const <Uri>{};
 
 final _decisions = <Preset<StratumNavigationDecision Function(Uri url)>>[
-  const Preset('None', _noDecider),
+  const Preset.none(),
   Preset('Prevent all', (context) => _preventAll),
 ];
-
-StratumNavigationDecision Function(Uri url)? _noDecider(BuildContext context) =>
-    null;
 
 StratumNavigationDecision _preventAll(Uri url) =>
     StratumNavigationDecision.prevent;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 WebViewKnobsArgs _knobs() => WebViewKnobsArgs(
-  source: PresetArg(_sources.first, name: 'source', values: _sources),
-  controller: PresetArg(
-    _controllers.first,
-    name: 'controller',
-    values: _controllers,
-  ),
-  allowedOrigins: PresetArg(
-    _origins.first,
-    name: 'allowedOrigins',
-    values: _origins,
-  ),
-  onNavigationRequest: PresetArg(
-    _decisions.first,
-    name: 'onNavigationRequest',
-    values: _decisions,
-  ),
+  source: presetKnob('source', _sources),
+  controller: presetKnob('controller', _controllers),
+  allowedOrigins: presetKnob('allowedOrigins', _origins),
+  onNavigationRequest: presetKnob('onNavigationRequest', _decisions),
 );
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
@@ -118,10 +101,8 @@ StratumWebView _frameChild(BuildContext context, WebViewKnobsArgs args) =>
     StratumWebView(source: _sources.first.valueOf(context));
 
 /// [source] in a fixed box, since a web view needs a bounded size.
-Widget _boxedView(StratumWebViewSource source) => ContainerLayout(
-  style: const WidgetStyle(width: 320, height: 240),
-  child: StratumWebView(source: source),
-);
+Widget _boxedView(StratumWebViewSource source) =>
+    fixedBox(width: 320, height: 240, child: StratumWebView(source: source));
 
 final $Playground = _Story(
   args: _knobs(),
@@ -191,9 +172,7 @@ final $ExampleHelpPage = _Story(
   builder: _frameChild,
   setup: (_, _, _) => Builder(
     builder: (context) {
-      final message = SampleTexts.message.resolve(
-        Localizations.localeOf(context),
-      );
+      final message = SampleTexts.message.of(context);
       return _boxedView(StratumWebViewSource.html('<p>$message</p>'));
     },
   ),

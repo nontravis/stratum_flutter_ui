@@ -7,10 +7,10 @@ import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'container_layout_knobs.dart';
 import 'layout_page.dart';
-import 'layout_slots.dart';
 import 'recipes.dart';
 
 part 'container_layout.stories.g.dart';
@@ -63,22 +63,18 @@ ContainerLayoutKnobsArgs _knobs() => ContainerLayoutKnobsArgs(
   semantics: semanticsKnob(),
   interaction: interactionKnob(),
   scroll: scrollKnob(),
-  builder: PresetArg(_builders.first, name: 'builder', values: _builders),
+  builder: presetKnob('builder', _builders),
 );
 
 final _builders =
     <Preset<Widget Function(BuildContext context, InteractionState state)>>[
-      const Preset('None', _noBuilder),
+      const Preset.none(),
       Preset(
         'Slot builder',
         (_) =>
             (context, state) => const StratumSlot(name: 'builder content'),
       ),
     ];
-
-Widget Function(BuildContext context, InteractionState state)? _noBuilder(
-  BuildContext context,
-) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 ContainerLayoutKnobsArgs _fixedKnobs() => ContainerLayoutKnobsArgs.fixed(

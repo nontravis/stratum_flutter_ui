@@ -63,6 +63,7 @@ class _Page {
     required this.example,
     required this.slots,
     required this.knobChange,
+    required this.expectChanged,
     this.countKnob = 'children',
     this.count = 5,
     this.hidesSlots = false,
@@ -85,6 +86,10 @@ class _Page {
 
   /// One layout knob and a value that keeps the slot count.
   final MapEntry<String, String> knobChange;
+
+  /// Expects the built layout to carry the [knobChange] value, so a deleted
+  /// knob line in the Playground fails here.
+  final void Function(WidgetTester tester) expectChanged;
 
   /// The knob that sets how many slots the Playground arranges, and a count
   /// it accepts that differs from the default.
@@ -125,6 +130,10 @@ final _pages = <_Page>[
     example: 'fitted media',
     slots: ['content'],
     knobChange: const MapEntry('rotate', '10.0'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<ContainerLayout>(tester).map((layout) => layout.rotate),
+      contains(10),
+    ),
     countKnob: '',
   ),
   _Page(
@@ -136,6 +145,10 @@ final _pages = <_Page>[
     example: 'styled column',
     slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('gap', '24.0'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<ColumnLayout>(tester).map((layout) => layout.gap),
+      contains(24),
+    ),
   ),
   _Page(
     name: 'RowLayout',
@@ -146,6 +159,10 @@ final _pages = <_Page>[
     example: 'plain row',
     slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('gap', '24.0'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<RowLayout>(tester).map((layout) => layout.gap),
+      contains(24),
+    ),
   ),
   _Page(
     name: 'FlexLayout',
@@ -156,6 +173,10 @@ final _pages = <_Page>[
     example: 'direction by window size',
     slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('direction', 'horizontal'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<FlexLayout>(tester).map((layout) => layout.direction),
+      contains(Axis.horizontal),
+    ),
   ),
   _Page(
     name: 'StackLayout',
@@ -173,6 +194,10 @@ final _pages = <_Page>[
     example: 'badge over avatar',
     slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('alignment', 'center'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<StackLayout>(tester).map((layout) => layout.alignment),
+      contains(Alignment.center),
+    ),
   ),
   _Page(
     name: 'WrapLayout',
@@ -199,6 +224,10 @@ final _pages = <_Page>[
     example: 'tags cut to two runs',
     slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('direction', 'vertical'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<WrapLayout>(tester).map((layout) => layout.direction),
+      contains(Axis.vertical),
+    ),
   ),
   _Page(
     name: 'SplitLayout',
@@ -218,6 +247,10 @@ final _pages = <_Page>[
     example: 'list beside detail',
     slots: ['child 1', 'child 2'],
     knobChange: const MapEntry('resizable', 'false'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<SplitLayout>(tester).map((layout) => layout.resizable),
+      contains(false),
+    ),
     countKnob: 'panes',
     count: 4,
   ),
@@ -238,6 +271,11 @@ final _pages = <_Page>[
     example: 'switch stacked views',
     slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('alignment', 'center'),
+    expectChanged: (tester) => expect(
+      _layoutsAbove<IndexedStackLayout>(tester)
+          .map((layout) => layout.alignment),
+      contains(Alignment.center),
+    ),
     hidesSlots: true,
   ),
 ];
@@ -245,6 +283,13 @@ final _pages = <_Page>[
 /// The slot names painted on screen, hidden children of an indexed stack
 /// included.
 Finder _slot(String name) => find.text('❖ $name', skipOffstage: false);
+
+/// Every [T] above the first slot: the layouts the Playground and its
+/// frame draw around it, among them the one the knobs build. A slot and the
+/// theme addon are layouts too, so a test looks for the changed value among
+/// them.
+Iterable<T> _layoutsAbove<T extends Widget>(WidgetTester tester) => tester
+    .widgetList<T>(find.ancestor(of: _anySlot.first, matching: find.byType(T)));
 
 /// Every slot placeholder painted on screen.
 Finder get _anySlot => find.textContaining('❖', skipOffstage: false);
@@ -308,6 +353,7 @@ void main() {
         );
 
         expect(tester.takeException(), isNull);
+        page.expectChanged(tester);
         for (final name in page.slots) {
           expect(_slot(name), findsOneWidget, reason: name);
         }

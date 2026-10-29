@@ -54,29 +54,19 @@ final componentMeta = ComponentMeta(
 const _iconSlot = 'icon';
 
 final _titles = <Preset<String>>[
-  const Preset('None', _noTitle),
-  Preset(
-    'Title',
-    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
-  ),
+  const Preset.none(),
+  Preset('Title', (context) => SampleTexts.title.of(context)),
 ];
 
 final _messages = <Preset<String>>[
-  const Preset('None', _noMessage),
-  Preset(
-    'Message',
-    (context) => SampleTexts.message.resolve(Localizations.localeOf(context)),
-  ),
+  const Preset.none(),
+  Preset('Message', (context) => SampleTexts.message.of(context)),
 ];
-
-String? _noTitle(BuildContext context) => null;
-
-String? _noMessage(BuildContext context) => null;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 PlaceholderPageKnobsArgs _knobs() => PlaceholderPageKnobsArgs(
-  title: PresetArg(_titles.first, name: 'title', values: _titles),
-  message: PresetArg(_messages.first, name: 'message', values: _messages),
+  title: presetKnob('title', _titles),
+  message: presetKnob('message', _messages),
   icon: EnumArg<SlotPreset>(
     SlotPreset.icon,
     name: 'icon',
@@ -112,9 +102,8 @@ Widget _variantOf(
 );
 
 /// [page] in a box of fixed height: the page fills the height its parent
-/// gives it, which a scrolling frame list leaves unbounded.
-Widget _boxed(Widget page) =>
-    ContainerLayout(style: const WidgetStyle(height: 360), child: page);
+/// gives it.
+Widget _boxed(Widget page) => fixedBox(height: 360, child: page);
 
 /// Every with-and-without of `title`, `message`, and `icon`, each labelled
 /// by the params it keeps.
@@ -185,7 +174,7 @@ final $ExampleNotBuiltScreen = _Story(
   name: StoryNames.example('not-built screen'),
   args: _fixedKnobs(),
   builder: (context, args) => StratumPlaceholderPage(
-    title: SampleTexts.title.resolve(Localizations.localeOf(context)),
-    message: SampleTexts.message.resolve(Localizations.localeOf(context)),
+    title: SampleTexts.title.of(context),
+    message: SampleTexts.message.of(context),
   ),
 );

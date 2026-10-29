@@ -5,7 +5,7 @@ import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 import '../kit/callback_report.dart';
 import '../kit/preset.dart';
 import '../kit/sample_text.dart';
-import 'layout_slots.dart';
+import '../kit/style_presets.dart';
 
 /// The `Do` every layout page adds for its recipes: the drawer of
 /// `Recipe: page with drawer` hides below the tablet window size.
@@ -49,30 +49,24 @@ List<Preset<AlignmentGeometry>> alignmentPresets({
 
 /// The `transform` knob of a box layout.
 final List<Preset<Matrix4>> transformPresets = [
-  const Preset('None', _noTransform),
+  const Preset.none(),
   Preset('Scale 90%', (_) => Matrix4.diagonal3Values(0.9, 0.9, 1)),
   Preset('Skew', (_) => Matrix4.skewX(0.2)),
   Preset('Move 16 right', (_) => Matrix4.translationValues(16, 0, 0)),
 ];
 
-Matrix4? _noTransform(BuildContext context) => null;
-
 /// The `semantics` knob of a box layout.
 final List<Preset<SemanticsProperties>> semanticsPresets = [
-  const Preset('None', _noSemantics),
+  const Preset.none(),
   Preset(
     'Labelled',
-    (context) => SemanticsProperties(
-      label: SampleTexts.label.resolve(Localizations.localeOf(context)),
-    ),
+    (context) => SemanticsProperties(label: SampleTexts.label.of(context)),
   ),
 ];
 
-SemanticsProperties? _noSemantics(BuildContext context) => null;
-
 /// The `interaction` knob of a box layout: a tap reports `onTap called`.
 final List<Preset<Interaction>> interactionPresets = [
-  const Preset('None', _noInteraction),
+  const Preset.none(),
   Preset(
     'Tappable',
     (context) => Interaction(onTap: reportCallback(context, 'onTap')),
@@ -84,28 +78,24 @@ final List<Preset<Interaction>> interactionPresets = [
   ),
 ];
 
-Interaction? _noInteraction(BuildContext context) => null;
-
 /// The `scroll` knob of a box layout.
 final List<Preset<Scroll>> scrollPresets = [
-  const Preset('None', _noScroll),
+  const Preset.none(),
   const Preset('Vertical', _verticalScroll),
   const Preset('Horizontal', _horizontalScroll),
 ];
 
-Scroll? _noScroll(BuildContext context) => null;
 Scroll? _verticalScroll(BuildContext context) => const Scroll();
 Scroll? _horizontalScroll(BuildContext context) =>
     const Scroll(direction: Axis.horizontal);
 
 /// The `focusGroup` knob of a flex or wrap layout.
 final List<Preset<FocusGroup>> focusGroupPresets = [
-  const Preset('None', _noFocusGroup),
+  const Preset.none(),
   const Preset('Group', _focusGroup),
   const Preset('Looping group', _loopingFocusGroup),
 ];
 
-FocusGroup? _noFocusGroup(BuildContext context) => null;
 FocusGroup? _focusGroup(BuildContext context) => const FocusGroup();
 FocusGroup? _loopingFocusGroup(BuildContext context) =>
     const FocusGroup(loop: true);
@@ -118,55 +108,37 @@ VoidCallback? endAnimateCallback(
 }) => enabled ? reportCallback(context, 'onEndAnimate') : null;
 
 /// The `style` knob of a box layout.
-PresetArg<WidgetStyle> styleKnob() => PresetArg(
-  widgetStylePresets.first,
-  name: 'style',
-  values: widgetStylePresets,
-);
+PresetArg<WidgetStyle> styleKnob() => presetKnob('style', widgetStylePresets);
 
 /// The `transform` knob of a box layout.
-PresetArg<Matrix4> transformKnob() => PresetArg(
-  transformPresets.first,
-  name: 'transform',
-  values: transformPresets,
-);
+PresetArg<Matrix4> transformKnob() => presetKnob('transform', transformPresets);
 
 /// The `transformAlignment` knob of a box layout.
 PresetArg<AlignmentGeometry> transformAlignmentKnob() {
   final values = alignmentPresets();
-  return PresetArg(values.first, name: 'transformAlignment', values: values);
+  return presetKnob('transformAlignment', values);
 }
 
 /// The `semantics` knob of a box layout.
-PresetArg<SemanticsProperties> semanticsKnob() => PresetArg(
-  semanticsPresets.first,
-  name: 'semantics',
-  values: semanticsPresets,
-);
+PresetArg<SemanticsProperties> semanticsKnob() =>
+    presetKnob('semantics', semanticsPresets);
 
 /// The `interaction` knob of a box layout.
-PresetArg<Interaction> interactionKnob() => PresetArg(
-  interactionPresets.first,
-  name: 'interaction',
-  values: interactionPresets,
-);
+PresetArg<Interaction> interactionKnob() =>
+    presetKnob('interaction', interactionPresets);
 
 /// The `scroll` knob of a box layout.
-PresetArg<Scroll> scrollKnob() =>
-    PresetArg(scrollPresets.first, name: 'scroll', values: scrollPresets);
+PresetArg<Scroll> scrollKnob() => presetKnob('scroll', scrollPresets);
 
 /// The `focusGroup` knob of a flex or wrap layout.
-PresetArg<FocusGroup> focusGroupKnob() => PresetArg(
-  focusGroupPresets.first,
-  name: 'focusGroup',
-  values: focusGroupPresets,
-);
+PresetArg<FocusGroup> focusGroupKnob() =>
+    presetKnob('focusGroup', focusGroupPresets);
 
 /// The `alignment` knob of a stack or an indexed stack: the layout's own
 /// default first.
 PresetArg<AlignmentGeometry> stackAlignmentKnob() {
   final values = alignmentPresets(initial: AlignmentDirectional.topStart);
-  return PresetArg(values.first, name: 'alignment', values: values);
+  return presetKnob('alignment', values);
 }
 
 /// A count knob from [min] to [max] named [name], the number of slot
@@ -182,10 +154,6 @@ IntArg slotCountKnob(
   style: SliderIntArgStyle(min: min, max: max, divisions: max - min),
 );
 
-/// The style preset of [widgetStylePresets] named [name], such as `Card`.
-Preset<WidgetStyle> stylePreset(String name) =>
-    widgetStylePresets.firstWhere((preset) => preset.name == name);
-
 /// [baseline], or the alphabetic baseline when [alignment] aligns children
 /// by baseline and none is set, since a flex asserts a baseline then.
 TextBaseline? baselineFor(
@@ -195,19 +163,14 @@ TextBaseline? baselineFor(
     baseline ??
     (alignment == CrossAxisAlignment.baseline ? TextBaseline.alphabetic : null);
 
-/// A knob that picks one of [values], the first by default, named [name].
-PresetArg<T> presetKnob<T>(String name, List<Preset<T>> values) =>
-    PresetArg(values.first, name: name, values: values);
-
 /// The `physics` knob of a scroll layout: the default null, then two named
 /// choices.
 final List<Preset<ScrollPhysics>> scrollPhysicsPresets = [
-  const Preset('None', _noPhysics),
+  const Preset.none(),
   const Preset('Bouncing', _bouncingPhysics),
   const Preset('Never scroll', _neverPhysics),
 ];
 
-ScrollPhysics? _noPhysics(BuildContext context) => null;
 ScrollPhysics? _bouncingPhysics(BuildContext context) =>
     const BouncingScrollPhysics();
 ScrollPhysics? _neverPhysics(BuildContext context) =>
@@ -232,22 +195,20 @@ final List<Preset<Widget? Function(BuildContext, int)>> slotItemBuilders = [
 /// The `findChildIndexCallback` knob of a scroll layout: null, then one that
 /// reads a key-to-index map the data keeps in sync.
 final List<Preset<ChildIndexGetter>> findChildIndexPresets = [
-  const Preset('None', _noFindChild),
+  const Preset.none(),
   const Preset('By key', _findChildByKey),
 ];
 
-ChildIndexGetter? _noFindChild(BuildContext context) => null;
 ChildIndexGetter? _findChildByKey(BuildContext context) =>
     (key) => null; // a real app reads its own key-to-index map here
 
 /// The `scrollCacheExtent` knob of a scroll layout.
 final List<Preset<ScrollCacheExtent>> scrollCacheExtentPresets = [
-  const Preset('None', _noCacheExtent),
+  const Preset.none(),
   const Preset('200 px', _cache200),
   const Preset('2 viewports', _cacheTwoViewports),
 ];
 
-ScrollCacheExtent? _noCacheExtent(BuildContext context) => null;
 ScrollCacheExtent? _cache200(BuildContext context) =>
     const ScrollCacheExtent.pixels(200);
 ScrollCacheExtent? _cacheTwoViewports(BuildContext context) =>
@@ -255,34 +216,24 @@ ScrollCacheExtent? _cacheTwoViewports(BuildContext context) =>
 
 /// The `semanticsLabel` knob of a scroll layout.
 final List<Preset<String>> scrollSemanticsLabelPresets = [
-  const Preset('None', _noSemanticsLabel),
-  Preset(
-    'Title',
-    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
-  ),
-  Preset(
-    'Message',
-    (context) => SampleTexts.message.resolve(Localizations.localeOf(context)),
-  ),
+  const Preset.none(),
+  Preset('Title', (context) => SampleTexts.title.of(context)),
+  Preset('Message', (context) => SampleTexts.message.of(context)),
 ];
-
-String? _noSemanticsLabel(BuildContext context) => null;
 
 /// The `scrollFocusStyle` knob of a scroll layout.
 final List<Preset<ScrollFocusStyle>> scrollFocusStylePresets = [
-  const Preset('None', _noFocusStyle),
+  const Preset.none(),
   Preset(
-    'Gray 4 ring',
+    'Gray ring',
     (context) => ScrollFocusStyle(
       focus: StratumFocusBorderStyle(
-        width: const WidgetStatePropertyAll(4),
+        width: WidgetStatePropertyAll(context.theme.focus.outsideWidth),
         color: WidgetStatePropertyAll(context.theme.color.border.color.gray),
       ),
     ),
   ),
 ];
-
-ScrollFocusStyle? _noFocusStyle(BuildContext context) => null;
 
 /// The scroll-view knob pairs that Flutter and the layouts assert on, each
 /// resolved once for every page (fo11/us04/fr01; us06/fr01).

@@ -8,9 +8,9 @@ import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/sample_text.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'layout_page.dart';
-import 'layout_slots.dart';
 import 'page_view_layout_knobs.dart';
 import 'recipes.dart';
 
@@ -62,11 +62,9 @@ final componentMeta = ComponentMeta(
 /// The page controllers this page offers: the default null, then one that
 /// starts on the second page.
 final _controllers = <Preset<PageController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   Preset('Start at page 2', (_) => PageController(initialPage: 1)),
 ];
-
-PageController? _noController(BuildContext context) => null;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 PageViewLayoutKnobsArgs _knobs() => PageViewLayoutKnobsArgs(
@@ -199,10 +197,8 @@ final $ExamplePagedSections = _BuilderStory(
     child: PageViewLayout.builder(
       style: stylePreset('Card').build(context),
       itemCount: 4,
-      itemBuilder: (context, index) => StratumSlot(
-        name: SampleTexts.title.resolve(Localizations.localeOf(context)),
-        height: 120,
-      ),
+      itemBuilder: (context, index) =>
+          StratumSlot(name: SampleTexts.title.of(context), height: 120),
     ),
   ),
 );

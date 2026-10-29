@@ -1,6 +1,6 @@
 import 'package:stratum_ui/stratum_ui.dart';
 
-import 'layout_slots.dart';
+import '../kit/style_presets.dart';
 
 /// A label beside its field, in a row of two slot placeholders (fo11/us06/fr02).
 class FormRowRecipe extends StatelessWidget {

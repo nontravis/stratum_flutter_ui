@@ -7,9 +7,9 @@ import '../kit/preset.dart';
 import '../kit/sample_text.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'layout_page.dart';
-import 'layout_slots.dart';
 import 'nested_scroll_view_layout_knobs.dart';
 import 'recipes.dart';
 
@@ -84,11 +84,7 @@ final _headerBuilders = <Preset<NestedScrollViewHeaderSliversBuilder>>[
   ),
 ];
 
-final _controllers = <Preset<ScrollController>>[
-  const Preset('None', _noController),
-];
-
-ScrollController? _noController(BuildContext context) => null;
+final _controllers = <Preset<ScrollController>>[const Preset.none()];
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 NestedScrollViewLayoutKnobsArgs _knobs() => NestedScrollViewLayoutKnobsArgs(
@@ -212,10 +208,7 @@ final $ExampleCollapsingHeader = _Story(
       style: stylePreset('Card').build(context),
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
         SliverToBoxAdapter(
-          child: StratumSlot(
-            name: SampleTexts.title.resolve(Localizations.localeOf(context)),
-            height: 96,
-          ),
+          child: StratumSlot(name: SampleTexts.title.of(context), height: 96),
         ),
       ],
       body: ListViewLayout.builder(

@@ -8,11 +8,23 @@ class CallbackReport extends StatefulWidget {
 
   final Widget child;
 
-  /// Shows `'$name called'` in the nearest report above [context].
-  static void report(BuildContext context, String name) {
+  /// Shows `'$name called'` in the nearest report above [context], for a
+  /// callback that a rebuild replaces.
+  static void report(BuildContext context, String name) =>
+      reporter(context, name)();
+
+  /// Returns a function that shows `'$name called'` in the nearest report
+  /// above [context].
+  ///
+  /// It looks the report up now, not when it is called, because the caller
+  /// may be a notice that outlives the context after a knob change; it shows
+  /// nothing once that report is gone.
+  static VoidCallback reporter(BuildContext context, String name) {
     final state = context.findAncestorStateOfType<_CallbackReportState>();
     assert(state != null, 'reportCallback needs setup: reportingSetup');
-    state?._show('$name called');
+    return () {
+      if (state != null && state.mounted) state._show('$name called');
+    };
   }
 
   @override
@@ -46,8 +58,10 @@ Widget reportingSetup(
 
 /// A `VoidCallback` that reports `'$name called'`.
 VoidCallback reportCallback(BuildContext context, String name) =>
-    () => CallbackReport.report(context, name);
+    CallbackReport.reporter(context, name);
 
 /// A `ValueChanged<T>` that reports `'$name called'`.
-ValueChanged<T> reportValue<T>(BuildContext context, String name) =>
-    (_) => CallbackReport.report(context, name);
+ValueChanged<T> reportValue<T>(BuildContext context, String name) {
+  final report = CallbackReport.reporter(context, name);
+  return (_) => report();
+}

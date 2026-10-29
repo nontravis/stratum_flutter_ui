@@ -10,9 +10,9 @@ import '../kit/preset.dart';
 import '../kit/sample_text.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'layout_page.dart';
-import 'layout_slots.dart';
 import 'recipes.dart';
 import 'reorderable_list_view_layout_knobs.dart';
 
@@ -69,11 +69,7 @@ final componentMeta = ComponentMeta(
   ),
 );
 
-final _controllers = <Preset<ScrollController>>[
-  const Preset('None', _noController),
-];
-
-ScrollController? _noController(BuildContext context) => null;
+final _controllers = <Preset<ScrollController>>[const Preset.none()];
 
 /// The item builders this page offers: the default slot builder that names
 /// and keys each item by its index (fo11/us06/fr01).
@@ -89,40 +85,31 @@ final _itemBuilders = <Preset<Widget Function(BuildContext, int)>>[
 ];
 
 final _itemExtentBuilders = <Preset<ItemExtentBuilder?>>[
-  const Preset('None', _noItemExtentBuilder),
+  const Preset.none(),
   const Preset('Fixed 64 px', _fixed64),
 ];
 
-ItemExtentBuilder? _noItemExtentBuilder(BuildContext context) => null;
 ItemExtentBuilder? _fixed64(BuildContext context) =>
     (_, _) => 64;
 
 final _dragStyles = <Preset<WidgetStyle>>[
-  const Preset('None', _noDragStyle),
+  const Preset.none(),
   Preset('Card', (context) => stylePreset('Card').build(context)),
 ];
 
-WidgetStyle? _noDragStyle(BuildContext context) => null;
-
 final _itemsControllers = <Preset<ReorderableItemsController>>[
-  const Preset('None', _noItemsController),
+  const Preset.none(),
 ];
-
-ReorderableItemsController? _noItemsController(BuildContext context) => null;
 
 final _itemTransitionBuilders =
     <Preset<Widget Function(BuildContext, Animation<double>, Widget)?>>[
-      const Preset('None', _noTransitionBuilder),
+      const Preset.none(),
     ];
-
-Widget Function(BuildContext, Animation<double>, Widget)? _noTransitionBuilder(
-  BuildContext context,
-) => null;
 
 /// The move announcements this page offers: null, then one in the toolbar
 /// language.
 final _moveAnnouncements = <Preset<String Function(int position, int count)>>[
-  const Preset('None', _noMoveAnnouncement),
+  const Preset.none(),
   Preset(
     'Position of count',
     (context) =>
@@ -131,29 +118,15 @@ final _moveAnnouncements = <Preset<String Function(int position, int count)>>[
   ),
 ];
 
-String Function(int position, int count)? _noMoveAnnouncement(
-  BuildContext context,
-) => null;
-
 final _atStartAnnouncements = <Preset<String>>[
-  const Preset('None', _noAtStart),
-  Preset(
-    'Close',
-    (context) => SampleTexts.close.resolve(Localizations.localeOf(context)),
-  ),
+  const Preset.none(),
+  Preset('Close', (context) => SampleTexts.close.of(context)),
 ];
-
-String? _noAtStart(BuildContext context) => null;
 
 final _atEndAnnouncements = <Preset<String>>[
-  const Preset('None', _noAtEnd),
-  Preset(
-    'Close',
-    (context) => SampleTexts.close.resolve(Localizations.localeOf(context)),
-  ),
+  const Preset.none(),
+  Preset('Close', (context) => SampleTexts.close.of(context)),
 ];
-
-String? _noAtEnd(BuildContext context) => null;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 ReorderableListViewLayoutKnobsArgs _knobs() =>
@@ -357,6 +330,33 @@ final $ExampleReorderableSettings = _BuilderStory(
   name: StoryNames.example('reorderable settings'),
   args: _fixedKnobs(),
   builder: _frameChild,
-  setup: (context, _, _) =>
-      SizedBox(height: 240, child: _list(context, count: 6)),
+  setup: (_, _, _) =>
+      const SizedBox(height: 240, child: _ReorderableSettings()),
 );
+
+/// The Example's list: it holds the item order and applies each drop in
+/// `onReorderItem` with `insert(to, removeAt(from))`, so a dropped item stays
+/// where it lands.
+class _ReorderableSettings extends StatefulWidget {
+  const _ReorderableSettings();
+
+  @override
+  State<_ReorderableSettings> createState() => _ReorderableSettingsState();
+}
+
+class _ReorderableSettingsState extends State<_ReorderableSettings> {
+  final _order = [for (var i = 1; i <= 6; i++) i];
+
+  void _move(int from, int to) =>
+      setState(() => _order.insert(to, _order.removeAt(from)));
+
+  @override
+  Widget build(BuildContext context) => ReorderableListViewLayout.builder(
+    itemCount: _order.length,
+    itemBuilder: (context, index) => StratumSlot(
+      key: ValueKey('item ${_order[index]}'),
+      name: 'item ${_order[index]}',
+    ),
+    onReorderItem: _move,
+  );
+}

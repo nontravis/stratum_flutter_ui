@@ -83,6 +83,45 @@ void main() {
     expect(find.text(SampleTexts.title.th), findsWidgets);
   });
 
+  testWidgets('fo11/us03/fr02: the Variants story shows seven frames, each '
+      'with the params its label names', (tester) async {
+    await openStory<StratumPlaceholderPage>(
+      tester,
+      'Feedback/Placeholder page/Variants',
+    );
+
+    const labels = [
+      'title + message + icon',
+      'message + icon',
+      'title + icon',
+      'title + message',
+      'icon',
+      'message',
+      'title',
+    ];
+    final pages = tester
+        .widgetList<StratumPlaceholderPage>(find.byType(StratumPlaceholderPage))
+        .toList();
+    expect(pages, hasLength(labels.length));
+    for (final label in labels) {
+      expect(find.text(label), findsOneWidget, reason: label);
+      final page = tester.widget<StratumPlaceholderPage>(
+        find.descendant(
+          of: find
+              .ancestor(
+                of: find.text(label),
+                matching: find.byType(ColumnLayout),
+              )
+              .first,
+          matching: find.byType(StratumPlaceholderPage),
+        ),
+      );
+      expect(page.title != null, label.contains('title'), reason: label);
+      expect(page.message != null, label.contains('message'), reason: label);
+      expect(page.icon != null, label.contains('icon'), reason: label);
+    }
+  });
+
   test('fo11/us01/fr02: the Placeholder page sits under Feedback', () {
     expect(StratumPlaceholderPageComponent.path, 'Feedback');
     expect(components, contains(StratumPlaceholderPageComponent));

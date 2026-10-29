@@ -79,6 +79,38 @@ void main() {
     expect(find.text('onPressed called'), findsOneWidget);
   });
 
+  testWidgets(
+    'fo11/us04/fr03: a callback made before a knob change still reports '
+    'after it',
+    (tester) async {
+      late VoidCallback made;
+      Widget app(_Args args) => probeApp(
+        child: Builder(
+          builder: (context) => reportingSetup(
+            context,
+            Builder(
+              builder: (inner) {
+                made = reportCallback(inner, 'onPressed');
+                return const SizedBox.shrink();
+              },
+            ),
+            args,
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(app(_Args(true)));
+      final before = made;
+      await tester.pumpWidget(app(_Args(false)));
+
+      before();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('onPressed called'), findsOneWidget);
+    },
+  );
+
   testWidgets('fo11/us04/fr03: reporting without reportingSetup fails loudly', (
     tester,
   ) async {

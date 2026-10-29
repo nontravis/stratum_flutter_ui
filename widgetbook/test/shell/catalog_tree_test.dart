@@ -102,6 +102,44 @@ void main() {
     },
   );
 
+  test('fo11/us01/fr02: two pages with one section and name are rejected', () {
+    expect(
+      () => orderBySection([
+        _stub('Toast', CatalogSection.feedback),
+        _stub('Toast', CatalogSection.feedback),
+      ]),
+      throwsA(
+        isA<ArgumentError>().having(
+          (e) => e.toString(),
+          'message',
+          contains('Feedback/Toast'),
+        ),
+      ),
+    );
+  });
+
+  test('fo11/us01/fr02: two stories with one name in a page are rejected', () {
+    expect(
+      () => orderBySection([
+        Component(
+          name: 'Toast',
+          path: CatalogSection.feedback.label,
+          stories: [
+            TestStory(name: 'Example: x'),
+            TestStory(name: 'Example: x'),
+          ],
+        ),
+      ]),
+      throwsA(
+        isA<ArgumentError>().having(
+          (e) => e.toString(),
+          'message',
+          allOf(contains('Toast'), contains('Example: x')),
+        ),
+      ),
+    );
+  });
+
   testWidgets(
     'fo11/us01/fr02/e01: nesting a component of another category adds no '
     'second entry',

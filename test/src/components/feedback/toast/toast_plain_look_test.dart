@@ -103,6 +103,103 @@ void main() {
   );
 
   testWidgets(
+    'co05_07/us01/fr06/e07: drawn alone in a bounded width, a long message '
+    'wraps and the close button keeps its label and tap target',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(
+          (_) => Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 320,
+              child: StratumToastPlainLook(
+                notice: StratumToastNotice(
+                  message: 'long ' * 100,
+                  kind: FeedbackState.negative,
+                  placement: const StratumToastPlacement.float(
+                    StratumToastCorner.bottomEnd,
+                  ),
+                  insets: EdgeInsets.zero,
+                  pageSnack: null,
+                  customStyle: null,
+                  close: () {},
+                  closeLabel: 'Close it',
+                  kindLabel: 'Error',
+                  action: null,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(StratumToastPlainLook)).width, 320);
+      expect(find.bySemanticsLabel('Close it'), findsOneWidget);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr06/e07: drawn alone in an unbounded width, it reports a '
+    'layout error, as its doc says',
+    (tester) async {
+      // One bad constraint cascades into later layout errors; the first
+      // one names the cause.
+      final reported = <String>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) =>
+          reported.add(details.exceptionAsString());
+      addTearDown(() => FlutterError.onError = previous);
+
+      await tester.pumpWidget(
+        _app((_) => Row(children: [StratumToastPlainLook(notice: _notice())])),
+      );
+
+      expect(reported, isNotEmpty);
+      expect(reported.first, contains('BoxConstraints forces an infinite'));
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr06/e07: the action runs its callback, then closes the '
+    'notice, as the close button does',
+    (tester) async {
+      var closed = 0;
+      var pressed = 0;
+      await tester.pumpWidget(
+        _app(
+          (_) => Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 360,
+              child: StratumToastPlainLook(
+                notice: _notice(
+                  close: () => closed++,
+                  action: StratumToastAction(
+                    label: 'Undo',
+                    onPressed: () => pressed++,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+
+      expect(pressed, 1);
+      expect(closed, 1);
+    },
+  );
+
+  testWidgets(
     'co05_07/us01/fr06/e08: an app builder that wraps the plain look renders '
     'it inside the host',
     (tester) async {

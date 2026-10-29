@@ -6,9 +6,19 @@ import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 final class Preset<T> {
   const Preset(this.name, this.build);
 
+  /// The preset `None`, which builds no value: the name every optional knob
+  /// uses, so a link's `None` reads the same on every page (s03 INV-10).
+  const Preset.none() : name = noneName, build = _buildNone;
+
+  /// The name of the preset that builds no value.
+  static const noneName = 'None';
+
   final String name;
   final T? Function(BuildContext context) build;
 }
+
+/// The build function of [Preset.none].
+T? _buildNone<T>(BuildContext context) => null;
 
 /// Reads the value of a [Preset] a knob always offers.
 extension PresetValue<T extends Object> on Preset<T> {
@@ -37,3 +47,7 @@ class PresetArg<T> extends Arg<Preset<T>> with SingleFieldOnly {
     labelBuilder: (preset) => preset.name,
   );
 }
+
+/// A knob that picks one of [values], the first by default, named [name].
+PresetArg<T> presetKnob<T>(String name, List<Preset<T>> values) =>
+    PresetArg(values.first, name: name, values: values);

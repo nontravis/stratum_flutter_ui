@@ -439,6 +439,34 @@ void main() {
         expect(storySetProblems(page.component), isEmpty);
       });
 
+      if (page.name == 'ReorderableListViewLayout') {
+        testWidgets('fo11/us03/fr02: a dropped item in the Example stays where '
+            'it lands', (tester) async {
+          await page.open(
+            tester,
+            'Layout/${page.name}/${StoryNames.example(page.example)}',
+          );
+          double top(String name) => tester.getTopLeft(_slot(name)).dy;
+          expect(top('item 1'), lessThan(top('item 2')));
+
+          final gesture = await tester.startGesture(
+            tester.getCenter(_slot('item 1')),
+          );
+          await tester.pump(
+            kLongPressTimeout + const Duration(milliseconds: 50),
+          );
+          for (var i = 0; i < 12; i++) {
+            await gesture.moveBy(const Offset(0, 12));
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          await gesture.up();
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(top('item 1'), greaterThan(top('item 2')));
+        });
+      }
+
       testWidgets('fo11/us06/fr01, fo11/us06/s1: the Playground children '
           'are named slots', (tester) async {
         await page.open(tester, page.playground);

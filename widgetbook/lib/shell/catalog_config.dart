@@ -8,6 +8,7 @@ import 'grid_overlay_addon.dart';
 import 'rtl_addon.dart';
 import 'stage_addon.dart';
 import 'stratum_theme_addon.dart';
+import 'text_scale_addon.dart';
 import 'window_size_addon.dart';
 
 /// The toolbar, first addon outermost (fo11/us02/fr01 to fr03; D7).
@@ -24,7 +25,7 @@ List<Addon<dynamic>> catalogAddons(Map<String, StratumThemeSet> setsById) => [
     Locale('th'),
   ], GlobalMaterialLocalizations.delegates),
   RtlAddon(),
-  TextScaleAddon(),
+  CatalogTextScaleAddon(),
   stratumThemeAddon(catalogThemes(setsById)),
   GridOverlayAddon(),
   SemanticsAddon(),

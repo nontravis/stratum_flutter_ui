@@ -98,6 +98,18 @@ Widget responsiveFrames(WidgetBuilder build) => ColumnLayout(
   ],
 );
 
+/// [child] in a box of [height] (and [width] when set): the way to show a
+/// widget that fills its parent in a frame list, since a scrolling frame
+/// column leaves the height unbounded.
+Widget fixedBox({
+  double? width,
+  required double height,
+  required Widget child,
+}) => ContainerLayout(
+  style: WidgetStyle(width: width, height: height),
+  child: child,
+);
+
 /// The logical size every accessibility frame's stage shows its content at:
 /// the catalog's mobile width, so a stage that sizes itself to its content
 /// (an `Overlay.wrap` the Toast page builds) never reads the unbounded
@@ -173,7 +185,9 @@ class _Frame extends StatelessWidget {
 }
 
 /// [builder] on the bounded [_accessibilityStageSize] stage, under the
-/// frame's [textScaler] and [textDirection].
+/// frame's [textScaler] and [textDirection], in an [Overlay] of its own so a
+/// route or notice the frame opens draws inside the frame, under its
+/// settings.
 class _Stage extends StatelessWidget {
   const _Stage({this.textScaler, this.textDirection, required this.builder});
 
@@ -197,11 +211,15 @@ class _Stage extends StatelessWidget {
           textScaler: textScaler ?? MediaQuery.textScalerOf(context),
         ),
         child: WindowSizeScope(
-          child: Align(
-            alignment: AlignmentDirectional.topStart,
+          child: _FrameTheme(
             child: Directionality(
               textDirection: textDirection ?? TextDirection.ltr,
-              child: Builder(builder: builder),
+              child: Overlay.wrap(
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: Builder(builder: builder),
+                ),
+              ),
             ),
           ),
         ),
@@ -210,7 +228,8 @@ class _Stage extends StatelessWidget {
   );
 }
 
-/// [build] in a window of [size] logical pixels, scaled to 320 wide.
+/// [build] in a window of [size] logical pixels, scaled to 320 wide, in an
+/// [Overlay] of its own so a notice the frame opens draws inside the frame.
 class _ScaledWindow extends StatelessWidget {
   const _ScaledWindow({required this.size, required this.builder});
 
@@ -230,12 +249,38 @@ class _ScaledWindow extends StatelessWidget {
       child: MediaQuery(
         data: MediaQuery.of(context).copyWith(size: size),
         child: WindowSizeScope(
-          child: Align(
-            alignment: AlignmentDirectional.topStart,
-            child: Builder(builder: builder),
+          child: _FrameTheme(
+            child: Overlay.wrap(
+              child: Align(
+                alignment: AlignmentDirectional.topStart,
+                child: Builder(builder: builder),
+              ),
+            ),
           ),
         ),
       ),
     ),
   );
+}
+
+/// A [StratumThemeApplication] of the toolbar's theme set and mode, inside a
+/// frame, so the Material theme resolves under the frame's window size and
+/// text scale instead of the toolbar's (the theme addon resolved it once,
+/// above the frame). Without an application above, the frame has none either.
+class _FrameTheme extends StatelessWidget {
+  const _FrameTheme({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final outer = context
+        .dependOnInheritedWidgetOfExactType<StratumThemeApplication>();
+    if (outer == null) return child;
+    return StratumThemeApplication(
+      themes: outer.themes,
+      themeMode: outer.themeMode,
+      child: child,
+    );
+  }
 }

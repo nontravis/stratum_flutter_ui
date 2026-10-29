@@ -6,6 +6,7 @@ import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/sample_text.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'custom_scroll_view_layout_knobs.dart';
 import 'layout_page.dart';
@@ -64,11 +65,9 @@ final componentMeta = ComponentMeta(
 /// The slivers a slivers preset builds: `SliverToBoxAdapter`s of named
 /// slots (fo11/us06/fr01); `None` keeps the children mode.
 final _sliversBuilders = <Preset<List<Widget>?>>[
-  const Preset('None', _noSlivers),
+  const Preset.none(),
   const Preset('Header and slots', _slotSlivers),
 ];
-
-List<Widget>? _noSlivers(BuildContext context) => null;
 
 List<Widget>? _slotSlivers(BuildContext context) => const [
   SliverToBoxAdapter(child: StratumSlot(name: 'header')),
@@ -77,11 +76,9 @@ List<Widget>? _slotSlivers(BuildContext context) => const [
 ];
 
 final _controllers = <Preset<ScrollController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   Preset('Start at item 2', (_) => ScrollController(initialScrollOffset: 80)),
 ];
-
-ScrollController? _noController(BuildContext context) => null;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 CustomScrollViewLayoutKnobsArgs _knobs() => CustomScrollViewLayoutKnobsArgs(
@@ -210,10 +207,7 @@ final $ExamplePinnedHeaderList = _Story(
     child: CustomScrollViewLayout(
       slivers: [
         SliverToBoxAdapter(
-          child: StratumSlot(
-            name: SampleTexts.title.resolve(Localizations.localeOf(context)),
-            height: 48,
-          ),
+          child: StratumSlot(name: SampleTexts.title.of(context), height: 48),
         ),
         SliverList.builder(
           itemCount: 12,

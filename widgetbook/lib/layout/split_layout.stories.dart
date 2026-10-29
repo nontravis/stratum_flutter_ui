@@ -7,6 +7,7 @@ import '../kit/docs/catalog_docs.dart';
 import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'split_layout_knobs.dart';
 import 'layout_page.dart';
@@ -63,31 +64,15 @@ const _height = 320.0;
 /// A fresh set of knobs: one per constructor param, in constructor order.
 SplitLayoutKnobsArgs _knobs() => SplitLayoutKnobsArgs(
   panes: slotCountKnob('panes', initial: 2, min: 2, max: 4),
-  controller: PresetArg(
-    _controllers.first,
-    name: 'controller',
-    values: _controllers,
-  ),
-  dividerLabel: PresetArg(
-    _dividerLabels.first,
-    name: 'dividerLabel',
-    values: _dividerLabels,
-  ),
-  dividerBuilder: PresetArg(
-    _dividerBuilders.first,
-    name: 'dividerBuilder',
-    values: _dividerBuilders,
-  ),
-  customStyle: PresetArg(
-    _customStyles.first,
-    name: 'customStyle',
-    values: _customStyles,
-  ),
-  setting: PresetArg(_settings.first, name: 'setting', values: _settings),
+  controller: presetKnob('controller', _controllers),
+  dividerLabel: presetKnob('dividerLabel', _dividerLabels),
+  dividerBuilder: presetKnob('dividerBuilder', _dividerBuilders),
+  customStyle: presetKnob('customStyle', _customStyles),
+  setting: presetKnob('setting', _settings),
 );
 
 final _controllers = <Preset<SplitLayoutController>>[
-  const Preset('None', _noController),
+  const Preset.none(),
   Preset('Start pane 30%', (_) => SplitLayoutController()),
 ];
 
@@ -108,24 +93,14 @@ SplitLayoutController? _fitToPanes(
     ..fractions = [_startShare, for (var i = 1; i < panes; i++) rest];
 }
 
-SplitLayoutController? _noController(BuildContext context) => null;
-
 final _dividerLabels = <Preset<String>>[
-  const Preset('None', _noLabel),
-  Preset(
-    'Label',
-    (context) => SampleTexts.label.resolve(Localizations.localeOf(context)),
-  ),
-  Preset(
-    'Title',
-    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
-  ),
+  const Preset.none(),
+  Preset('Label', (context) => SampleTexts.label.of(context)),
+  Preset('Title', (context) => SampleTexts.title.of(context)),
 ];
 
-String? _noLabel(BuildContext context) => null;
-
 final _dividerBuilders = <Preset<SplitDividerBuilder>>[
-  const Preset('None', _noDividerBuilder),
+  const Preset.none(),
   Preset(
     'Outlined hit area',
     (_) =>
@@ -134,10 +109,8 @@ final _dividerBuilders = <Preset<SplitDividerBuilder>>[
   ),
 ];
 
-SplitDividerBuilder? _noDividerBuilder(BuildContext context) => null;
-
 final _customStyles = <Preset<SplitLayoutStyle>>[
-  const Preset('None', _noStyle),
+  const Preset.none(),
   Preset(
     'Heavy focus ring',
     (context) => SplitLayoutStyle(
@@ -149,13 +122,10 @@ final _customStyles = <Preset<SplitLayoutStyle>>[
   ),
 ];
 
-SplitLayoutStyle? _noStyle(BuildContext context) => null;
-
 /// The `None` choice only: a setting key needs a `StratumWidgetSettings`
-/// above the split, which the catalog does not place.
-final _settings = <Preset<WidgetSettingKey>>[const Preset('None', _noSetting)];
-
-WidgetSettingKey? _noSetting(BuildContext context) => null;
+/// above the split, which this Playground does not place (the PageLayout
+/// Playground does).
+final _settings = <Preset<WidgetSettingKey>>[const Preset.none()];
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 SplitLayoutKnobsArgs _fixedKnobs() => SplitLayoutKnobsArgs.fixed(

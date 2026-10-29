@@ -8,7 +8,7 @@ import '../kit/preset.dart';
 import '../kit/sample_text.dart';
 import '../kit/slot_preset.dart';
 import '../kit/story_set.dart';
-import '../layout/layout_slots.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'toast_knobs.dart';
 
@@ -66,21 +66,14 @@ context.showToast(
 Widget _slotLook(BuildContext context, StratumToastNotice notice) =>
     const StratumSlot(name: _lookSlot);
 
-String? _none(BuildContext context) => null;
-
-String _text(BuildContext context, SampleText text) =>
-    text.resolve(Localizations.localeOf(context));
-
 final _builders = <Preset<StratumToastBuilder>>[
-  const Preset('None', _noBuilder),
+  const Preset.none(),
   Preset('Slot look', (context) => _slotLook),
 ];
 
-StratumToastBuilder? _noBuilder(BuildContext context) => null;
-
 final _closeLabels = <Preset<String>>[
-  const Preset('None', _none),
-  Preset('Close', (context) => _text(context, SampleTexts.close)),
+  const Preset.none(),
+  Preset('Close', (context) => SampleTexts.close.of(context)),
 ];
 
 const _infoLabel = SampleText(th: 'ข้อมูล', en: 'Info');
@@ -97,20 +90,18 @@ const _kindSamples = {
 };
 
 final _kindLabels = <Preset<Map<FeedbackState, String>>>[
-  const Preset('None', _noKindLabels),
+  const Preset.none(),
   Preset(
     'Sample',
     (context) => {
       for (final MapEntry(:key, :value) in _kindSamples.entries)
-        key: _text(context, value),
+        key: value.of(context),
     },
   ),
 ];
 
-Map<FeedbackState, String>? _noKindLabels(BuildContext context) => null;
-
 final _focusShortcuts = <Preset<List<SingleActivator>>>[
-  const Preset('None', _noShortcuts),
+  const Preset.none(),
   Preset(
     'Ctrl+Shift+N',
     (context) => const [
@@ -119,47 +110,38 @@ final _focusShortcuts = <Preset<List<SingleActivator>>>[
   ),
 ];
 
-List<SingleActivator>? _noShortcuts(BuildContext context) => null;
-
 const _shortcutHint = SampleText(
   th: 'กด Ctrl+Shift+N เพื่อไปที่การแจ้งเตือน',
   en: 'Press Ctrl+Shift+N to reach the notice',
 );
 
 final _shortcutHints = <Preset<String>>[
-  const Preset('None', _none),
-  Preset('Sample', (context) => _text(context, _shortcutHint)),
+  const Preset.none(),
+  Preset('Sample', (context) => _shortcutHint.of(context)),
 ];
 
 final _messages = <Preset<String>>[
-  Preset('Message', (context) => _text(context, SampleTexts.message)),
-  Preset('Label', (context) => _text(context, SampleTexts.label)),
+  Preset('Message', (context) => SampleTexts.message.of(context)),
+  Preset('Label', (context) => SampleTexts.label.of(context)),
 ];
 
 final _withAction = Preset<StratumToastAction>(
   'With action',
   (context) => StratumToastAction(
-    label: _text(context, SampleTexts.label),
+    label: SampleTexts.label.of(context),
     onPressed: reportCallback(context, 'onPressed'),
   ),
 );
 
-final _actions = <Preset<StratumToastAction>>[
-  const Preset('None', _noAction),
-  _withAction,
-];
-
-StratumToastAction? _noAction(BuildContext context) => null;
+final _actions = <Preset<StratumToastAction>>[const Preset.none(), _withAction];
 
 final _placements = <Preset<StratumToastPlacement>>[
-  const Preset('None', _noPlacement),
+  const Preset.none(),
   for (final corner in StratumToastCorner.values)
     Preset('float ${corner.name}', (context) => StratumToastFloat(corner)),
   for (final edge in StratumToastEdge.values)
     Preset('solid ${edge.name}', (context) => StratumToastSolid(edge)),
 ];
-
-StratumToastPlacement? _noPlacement(BuildContext context) => null;
 
 const meta = Meta(StratumToastHost.new, argsType: ToastKnobs.new);
 
@@ -179,44 +161,20 @@ ToastKnobsArgs _knobs() => ToastKnobsArgs(
     name: 'child',
     values: SlotPreset.values,
   ),
-  builder: PresetArg(_builders.first, name: 'builder', values: _builders),
-  closeButtonLabel: PresetArg(
-    _closeLabels.first,
-    name: 'closeButtonLabel',
-    values: _closeLabels,
-  ),
-  kindLabels: PresetArg(
-    _kindLabels.first,
-    name: 'kindLabels',
-    values: _kindLabels,
-  ),
-  focusShortcuts: PresetArg(
-    _focusShortcuts.first,
-    name: 'focusShortcuts',
-    values: _focusShortcuts,
-  ),
-  focusShortcutHint: PresetArg(
-    _shortcutHints.first,
-    name: 'focusShortcutHint',
-    values: _shortcutHints,
-  ),
-  message: PresetArg(_messages.first, name: 'message', values: _messages),
-  action: PresetArg(_actions.first, name: 'action', values: _actions),
+  builder: presetKnob('builder', _builders),
+  closeButtonLabel: presetKnob('closeButtonLabel', _closeLabels),
+  kindLabels: presetKnob('kindLabels', _kindLabels),
+  focusShortcuts: presetKnob('focusShortcuts', _focusShortcuts),
+  focusShortcutHint: presetKnob('focusShortcutHint', _shortcutHints),
+  message: presetKnob('message', _messages),
+  action: presetKnob('action', _actions),
   kind: EnumArg<FeedbackState>(
     FeedbackState.info,
     name: 'kind',
     values: FeedbackState.values,
   ),
-  placement: PresetArg(
-    _placements.first,
-    name: 'placement',
-    values: _placements,
-  ),
-  customStyle: PresetArg(
-    widgetStylePresets.first,
-    name: 'customStyle',
-    values: widgetStylePresets,
-  ),
+  placement: presetKnob('placement', _placements),
+  customStyle: presetKnob('customStyle', widgetStylePresets),
 );
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
@@ -246,7 +204,7 @@ Widget _trigger(BuildContext context, ToastKnobsArgs args) => TextButton(
     placement: args.placement.build(context),
     customStyle: args.customStyle.build(context),
   ),
-  child: Text(_text(context, _showToastText)),
+  child: Text(_showToastText.of(context)),
 );
 
 /// The app the host wraps: the trigger beside the `child` knob's slot.
@@ -278,15 +236,10 @@ StratumToastHost _frameChild(BuildContext context, ToastKnobsArgs args) =>
     const StratumToastHost(child: SizedBox.shrink());
 
 /// One frame of a frame story: a host of its own, nested under the story's
-/// root host, in an [Overlay] of its own so the host draws its notice under
-/// this frame's window size, text scale, and direction.
-///
-/// The frame sets those inside the story, under the stage's overlay, so a
-/// notice drawn on the stage would read the toolbar's settings instead.
-Widget _frame(BuildContext context) => Overlay.wrap(
-  child: StratumToastHost(
-    child: Builder(builder: (context) => _trigger(context, _fixedKnobs())),
-  ),
+/// root host; the kit's frame stage gives it the [Overlay] its notice draws
+/// in, under this frame's window size, text scale, and direction.
+Widget _frame(BuildContext context) => StratumToastHost(
+  child: Builder(builder: (context) => _trigger(context, _fixedKnobs())),
 );
 
 /// [frames] under the one root host; every frame's host nests in it
@@ -299,7 +252,7 @@ StratumToastNotice _noticeOf(
   FeedbackState kind, {
   required bool withAction,
 }) => StratumToastNotice(
-  message: _text(context, SampleTexts.message),
+  message: SampleTexts.message.of(context),
   kind: kind,
   placement: const StratumToastFloat(StratumToastCorner.bottomCenter),
   insets: EdgeInsets.zero,
@@ -307,8 +260,8 @@ StratumToastNotice _noticeOf(
   customStyle: null,
   action: withAction ? _withAction.build(context) : null,
   close: reportCallback(context, 'close'),
-  closeLabel: _text(context, SampleTexts.close),
-  kindLabel: _text(context, _kindSamples[kind]!),
+  closeLabel: SampleTexts.close.of(context),
+  kindLabel: _kindSamples[kind]!.of(context),
 );
 
 /// Every [FeedbackState] with and without an action, each a static

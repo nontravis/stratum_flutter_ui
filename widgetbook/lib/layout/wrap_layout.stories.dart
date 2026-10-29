@@ -6,6 +6,7 @@ import '../kit/docs/catalog_docs.dart';
 import '../kit/docs/stratum_docs.dart';
 import '../kit/preset.dart';
 import '../kit/story_set.dart';
+import '../kit/style_presets.dart';
 import '../shell/catalog_section.dart';
 import 'wrap_layout_knobs.dart';
 import 'layout_page.dart';
@@ -63,27 +64,19 @@ WrapLayoutKnobsArgs _knobs() => WrapLayoutKnobsArgs(
   interaction: interactionKnob(),
   scroll: scrollKnob(),
   focusGroup: focusGroupKnob(),
-  overflowBuilder: PresetArg(
-    _overflowBuilders.first,
-    name: 'overflowBuilder',
-    values: _overflowBuilders,
-  ),
+  overflowBuilder: presetKnob('overflowBuilder', _overflowBuilders),
   children: slotCountKnob('children', initial: 3),
 );
 
 final _overflowBuilders =
     <Preset<Widget Function(BuildContext context, int hiddenCount)>>[
-      const Preset('None', _noOverflowBuilder),
+      const Preset.none(),
       Preset(
         'Count slot',
         (_) =>
             (context, hiddenCount) => StratumSlot(name: '+$hiddenCount'),
       ),
     ];
-
-Widget Function(BuildContext context, int hiddenCount)? _noOverflowBuilder(
-  BuildContext context,
-) => null;
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 WrapLayoutKnobsArgs _fixedKnobs() => WrapLayoutKnobsArgs.fixed(
