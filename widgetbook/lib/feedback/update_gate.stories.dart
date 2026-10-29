@@ -111,16 +111,13 @@ Navigator _app(SlotPreset child) => Navigator(
   ),
 );
 
-/// The whole gate, checker preset and child slot preset as passed.
+/// The whole gate, checker, builder, and child slot preset as passed.
 StratumUpdateGate _gateOf(
   BuildContext context,
   UpdateChecker checker,
+  UpdateGateBuilder builder,
   SlotPreset child,
-) => StratumUpdateGate(
-  checker: checker,
-  builder: _slotScreens,
-  child: _app(child),
-);
+) => StratumUpdateGate(checker: checker, builder: builder, child: _app(child));
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 UpdateGateKnobsArgs _knobs() => UpdateGateKnobsArgs(
@@ -143,7 +140,12 @@ UpdateGateKnobsArgs _fixedKnobs() => UpdateGateKnobsArgs.fixed(
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumUpdateGate _frameChild(BuildContext context, UpdateGateKnobsArgs args) =>
-    _gateOf(context, _checkers.first.valueOf(context), args.child);
+    _gateOf(
+      context,
+      _checkers.first.valueOf(context),
+      _builders.first.valueOf(context),
+      args.child,
+    );
 
 /// [gate] in a box of fixed height: the gate fills the space its parent
 /// gives it, which a scrolling frame list leaves unbounded.
@@ -163,7 +165,14 @@ Widget _variantsGrid() => Builder(
           gap: 4,
           children: [
             Text(preset.name),
-            _boxed(_gateOf(context, preset.valueOf(context), SlotPreset.slot)),
+            _boxed(
+              _gateOf(
+                context,
+                preset.valueOf(context),
+                _builders.first.valueOf(context),
+                SlotPreset.slot,
+              ),
+            ),
           ],
         ),
     ],
@@ -172,8 +181,12 @@ Widget _variantsGrid() => Builder(
 
 final $Playground = _Story(
   args: _knobs(),
-  builder: (context, args) =>
-      _gateOf(context, args.checker.valueOf(context), args.child),
+  builder: (context, args) => _gateOf(
+    context,
+    args.checker.valueOf(context),
+    args.builder.valueOf(context),
+    args.child,
+  ),
 );
 
 final $Variants = _Story(
@@ -186,8 +199,12 @@ final $Responsive = _Story(
   args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => responsiveFrames(
-    (context) =>
-        _gateOf(context, _checkers.first.valueOf(context), SlotPreset.slot),
+    (context) => _gateOf(
+      context,
+      _checkers.first.valueOf(context),
+      _builders.first.valueOf(context),
+      SlotPreset.slot,
+    ),
   ),
 );
 
@@ -196,7 +213,12 @@ final $Accessibility = _Story(
   builder: _frameChild,
   setup: (_, _, _) => accessibilityFrames(
     build: (context) => _boxed(
-      _gateOf(context, _checkers.first.valueOf(context), SlotPreset.slot),
+      _gateOf(
+        context,
+        _checkers.first.valueOf(context),
+        _builders.first.valueOf(context),
+        SlotPreset.slot,
+      ),
     ),
   ),
 );
@@ -211,6 +233,7 @@ final $ExampleAvailableDialog = _Story(
   builder: (context, args) => _gateOf(
     context,
     _checkers[UpdateStatus.available.index].valueOf(context),
+    _builders.first.valueOf(context),
     args.child,
   ),
 );

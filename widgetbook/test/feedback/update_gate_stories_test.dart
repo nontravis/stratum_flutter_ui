@@ -91,8 +91,15 @@ void main() {
       knobs: {'checker': 'available'},
     );
 
-    expect(find.text('❖ update dialog'), findsOneWidget);
-    expect(find.text('❖ app'), findsOneWidget);
+    final dialogRoute = ModalRoute.of(
+      tester.element(find.text('❖ update dialog')),
+    );
+    final appRoute = ModalRoute.of(tester.element(find.text('❖ app')));
+    expect(dialogRoute, isNotNull);
+    expect(appRoute, isNotNull);
+    expect(dialogRoute, isNot(same(appRoute)));
+    expect(dialogRoute!.isCurrent, isTrue);
+    expect(appRoute!.isCurrent, isFalse);
   });
 
   testWidgets('fo11/us02/fr02: Review Focus 3: the available dialog follows '
@@ -116,11 +123,15 @@ void main() {
   testWidgets('fo11/us03/fr02: the Update gate Variants show one frame per '
       'status', (tester) async {
     await openStory<StratumUpdateGate>(tester, 'Feedback/Update gate/Variants');
+    await tester.pumpAndSettle();
 
     for (final status in UpdateStatus.values) {
       expect(find.text(status.name), findsOneWidget, reason: status.name);
     }
     expect(find.byType(StratumUpdateGate), findsNWidgets(4));
+    expect(find.text('❖ force update screen'), findsOneWidget);
+    expect(find.text('❖ maintenance screen'), findsOneWidget);
+    expect(find.text('❖ update dialog'), findsOneWidget);
   });
 
   test('fo11/us01/fr02: the Update gate page sits under Feedback', () {
