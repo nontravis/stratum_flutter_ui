@@ -8,6 +8,7 @@
 
 import 'package:widgetbook/widgetbook.dart' as _widgetbook;
 import 'package:stratum_ui_widgetbook/feedback/placeholder_page.stories.dart' as _stratum_ui_widgetbook_feedback_placeholder_page_stories;
+import 'package:stratum_ui_widgetbook/feedback/toast.stories.dart' as _stratum_ui_widgetbook_feedback_toast_stories;
 import 'package:stratum_ui_widgetbook/feedback/update_gate.stories.dart' as _stratum_ui_widgetbook_feedback_update_gate_stories;
 import 'package:stratum_ui_widgetbook/foundation/tokens.stories.dart' as _stratum_ui_widgetbook_foundation_tokens_stories;
 import 'package:stratum_ui_widgetbook/foundation/widget_style.stories.dart' as _stratum_ui_widgetbook_foundation_widget_style_stories;
@@ -34,6 +35,7 @@ import 'package:stratum_ui_widgetbook/utility/web_zoom.stories.dart' as _stratum
 
 final components = <_widgetbook.Component>[
   _stratum_ui_widgetbook_feedback_placeholder_page_stories.StratumPlaceholderPageComponent,
+  _stratum_ui_widgetbook_feedback_toast_stories.StratumToastHostComponent,
   _stratum_ui_widgetbook_feedback_update_gate_stories.StratumUpdateGateComponent,
   _stratum_ui_widgetbook_foundation_tokens_stories.TokensPageComponent,
   _stratum_ui_widgetbook_foundation_widget_style_stories.ContainerLayoutComponent,
