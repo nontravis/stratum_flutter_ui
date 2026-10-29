@@ -37,8 +37,9 @@ void main() {
     expect(find.text('❖ child 4'), findsNothing);
   });
 
-  testWidgets('fo11/us06/fr01/e01: slotChildren keeps the names when the '
-      'count changes', (tester) async {
+  testWidgets('fo11/us06/fr01: slotChildren(count) paints count named slots', (
+    tester,
+  ) async {
     await _pump(tester, ColumnLayout(children: slotChildren(2)));
     expect(find.byType(StratumSlot), findsNWidgets(2));
 
@@ -59,6 +60,7 @@ void main() {
     ]);
 
     late List<WidgetStyle?> styles;
+    late StratumTheme theme;
     final themes = await loadDefaultThemeSet();
     await tester.pumpWidget(
       MaterialApp(
@@ -67,6 +69,7 @@ void main() {
           themeMode: ThemeMode.light,
           child: Builder(
             builder: (context) {
+              theme = context.theme;
               styles = [
                 for (final preset in widgetStylePresets) preset.build(context),
               ];
@@ -78,10 +81,13 @@ void main() {
     );
 
     expect(styles[0], isNull);
-    expect(styles[1]?.backgroundColor, isNotNull);
-    expect(styles[1]?.borderRadius, isNotNull);
-    expect(styles[2]?.border, isNotNull);
-    expect(styles[3]?.padding, isNotNull);
+    expect(styles[1]?.backgroundColor, theme.color.background.color.gray);
+    expect(styles[1]?.borderRadius, BorderRadius.circular(theme.radius.lg));
+    expect(styles[1]?.padding, EdgeInsets.all(theme.space.md));
+    expect(styles[2]?.border, Border.all(color: theme.color.border.color.gray));
+    expect(styles[2]?.borderRadius, BorderRadius.circular(theme.radius.lg));
+    expect(styles[2]?.backgroundColor, isNull);
+    expect(styles[3]?.padding, EdgeInsets.all(theme.space.md));
     expect(styles[3]?.backgroundColor, isNull);
   });
 }

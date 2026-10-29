@@ -40,6 +40,9 @@ Iterable<Widget> _configuration(Widget? node) sync* {
   final next = switch (node) {
     ContainerLayout(:final child) => [child],
     FlexLayout(:final children) => children,
+    StackLayout(:final children) => children,
+    IndexedStackLayout(:final children) => children,
+    WrapLayout(:final children) => children,
     PageLayout() => [
       node.header,
       node.left,
