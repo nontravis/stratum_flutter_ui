@@ -32,12 +32,18 @@ void main() {
       'knobs', () {
     final checker = $Playground.args.checkerArg;
 
-    expect(checker, isA<PresetArg<UpdateChecker>>());
+    expect(checker, isA<RequiredPresetArg<UpdateChecker>>());
     expect(
-      [for (final p in (checker as PresetArg<UpdateChecker>).values) p.name],
+      [
+        for (final p in (checker as RequiredPresetArg<UpdateChecker>).values)
+          p.name,
+      ],
       [for (final status in UpdateStatus.values) status.name],
     );
-    expect($Playground.args.builderArg, isA<PresetArg<UpdateGateBuilder>>());
+    expect(
+      $Playground.args.builderArg,
+      isA<RequiredPresetArg<UpdateGateBuilder>>(),
+    );
     expect($Playground.args.childArg, isA<EnumArg<SlotPreset>>());
   });
 

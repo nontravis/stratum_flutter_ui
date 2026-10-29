@@ -58,10 +58,10 @@ final componentMeta = ComponentMeta(
 
 /// The grid delegates a grid page offers: two columns first, then wider
 /// and adaptive choices.
-final _gridDelegates = <Preset<SliverGridDelegate>>[
-  const Preset('2 columns', _twoColumns),
-  const Preset('4 columns', _fourColumns),
-  const Preset('Max 120 px', _max120),
+final _gridDelegates = <RequiredPreset<SliverGridDelegate>>[
+  const RequiredPreset('2 columns', _twoColumns),
+  const RequiredPreset('4 columns', _fourColumns),
+  const RequiredPreset('Max 120 px', _max120),
 ];
 
 SliverGridDelegate _twoColumns(BuildContext context) =>
@@ -74,7 +74,7 @@ SliverGridDelegate _max120(BuildContext context) =>
 /// A fresh set of knobs: one per constructor param, in constructor order.
 GridViewLayoutKnobsArgs _knobs() => GridViewLayoutKnobsArgs(
   style: styleKnob(),
-  gridDelegate: presetKnob('gridDelegate', _gridDelegates),
+  gridDelegate: requiredPresetKnob('gridDelegate', _gridDelegates),
   controller: presetKnob('controller', scrollControllerPresets),
   physics: presetKnob('physics', scrollPhysicsPresets),
   itemCount: slotCountKnob('itemCount', initial: 3),
@@ -111,10 +111,10 @@ GridViewLayout _frameChild(
   BuildContext context,
   GridViewLayoutKnobsArgs args,
 ) => GridViewLayout.builder(
-  gridDelegate: _gridDelegates.first.build(context)!,
+  gridDelegate: _gridDelegates.first.valueOf(context),
   itemCount: 6,
   itemBuilder: (context, index) =>
-      slotItemBuilders.first.build(context)!(context, index),
+      slotItemBuilders.first.valueOf(context)(context, index),
 );
 
 /// A two-column grid of six slots in a bounded height, the layout every
@@ -134,7 +134,7 @@ final $Playground = _BuilderStory(
     final controller = args.controller.build(context);
     return GridViewLayout.builder(
       style: args.style.build(context),
-      gridDelegate: args.gridDelegate.build(context)!,
+      gridDelegate: args.gridDelegate.valueOf(context),
       scrollDirection: args.scrollDirection,
       reverse: args.reverse,
       controller: controller,

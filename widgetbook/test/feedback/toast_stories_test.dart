@@ -73,7 +73,7 @@ void main() {
     expect(args.kindLabelsArg, isA<PresetArg<Map<FeedbackState, String>>>());
     expect(args.focusShortcutsArg, isA<PresetArg<List<SingleActivator>>>());
     expect(args.focusShortcutHintArg, isA<PresetArg<String>>());
-    expect(args.messageArg, isA<PresetArg<String>>());
+    expect(args.messageArg, isA<RequiredPresetArg<String>>());
     expect(args.actionArg, isA<PresetArg<StratumToastAction>>());
     expect(args.placementArg, isA<PresetArg<StratumToastPlacement>>());
     expect(args.customStyleArg, isA<PresetArg<WidgetStyle>>());

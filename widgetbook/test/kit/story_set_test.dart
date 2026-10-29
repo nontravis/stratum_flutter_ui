@@ -426,6 +426,42 @@ void main() {
     expect(reads['disabled']!.$2, TextDirection.ltr);
   });
 
+  testWidgets('fo11/us03/fr02: the 200% text, Disabled, and state frames '
+      'keep the ambient direction under the toolbar right to left', (
+    tester,
+  ) async {
+    final reads = <String, TextDirection>{};
+    var calls = 0;
+    WidgetBuilder probe(String key) => (context) {
+      reads[key] = Directionality.of(context);
+      return const SizedBox.shrink();
+    };
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(size: Size(800, 6000)),
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: accessibilityFrames(
+            build: (context) {
+              // Frames build in order: 200% text, then Right to left.
+              probe(calls++ == 0 ? 'scaled' : 'rtl')(context);
+              return const SizedBox.shrink();
+            },
+            disabled: probe('disabled'),
+            states: {'Loading': probe('state')},
+          ),
+        ),
+      ),
+    );
+
+    expect(reads, {
+      'scaled': TextDirection.rtl,
+      'rtl': TextDirection.rtl,
+      'disabled': TextDirection.rtl,
+      'state': TextDirection.rtl,
+    });
+  });
+
   test('fo11/us03/fr02: accessibilityFrames rejects an unknown state key', () {
     expect(
       () => accessibilityFrames(

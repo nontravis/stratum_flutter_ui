@@ -185,9 +185,10 @@ class _Frame extends StatelessWidget {
 }
 
 /// [builder] on the bounded [_accessibilityStageSize] stage, under the
-/// frame's [textScaler] and [textDirection], in an [Overlay] of its own so a
-/// route or notice the frame opens draws inside the frame, under its
-/// settings.
+/// frame's [textScaler] and [textDirection] (each falls back to the ambient
+/// value), in an [Overlay] of its own so a notice the frame opens draws
+/// inside the frame, under its settings. The stage has no `Navigator` of its
+/// own, so a route draws outside the frame.
 class _Stage extends StatelessWidget {
   const _Stage({this.textScaler, this.textDirection, required this.builder});
 
@@ -213,7 +214,7 @@ class _Stage extends StatelessWidget {
         child: WindowSizeScope(
           child: _FrameTheme(
             child: Directionality(
-              textDirection: textDirection ?? TextDirection.ltr,
+              textDirection: textDirection ?? Directionality.of(context),
               child: Overlay.wrap(
                 child: Align(
                   alignment: AlignmentDirectional.topStart,

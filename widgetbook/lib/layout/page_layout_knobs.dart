@@ -44,13 +44,13 @@ class PageLayoutKnobs {
   final SlotPreset right;
   final SlotPreset footer;
   final SlotPreset snack;
-  final Preset<PageSafeArea> safeArea;
+  final RequiredPreset<PageSafeArea> safeArea;
   final bool resizeToAvoidKeyboard;
   final bool loading;
   final Preset<WidgetBuilder> loadingBuilder;
   final Preset<PageLayoutController> controller;
-  final Preset<PageSide> leftSide;
-  final Preset<PageSide> rightSide;
+  final RequiredPreset<PageSide> leftSide;
+  final RequiredPreset<PageSide> rightSide;
   final WindowSize drawerCut;
   final bool rightAsOverlay;
   final double minCenterWidth;

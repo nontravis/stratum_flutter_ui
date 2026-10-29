@@ -96,8 +96,8 @@ Widget _variantOf(
   bool message = true,
   bool icon = true,
 }) => StratumPlaceholderPage(
-  title: title ? _titles.last.valueOf(context) : null,
-  message: message ? _messages.last.valueOf(context) : null,
+  title: title ? _titles.last.build(context) : null,
+  message: message ? _messages.last.build(context) : null,
   icon: icon ? slotFor(context, SlotPreset.icon, name: _iconSlot) : null,
 );
 

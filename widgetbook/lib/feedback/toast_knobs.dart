@@ -26,7 +26,7 @@ class ToastKnobs {
   final Preset<Map<FeedbackState, String>> kindLabels;
   final Preset<List<SingleActivator>> focusShortcuts;
   final Preset<String> focusShortcutHint;
-  final Preset<String> message;
+  final RequiredPreset<String> message;
   final Preset<StratumToastAction> action;
   final FeedbackState kind;
   final Preset<StratumToastPlacement> placement;

@@ -181,13 +181,14 @@ ScrollPhysics? _neverPhysics(BuildContext context) =>
 /// The `itemBuilder` knob of a scroll layout: the default slot builder that
 /// names each item by its index, then one that counts from zero
 /// (fo11/us06/fr01).
-final List<Preset<Widget? Function(BuildContext, int)>> slotItemBuilders = [
-  Preset(
+final List<RequiredPreset<Widget? Function(BuildContext, int)>>
+slotItemBuilders = [
+  RequiredPreset(
     'Slot builder',
     (_) =>
         (context, index) => StratumSlot(name: 'item ${index + 1}'),
   ),
-  Preset(
+  RequiredPreset(
     'Slot builder from 0',
     (_) =>
         (context, index) => StratumSlot(name: 'item $index'),

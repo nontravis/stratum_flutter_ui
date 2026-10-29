@@ -73,8 +73,8 @@ final _controllers = <Preset<ScrollController>>[const Preset.none()];
 
 /// The item builders this page offers: the default slot builder that names
 /// and keys each item by its index (fo11/us06/fr01).
-final _itemBuilders = <Preset<Widget Function(BuildContext, int)>>[
-  Preset(
+final _itemBuilders = <RequiredPreset<Widget Function(BuildContext, int)>>[
+  RequiredPreset(
     'Slot builder',
     (_) =>
         (context, index) => StratumSlot(
@@ -141,7 +141,7 @@ ReorderableListViewLayoutKnobsArgs _knobs() =>
         values: SlotPreset.values,
       ),
       itemCount: slotCountKnob('itemCount', initial: 3),
-      itemBuilder: presetKnob('itemBuilder', _itemBuilders),
+      itemBuilder: requiredPresetKnob('itemBuilder', _itemBuilders),
       dragStyle: presetKnob('dragStyle', _dragStyles),
       itemsController: presetKnob('itemsController', _itemsControllers),
       itemTransitionBuilder: presetKnob(
@@ -206,7 +206,7 @@ Widget _sample(BuildContext context) =>
 ReorderableListViewLayout _list(BuildContext context, {required int count}) =>
     ReorderableListViewLayout.builder(
       itemCount: count,
-      itemBuilder: _itemBuilders.first.build(context)!,
+      itemBuilder: _itemBuilders.first.valueOf(context),
       onReorderItem: (_, _) {},
     );
 
@@ -248,7 +248,7 @@ final $Playground = _BuilderStory(
         name: 'prototypeItem',
       ),
       itemCount: args.itemCount,
-      itemBuilder: args.itemBuilder.build(context)!,
+      itemBuilder: args.itemBuilder.valueOf(context),
       onReorderItem: args.onReorderItem
           ? (_, _) => CallbackReport.report(context, 'onReorderItem')
           : (_, _) {},

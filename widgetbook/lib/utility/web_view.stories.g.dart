@@ -139,9 +139,9 @@ class StratumWebViewStory extends Story<StratumWebView, WebViewKnobsArgs> {
 
 class WebViewKnobsArgs extends StoryArgs<StratumWebView> {
   WebViewKnobsArgs({
-    required Arg<Preset<StratumWebViewSource>> source,
+    required Arg<RequiredPreset<StratumWebViewSource>> source,
     required Arg<Preset<StratumWebViewController>> controller,
-    required Arg<Preset<Set<Uri>>> allowedOrigins,
+    required Arg<RequiredPreset<Set<Uri>>> allowedOrigins,
     Arg<bool>? javaScriptEnabled,
     Arg<bool>? onMessage,
     required Arg<Preset<StratumNavigationDecision Function(Uri)>>
@@ -180,9 +180,9 @@ class WebViewKnobsArgs extends StoryArgs<StratumWebView> {
        this.onErrorArg = $initArg('onError', onError, BoolArg(true))!;
 
   WebViewKnobsArgs.fixed({
-    required Preset<StratumWebViewSource> source,
+    required RequiredPreset<StratumWebViewSource> source,
     required Preset<StratumWebViewController> controller,
-    required Preset<Set<Uri>> allowedOrigins,
+    required RequiredPreset<Set<Uri>> allowedOrigins,
     bool javaScriptEnabled = true,
     bool onMessage = true,
     required Preset<StratumNavigationDecision Function(Uri)>
@@ -224,11 +224,11 @@ class WebViewKnobsArgs extends StoryArgs<StratumWebView> {
        )!,
        this.onErrorArg = $initArg('onError', Arg.fixed(onError), null)!;
 
-  final Arg<Preset<StratumWebViewSource>> sourceArg;
+  final Arg<RequiredPreset<StratumWebViewSource>> sourceArg;
 
   final Arg<Preset<StratumWebViewController>> controllerArg;
 
-  final Arg<Preset<Set<Uri>>> allowedOriginsArg;
+  final Arg<RequiredPreset<Set<Uri>>> allowedOriginsArg;
 
   final Arg<bool> javaScriptEnabledArg;
 
@@ -243,11 +243,11 @@ class WebViewKnobsArgs extends StoryArgs<StratumWebView> {
 
   final Arg<bool> onErrorArg;
 
-  Preset<StratumWebViewSource> get source => sourceArg.value;
+  RequiredPreset<StratumWebViewSource> get source => sourceArg.value;
 
   Preset<StratumWebViewController> get controller => controllerArg.value;
 
-  Preset<Set<Uri>> get allowedOrigins => allowedOriginsArg.value;
+  RequiredPreset<Set<Uri>> get allowedOrigins => allowedOriginsArg.value;
 
   bool get javaScriptEnabled => javaScriptEnabledArg.value;
 

@@ -124,7 +124,8 @@ class ReorderableListViewLayoutKnobsArgs
     itemExtentBuilder,
     Arg<SlotPreset>? prototypeItem,
     Arg<int>? itemCount,
-    required Arg<Preset<Widget Function(BuildContext, int)>> itemBuilder,
+    required Arg<RequiredPreset<Widget Function(BuildContext, int)>>
+    itemBuilder,
     Arg<bool>? onReorderItem,
     Arg<bool>? onReorderStart,
     Arg<bool>? onReorderEnd,
@@ -298,7 +299,7 @@ class ReorderableListViewLayoutKnobsArgs
     itemExtentBuilder,
     SlotPreset prototypeItem = SlotPreset.none,
     int itemCount = 0,
-    required Preset<Widget Function(BuildContext, int)> itemBuilder,
+    required RequiredPreset<Widget Function(BuildContext, int)> itemBuilder,
     bool onReorderItem = true,
     bool onReorderStart = true,
     bool onReorderEnd = true,
@@ -495,7 +496,7 @@ class ReorderableListViewLayoutKnobsArgs
 
   final Arg<int> itemCountArg;
 
-  final Arg<Preset<Widget Function(BuildContext, int)>> itemBuilderArg;
+  final Arg<RequiredPreset<Widget Function(BuildContext, int)>> itemBuilderArg;
 
   final Arg<bool> onReorderItemArg;
 
@@ -563,7 +564,7 @@ class ReorderableListViewLayoutKnobsArgs
 
   int get itemCount => itemCountArg.value;
 
-  Preset<Widget Function(BuildContext, int)> get itemBuilder =>
+  RequiredPreset<Widget Function(BuildContext, int)> get itemBuilder =>
       itemBuilderArg.value;
 
   bool get onReorderItem => onReorderItemArg.value;

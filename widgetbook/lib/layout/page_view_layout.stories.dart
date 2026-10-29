@@ -106,7 +106,7 @@ PageViewLayout _frameChild(
 ) => PageViewLayout.builder(
   itemCount: 3,
   itemBuilder: (context, index) =>
-      slotItemBuilders.first.build(context)!(context, index),
+      slotItemBuilders.first.valueOf(context)(context, index),
 );
 
 /// A page view of three slot pages in a bounded height, the layout every
@@ -133,7 +133,7 @@ final $Playground = _BuilderStory(
     findChildIndexCallback: args.findChildIndexCallback.build(context),
     itemCount: args.itemCount,
     dragStartBehavior: args.dragStartBehavior,
-    allowImplicitScrolling: args.allowImplicitScrolling,
+    allowImplicitScrolling: _implicitScrolling(context, args),
     scrollCacheExtent: args.scrollCacheExtent.build(context),
     restorationId: args.restorationId,
     clipBehavior: args.clipBehavior,
@@ -145,6 +145,14 @@ final $Playground = _BuilderStory(
     scrollFocusStyle: args.scrollFocusStyle.build(context),
   ),
 );
+
+/// Whether the playground's page view scrolls implicitly: the
+/// `allowImplicitScrolling` knob, or any `scrollCacheExtent` preset, since
+/// `PageView` asserts that a cache extent above zero comes with implicit
+/// scrolling.
+bool _implicitScrolling(BuildContext context, PageViewLayoutKnobsArgs args) =>
+    args.allowImplicitScrolling ||
+    args.scrollCacheExtent.build(context) != null;
 
 final $RecipeFormRow = _BuilderStory(
   name: StoryNames.recipes[0],

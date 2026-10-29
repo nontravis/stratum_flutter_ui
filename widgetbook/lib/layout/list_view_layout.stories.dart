@@ -107,7 +107,7 @@ ListViewLayout _frameChild(
 ) => ListViewLayout.builder(
   itemCount: 3,
   itemBuilder: (context, index) =>
-      slotItemBuilders.first.build(context)!(context, index),
+      slotItemBuilders.first.valueOf(context)(context, index),
 );
 
 final $Playground = _BuilderStory(

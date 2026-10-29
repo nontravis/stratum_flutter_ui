@@ -57,7 +57,8 @@ class ReorderableListViewLayoutKnobs {
   final Preset<ItemExtentBuilder?> itemExtentBuilder;
   final SlotPreset prototypeItem;
   final int itemCount;
-  final Preset<Widget Function(BuildContext context, int index)> itemBuilder;
+  final RequiredPreset<Widget Function(BuildContext context, int index)>
+  itemBuilder;
 
   /// Whether the list reports `onReorderItem called`.
   final bool onReorderItem;

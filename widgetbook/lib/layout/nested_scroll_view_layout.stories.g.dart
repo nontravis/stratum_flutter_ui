@@ -83,7 +83,7 @@ class NestedScrollViewLayoutKnobsArgs
     Arg<bool>? reverse,
     required Arg<Preset<ScrollPhysics>> physics,
     Arg<bool?>? showScrollbar,
-    required Arg<Preset<List<Widget> Function(BuildContext, bool)>>
+    required Arg<RequiredPreset<List<Widget> Function(BuildContext, bool)>>
     headerSliverBuilder,
     Arg<SlotPreset>? body,
     Arg<DragStartBehavior>? dragStartBehavior,
@@ -154,7 +154,7 @@ class NestedScrollViewLayoutKnobsArgs
     bool reverse = false,
     required Preset<ScrollPhysics> physics,
     bool? showScrollbar = null,
-    required Preset<List<Widget> Function(BuildContext, bool)>
+    required RequiredPreset<List<Widget> Function(BuildContext, bool)>
     headerSliverBuilder,
     SlotPreset body = SlotPreset.slot,
     DragStartBehavior dragStartBehavior = DragStartBehavior.start,
@@ -224,7 +224,7 @@ class NestedScrollViewLayoutKnobsArgs
 
   final Arg<bool?>? showScrollbarArg;
 
-  final Arg<Preset<List<Widget> Function(BuildContext, bool)>>
+  final Arg<RequiredPreset<List<Widget> Function(BuildContext, bool)>>
   headerSliverBuilderArg;
 
   final Arg<SlotPreset> bodyArg;
@@ -251,8 +251,8 @@ class NestedScrollViewLayoutKnobsArgs
 
   bool? get showScrollbar => showScrollbarArg?.value;
 
-  Preset<List<Widget> Function(BuildContext, bool)> get headerSliverBuilder =>
-      headerSliverBuilderArg.value;
+  RequiredPreset<List<Widget> Function(BuildContext, bool)>
+  get headerSliverBuilder => headerSliverBuilderArg.value;
 
   SlotPreset get body => bodyArg.value;
 

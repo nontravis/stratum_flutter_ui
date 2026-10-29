@@ -71,7 +71,7 @@ class ToastKnobsArgs extends StoryArgs<StratumToastHost> {
     required Arg<Preset<Map<FeedbackState, String>>> kindLabels,
     required Arg<Preset<List<SingleActivator>>> focusShortcuts,
     required Arg<Preset<String>> focusShortcutHint,
-    required Arg<Preset<String>> message,
+    required Arg<RequiredPreset<String>> message,
     required Arg<Preset<StratumToastAction>> action,
     Arg<FeedbackState>? kind,
     required Arg<Preset<StratumToastPlacement>> placement,
@@ -118,7 +118,7 @@ class ToastKnobsArgs extends StoryArgs<StratumToastHost> {
     required Preset<Map<FeedbackState, String>> kindLabels,
     required Preset<List<SingleActivator>> focusShortcuts,
     required Preset<String> focusShortcutHint,
-    required Preset<String> message,
+    required RequiredPreset<String> message,
     required Preset<StratumToastAction> action,
     FeedbackState kind = FeedbackState.info,
     required Preset<StratumToastPlacement> placement,
@@ -168,7 +168,7 @@ class ToastKnobsArgs extends StoryArgs<StratumToastHost> {
 
   final Arg<Preset<String>> focusShortcutHintArg;
 
-  final Arg<Preset<String>> messageArg;
+  final Arg<RequiredPreset<String>> messageArg;
 
   final Arg<Preset<StratumToastAction>> actionArg;
 
@@ -191,7 +191,7 @@ class ToastKnobsArgs extends StoryArgs<StratumToastHost> {
 
   Preset<String> get focusShortcutHint => focusShortcutHintArg.value;
 
-  Preset<String> get message => messageArg.value;
+  RequiredPreset<String> get message => messageArg.value;
 
   Preset<StratumToastAction> get action => actionArg.value;
 

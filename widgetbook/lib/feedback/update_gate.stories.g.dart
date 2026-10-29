@@ -59,8 +59,8 @@ class StratumUpdateGateStory
 
 class UpdateGateKnobsArgs extends StoryArgs<StratumUpdateGate> {
   UpdateGateKnobsArgs({
-    required Arg<Preset<UpdateChecker>> checker,
-    required Arg<Preset<Widget Function(BuildContext, UpdateGateState)>>
+    required Arg<RequiredPreset<UpdateChecker>> checker,
+    required Arg<RequiredPreset<Widget Function(BuildContext, UpdateGateState)>>
     builder,
     Arg<SlotPreset>? child,
   }) : this.checkerArg = $initArg('checker', checker, null)!,
@@ -72,22 +72,24 @@ class UpdateGateKnobsArgs extends StoryArgs<StratumUpdateGate> {
        )!;
 
   UpdateGateKnobsArgs.fixed({
-    required Preset<UpdateChecker> checker,
-    required Preset<Widget Function(BuildContext, UpdateGateState)> builder,
+    required RequiredPreset<UpdateChecker> checker,
+    required RequiredPreset<Widget Function(BuildContext, UpdateGateState)>
+    builder,
     SlotPreset child = SlotPreset.slot,
   }) : this.checkerArg = $initArg('checker', Arg.fixed(checker), null)!,
        this.builderArg = $initArg('builder', Arg.fixed(builder), null)!,
        this.childArg = $initArg('child', Arg.fixed(child), null)!;
 
-  final Arg<Preset<UpdateChecker>> checkerArg;
+  final Arg<RequiredPreset<UpdateChecker>> checkerArg;
 
-  final Arg<Preset<Widget Function(BuildContext, UpdateGateState)>> builderArg;
+  final Arg<RequiredPreset<Widget Function(BuildContext, UpdateGateState)>>
+  builderArg;
 
   final Arg<SlotPreset> childArg;
 
-  Preset<UpdateChecker> get checker => checkerArg.value;
+  RequiredPreset<UpdateChecker> get checker => checkerArg.value;
 
-  Preset<Widget Function(BuildContext, UpdateGateState)> get builder =>
+  RequiredPreset<Widget Function(BuildContext, UpdateGateState)> get builder =>
       builderArg.value;
 
   SlotPreset get child => childArg.value;

@@ -20,9 +20,9 @@ class WebViewKnobs {
     this.onError = true,
   });
 
-  final Preset<StratumWebViewSource> source;
+  final RequiredPreset<StratumWebViewSource> source;
   final Preset<StratumWebViewController> controller;
-  final Preset<Set<Uri>> allowedOrigins;
+  final RequiredPreset<Set<Uri>> allowedOrigins;
   final bool javaScriptEnabled;
   final bool onMessage;
   final Preset<StratumNavigationDecision Function(Uri url)> onNavigationRequest;

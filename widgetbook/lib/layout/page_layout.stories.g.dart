@@ -126,13 +126,13 @@ class PageLayoutKnobsArgs extends StoryArgs<PageLayout> {
     Arg<SlotPreset>? right,
     Arg<SlotPreset>? footer,
     Arg<SlotPreset>? snack,
-    required Arg<Preset<PageSafeArea>> safeArea,
+    required Arg<RequiredPreset<PageSafeArea>> safeArea,
     Arg<bool>? resizeToAvoidKeyboard,
     Arg<bool>? loading,
     required Arg<Preset<Widget Function(BuildContext)>> loadingBuilder,
     required Arg<Preset<PageLayoutController>> controller,
-    required Arg<Preset<PageSide>> leftSide,
-    required Arg<Preset<PageSide>> rightSide,
+    required Arg<RequiredPreset<PageSide>> leftSide,
+    required Arg<RequiredPreset<PageSide>> rightSide,
     Arg<WindowSize>? drawerCut,
     Arg<bool>? rightAsOverlay,
     Arg<double>? minCenterWidth,
@@ -250,13 +250,13 @@ class PageLayoutKnobsArgs extends StoryArgs<PageLayout> {
     SlotPreset right = SlotPreset.slot,
     SlotPreset footer = SlotPreset.slot,
     SlotPreset snack = SlotPreset.slot,
-    required Preset<PageSafeArea> safeArea,
+    required RequiredPreset<PageSafeArea> safeArea,
     bool resizeToAvoidKeyboard = true,
     bool loading = false,
     required Preset<Widget Function(BuildContext)> loadingBuilder,
     required Preset<PageLayoutController> controller,
-    required Preset<PageSide> leftSide,
-    required Preset<PageSide> rightSide,
+    required RequiredPreset<PageSide> leftSide,
+    required RequiredPreset<PageSide> rightSide,
     WindowSize drawerCut = WindowSize.tablet,
     bool rightAsOverlay = false,
     double minCenterWidth = 320,
@@ -354,7 +354,7 @@ class PageLayoutKnobsArgs extends StoryArgs<PageLayout> {
 
   final Arg<SlotPreset> snackArg;
 
-  final Arg<Preset<PageSafeArea>> safeAreaArg;
+  final Arg<RequiredPreset<PageSafeArea>> safeAreaArg;
 
   final Arg<bool> resizeToAvoidKeyboardArg;
 
@@ -364,9 +364,9 @@ class PageLayoutKnobsArgs extends StoryArgs<PageLayout> {
 
   final Arg<Preset<PageLayoutController>> controllerArg;
 
-  final Arg<Preset<PageSide>> leftSideArg;
+  final Arg<RequiredPreset<PageSide>> leftSideArg;
 
-  final Arg<Preset<PageSide>> rightSideArg;
+  final Arg<RequiredPreset<PageSide>> rightSideArg;
 
   final Arg<WindowSize> drawerCutArg;
 
@@ -408,7 +408,7 @@ class PageLayoutKnobsArgs extends StoryArgs<PageLayout> {
 
   SlotPreset get snack => snackArg.value;
 
-  Preset<PageSafeArea> get safeArea => safeAreaArg.value;
+  RequiredPreset<PageSafeArea> get safeArea => safeAreaArg.value;
 
   bool get resizeToAvoidKeyboard => resizeToAvoidKeyboardArg.value;
 
@@ -419,9 +419,9 @@ class PageLayoutKnobsArgs extends StoryArgs<PageLayout> {
 
   Preset<PageLayoutController> get controller => controllerArg.value;
 
-  Preset<PageSide> get leftSide => leftSideArg.value;
+  RequiredPreset<PageSide> get leftSide => leftSideArg.value;
 
-  Preset<PageSide> get rightSide => rightSideArg.value;
+  RequiredPreset<PageSide> get rightSide => rightSideArg.value;
 
   WindowSize get drawerCut => drawerCutArg.value;
 

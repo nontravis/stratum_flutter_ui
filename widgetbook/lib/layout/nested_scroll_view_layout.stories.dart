@@ -67,15 +67,15 @@ final componentMeta = ComponentMeta(
 
 /// The header sliver builders this page offers: the default one that builds
 /// a `SliverToBoxAdapter` of a named slot (fo11/us06/fr01).
-final _headerBuilders = <Preset<NestedScrollViewHeaderSliversBuilder>>[
-  Preset(
+final _headerBuilders = <RequiredPreset<NestedScrollViewHeaderSliversBuilder>>[
+  RequiredPreset(
     'Slot builder',
     (_) =>
         (context, innerBoxIsScrolled) => [
           const SliverToBoxAdapter(child: StratumSlot(name: 'header')),
         ],
   ),
-  Preset(
+  RequiredPreset(
     'Second slot',
     (_) =>
         (context, innerBoxIsScrolled) => [
@@ -91,7 +91,10 @@ NestedScrollViewLayoutKnobsArgs _knobs() => NestedScrollViewLayoutKnobsArgs(
   style: styleKnob(),
   controller: presetKnob('controller', _controllers),
   physics: presetKnob('physics', scrollPhysicsPresets),
-  headerSliverBuilder: presetKnob('headerSliverBuilder', _headerBuilders),
+  headerSliverBuilder: requiredPresetKnob(
+    'headerSliverBuilder',
+    _headerBuilders,
+  ),
   body: EnumArg<SlotPreset>(
     SlotPreset.slot,
     name: 'body',
@@ -119,7 +122,7 @@ NestedScrollViewLayout _frameChild(
   BuildContext context,
   NestedScrollViewLayoutKnobsArgs args,
 ) => NestedScrollViewLayout(
-  headerSliverBuilder: _headerBuilders.first.build(context)!,
+  headerSliverBuilder: _headerBuilders.first.valueOf(context),
   body: _body(context),
 );
 
@@ -127,7 +130,7 @@ NestedScrollViewLayout _frameChild(
 Widget _body(BuildContext context) => ListViewLayout.builder(
   itemCount: 3,
   itemBuilder: (context, index) =>
-      slotItemBuilders.first.build(context)!(context, index),
+      slotItemBuilders.first.valueOf(context)(context, index),
 );
 
 final $Playground = _Story(
@@ -141,7 +144,7 @@ final $Playground = _Story(
     reverse: args.reverse,
     physics: args.physics.build(context),
     showScrollbar: args.showScrollbar,
-    headerSliverBuilder: args.headerSliverBuilder.build(context)!,
+    headerSliverBuilder: args.headerSliverBuilder.valueOf(context),
     body: slotFor(context, args.body, name: 'body') ?? const SizedBox.shrink(),
     dragStartBehavior: args.dragStartBehavior,
     floatHeaderSlivers: args.floatHeaderSlivers,

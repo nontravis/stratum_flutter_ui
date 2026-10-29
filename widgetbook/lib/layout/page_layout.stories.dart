@@ -63,11 +63,11 @@ const _height = 480.0;
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 PageLayoutKnobsArgs _knobs() => PageLayoutKnobsArgs(
-  safeArea: presetKnob('safeArea', _safeAreas),
+  safeArea: requiredPresetKnob('safeArea', _safeAreas),
   loadingBuilder: presetKnob('loadingBuilder', _loadingBuilders),
   controller: presetKnob('controller', _controllers),
-  leftSide: presetKnob('leftSide', _sides),
-  rightSide: presetKnob('rightSide', _sides),
+  leftSide: requiredPresetKnob('leftSide', _sides),
+  rightSide: requiredPresetKnob('rightSide', _sides),
   leftDividerBuilder: presetKnob('leftDividerBuilder', _leftDividers),
   rightDividerBuilder: presetKnob('rightDividerBuilder', _rightDividers),
   customStyle: presetKnob('customStyle', _customStyles),
@@ -75,12 +75,14 @@ PageLayoutKnobsArgs _knobs() => PageLayoutKnobsArgs(
   setting: presetKnob('setting', widgetSettingPresets),
 );
 
-final _safeAreas = <Preset<PageSafeArea>>[
-  const Preset('Default', _defaultSafeArea),
-  const Preset.none(),
+final _safeAreas = <RequiredPreset<PageSafeArea>>[
+  const RequiredPreset('Default', _defaultSafeArea),
+  const RequiredPreset('None', _noSafeArea),
 ];
 
-PageSafeArea? _defaultSafeArea(BuildContext context) => const PageSafeArea();
+PageSafeArea _defaultSafeArea(BuildContext context) => const PageSafeArea();
+PageSafeArea _noSafeArea(BuildContext context) =>
+    const PageSafeArea(top: false, bottom: false, left: false, right: false);
 
 final _loadingBuilders = <Preset<WidgetBuilder>>[
   const Preset.none(),
@@ -99,13 +101,13 @@ final _controllers = <Preset<PageLayoutController>>[
   ),
 ];
 
-final _sides = <Preset<PageSide>>[
-  const Preset('Default', _defaultSide),
-  const Preset('Wide', _wideSide),
+final _sides = <RequiredPreset<PageSide>>[
+  const RequiredPreset('Default', _defaultSide),
+  const RequiredPreset('Wide', _wideSide),
 ];
 
-PageSide? _defaultSide(BuildContext context) => const PageSide();
-PageSide? _wideSide(BuildContext context) =>
+PageSide _defaultSide(BuildContext context) => const PageSide();
+PageSide _wideSide(BuildContext context) =>
     const PageSide(minWidth: 320, maxWidth: 400);
 
 final _leftDividers = <Preset<SplitDividerBuilder>>[

@@ -63,7 +63,7 @@ class GridViewLayoutBuilderStory
 class GridViewLayoutKnobsArgs extends StoryArgs<GridViewLayout> {
   GridViewLayoutKnobsArgs({
     required Arg<Preset<WidgetStyle>> style,
-    required Arg<Preset<SliverGridDelegate>> gridDelegate,
+    required Arg<RequiredPreset<SliverGridDelegate>> gridDelegate,
     Arg<Axis>? scrollDirection,
     Arg<bool>? reverse,
     required Arg<Preset<ScrollController>> controller,
@@ -179,7 +179,7 @@ class GridViewLayoutKnobsArgs extends StoryArgs<GridViewLayout> {
 
   GridViewLayoutKnobsArgs.fixed({
     required Preset<WidgetStyle> style,
-    required Preset<SliverGridDelegate> gridDelegate,
+    required RequiredPreset<SliverGridDelegate> gridDelegate,
     Axis scrollDirection = Axis.vertical,
     bool reverse = false,
     required Preset<ScrollController> controller,
@@ -311,7 +311,7 @@ class GridViewLayoutKnobsArgs extends StoryArgs<GridViewLayout> {
 
   final Arg<Preset<WidgetStyle>> styleArg;
 
-  final Arg<Preset<SliverGridDelegate>> gridDelegateArg;
+  final Arg<RequiredPreset<SliverGridDelegate>> gridDelegateArg;
 
   final Arg<Axis> scrollDirectionArg;
 
@@ -359,7 +359,7 @@ class GridViewLayoutKnobsArgs extends StoryArgs<GridViewLayout> {
 
   Preset<WidgetStyle> get style => styleArg.value;
 
-  Preset<SliverGridDelegate> get gridDelegate => gridDelegateArg.value;
+  RequiredPreset<SliverGridDelegate> get gridDelegate => gridDelegateArg.value;
 
   Axis get scrollDirection => scrollDirectionArg.value;
 

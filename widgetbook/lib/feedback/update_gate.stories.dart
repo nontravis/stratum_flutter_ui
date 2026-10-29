@@ -68,9 +68,9 @@ final class _StaticChecker implements UpdateChecker {
 }
 
 /// One checker preset per [UpdateStatus] value (fo11/us04/fr01).
-final _checkers = <Preset<UpdateChecker>>[
+final _checkers = <RequiredPreset<UpdateChecker>>[
   for (final status in UpdateStatus.values)
-    Preset(status.name, (context) => _StaticChecker(status)),
+    RequiredPreset(status.name, (context) => _StaticChecker(status)),
 ];
 
 /// The app's own screens, stood in as slots (US-03 FR-03; s01 "Slot
@@ -82,8 +82,8 @@ Widget _slotScreens(BuildContext context, UpdateGateState gate) =>
       UpdateGateAvailable() => const StratumSlot(name: _updateDialog),
     };
 
-final _builders = <Preset<UpdateGateBuilder>>[
-  Preset('Slots', (context) => _slotScreens),
+final _builders = <RequiredPreset<UpdateGateBuilder>>[
+  RequiredPreset('Slots', (context) => _slotScreens),
 ];
 
 const meta = Meta(StratumUpdateGate.new, argsType: UpdateGateKnobs.new);
@@ -120,8 +120,8 @@ StratumUpdateGate _gateOf(
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 UpdateGateKnobsArgs _knobs() => UpdateGateKnobsArgs(
-  checker: presetKnob('checker', _checkers),
-  builder: presetKnob('builder', _builders),
+  checker: requiredPresetKnob('checker', _checkers),
+  builder: requiredPresetKnob('builder', _builders),
   child: EnumArg<SlotPreset>(
     SlotPreset.slot,
     name: 'child',

@@ -25,6 +25,8 @@ final _presets = <Preset<WidgetStyle>>[
 
 WidgetStyle? _none(BuildContext context) => null;
 
+String _fixed(BuildContext context) => 'fixed';
+
 /// Pumps the probe with the style [preset] picked.
 Future<void> _pump(WidgetTester tester, Preset<WidgetStyle> preset) =>
     tester.pumpWidget(
@@ -124,5 +126,45 @@ void main() {
     );
 
     expect(shown, SampleTexts.label.th);
+  });
+
+  testWidgets('fo11/us04/fr04: a required preset builds its value through '
+      'valueOf', (tester) async {
+    const preset = RequiredPreset<String>('Fixed', _fixed);
+    late String built;
+    await tester.pumpWidget(
+      probeApp(
+        child: Builder(
+          builder: (context) {
+            built = preset.valueOf(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(built, 'fixed');
+    expect(preset, isA<Preset<String>>());
+  });
+
+  test('fo11/us04/fr04: a required knob offers its presets by name', () {
+    final presets = <RequiredPreset<String>>[
+      const RequiredPreset('One', _fixed),
+      const RequiredPreset('Two', _fixed),
+    ];
+    final arg = requiredPresetKnob('label', presets);
+    final field =
+        arg.fields.single as ObjectDropdownField<RequiredPreset<String>>;
+
+    expect(arg.name, 'label');
+    expect(arg.value, presets.first);
+    expect(field.labelBuilder(presets[1]), 'Two');
+    expect(
+      () => RequiredPresetArg<String>(
+        presets.first,
+        values: [presets.first, presets.first],
+      ),
+      throwsAssertionError,
+    );
   });
 }

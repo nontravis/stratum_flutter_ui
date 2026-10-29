@@ -120,9 +120,9 @@ final _shortcutHints = <Preset<String>>[
   Preset('Sample', (context) => _shortcutHint.of(context)),
 ];
 
-final _messages = <Preset<String>>[
-  Preset('Message', (context) => SampleTexts.message.of(context)),
-  Preset('Label', (context) => SampleTexts.label.of(context)),
+final _messages = <RequiredPreset<String>>[
+  RequiredPreset('Message', (context) => SampleTexts.message.of(context)),
+  RequiredPreset('Label', (context) => SampleTexts.label.of(context)),
 ];
 
 final _withAction = Preset<StratumToastAction>(
@@ -166,7 +166,7 @@ ToastKnobsArgs _knobs() => ToastKnobsArgs(
   kindLabels: presetKnob('kindLabels', _kindLabels),
   focusShortcuts: presetKnob('focusShortcuts', _focusShortcuts),
   focusShortcutHint: presetKnob('focusShortcutHint', _shortcutHints),
-  message: presetKnob('message', _messages),
+  message: requiredPresetKnob('message', _messages),
   action: presetKnob('action', _actions),
   kind: EnumArg<FeedbackState>(
     FeedbackState.info,

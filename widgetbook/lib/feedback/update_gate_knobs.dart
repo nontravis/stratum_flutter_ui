@@ -12,7 +12,7 @@ class UpdateGateKnobs {
     this.child = SlotPreset.slot,
   });
 
-  final Preset<UpdateChecker> checker;
-  final Preset<Widget Function(BuildContext, UpdateGateState)> builder;
+  final RequiredPreset<UpdateChecker> checker;
+  final RequiredPreset<Widget Function(BuildContext, UpdateGateState)> builder;
   final SlotPreset child;
 }

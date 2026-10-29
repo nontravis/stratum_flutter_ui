@@ -37,10 +37,11 @@ void main() {
     final source = $Playground.args.sourceArg;
 
     expect($Playground.args.onErrorArg, isA<BoolArg>());
-    expect(source, isA<PresetArg<StratumWebViewSource>>());
+    expect(source, isA<RequiredPresetArg<StratumWebViewSource>>());
     expect(
       [
-        for (final p in (source as PresetArg<StratumWebViewSource>).values)
+        for (final p
+            in (source as RequiredPresetArg<StratumWebViewSource>).values)
           p.name,
       ],
       ['HTML sample', 'example.com'],
@@ -75,7 +76,7 @@ void main() {
     testWidgets('fo11/us04/fr05: the HTML sample greets in $language under '
         'that toolbar language', (tester) async {
       final sources =
-          $Playground.args.sourceArg as PresetArg<StratumWebViewSource>;
+          $Playground.args.sourceArg as RequiredPresetArg<StratumWebViewSource>;
       late StratumWebViewSource built;
       await tester.pumpWidget(
         probeApp(

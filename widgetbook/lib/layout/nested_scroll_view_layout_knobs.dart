@@ -30,7 +30,8 @@ class NestedScrollViewLayoutKnobs {
   final bool? showScrollbar;
 
   /// Builds the header slivers.
-  final Preset<NestedScrollViewHeaderSliversBuilder> headerSliverBuilder;
+  final RequiredPreset<NestedScrollViewHeaderSliversBuilder>
+  headerSliverBuilder;
   final SlotPreset body;
   final DragStartBehavior dragStartBehavior;
   final bool floatHeaderSlivers;

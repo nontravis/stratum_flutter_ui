@@ -314,6 +314,25 @@ void main() {
     }
   });
 
+  testWidgets('fo11/us06/fr01/e01: the safeArea preset "None" turns every '
+      'safe-area edge off', (tester) async {
+    final pageLayout = _pages.first;
+    await pageLayout.open(
+      tester,
+      pageLayout.playground,
+      knobs: {'safeArea': 'None'},
+    );
+
+    final safeArea = tester
+        .widget<PageLayout>(find.byType(PageLayout))
+        .safeArea;
+    expect(tester.takeException(), isNull);
+    expect(
+      safeArea,
+      const PageSafeArea(top: false, bottom: false, left: false, right: false),
+    );
+  });
+
   group('ModalLayout', () {
     final modalLayout = _pages.last;
 

@@ -35,7 +35,7 @@ class GridViewLayoutKnobs {
   });
 
   final Preset<WidgetStyle> style;
-  final Preset<SliverGridDelegate> gridDelegate;
+  final RequiredPreset<SliverGridDelegate> gridDelegate;
   final Axis scrollDirection;
   final bool reverse;
   final Preset<ScrollController> controller;

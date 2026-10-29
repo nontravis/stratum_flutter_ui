@@ -52,9 +52,9 @@ final componentMeta = ComponentMeta(
 /// draws a web view as an iframe, and a site that sends
 /// `X-Frame-Options: DENY` (flutter.dev does) shows only the browser's
 /// blocked-frame page.
-final _sources = <Preset<StratumWebViewSource>>[
-  const Preset('HTML sample', _htmlSample),
-  Preset(
+final _sources = <RequiredPreset<StratumWebViewSource>>[
+  const RequiredPreset('HTML sample', _htmlSample),
+  RequiredPreset(
     'example.com',
     (context) => StratumWebViewSource.url(Uri.parse('https://example.com')),
   ),
@@ -71,9 +71,12 @@ final _controllers = <Preset<StratumWebViewController>>[
   const Preset('Story controller', _StoryController.of),
 ];
 
-final _origins = <Preset<Set<Uri>>>[
-  const Preset('Default', _defaultOrigins),
-  Preset('example.com', (context) => {Uri.parse('https://example.com')}),
+final _origins = <RequiredPreset<Set<Uri>>>[
+  const RequiredPreset('Default', _defaultOrigins),
+  RequiredPreset(
+    'example.com',
+    (context) => {Uri.parse('https://example.com')},
+  ),
 ];
 
 Set<Uri> _defaultOrigins(BuildContext context) => const <Uri>{};
@@ -88,9 +91,9 @@ StratumNavigationDecision _preventAll(Uri url) =>
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
 WebViewKnobsArgs _knobs() => WebViewKnobsArgs(
-  source: presetKnob('source', _sources),
+  source: requiredPresetKnob('source', _sources),
   controller: presetKnob('controller', _controllers),
-  allowedOrigins: presetKnob('allowedOrigins', _origins),
+  allowedOrigins: requiredPresetKnob('allowedOrigins', _origins),
   onNavigationRequest: presetKnob('onNavigationRequest', _decisions),
 );
 
