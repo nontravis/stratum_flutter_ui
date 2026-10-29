@@ -5,9 +5,8 @@
 Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`:
 `StratumThemeData`, `StratumThemeSet`, `StratumAppPalette`, `StratumMotionLevels`, `StratumAnimation`,
 `StratumRemoteTheme`, `StratumFontData`, `StratumThemeTransitions`, `StratumTextStyle`, `WidgetStyle`, `Interaction`,
-`InteractionState`, `Scroll`, `ImplicitScrolling`, `FocusGroup`, `StratumFocusTokens`, `StratumFocusBorderStyle`,
-`StratumInkWellStyle`, `ScrollFocusStyle`, `StratumCaretStyle`, the page, split, modal, and toast values, and the web
-view values. A
+`InteractionState`, `Scroll`, `ImplicitScrolling`, `FocusGroup`, `StratumFocusTokens`, `StratumFocusBorderStyle`, `StratumInkWellStyle`,
+`ScrollFocusStyle`, `StratumCaretStyle`, the page, split, modal, and toast values, and the web view values. A
 `StratumFocusBorderStyle` compares by value for its `.all` and `.fromMap` properties, by identity for a
 `resolveWith` one. A theme data's `*Tokens` groups compare by identity and carry no `copyWith` (`StratumColorTokens`
 and the rest), except `StratumFocusTokens`, which compares by value like the list above, so two parses of one theme
