@@ -136,15 +136,17 @@ final _messages = <Preset<String>>[
   Preset('Label', (context) => _text(context, SampleTexts.label)),
 ];
 
+final _withAction = Preset<StratumToastAction>(
+  'With action',
+  (context) => StratumToastAction(
+    label: _text(context, SampleTexts.label),
+    onPressed: reportCallback(context, 'onPressed'),
+  ),
+);
+
 final _actions = <Preset<StratumToastAction>>[
   const Preset('None', _noAction),
-  Preset(
-    'With action',
-    (context) => StratumToastAction(
-      label: _text(context, SampleTexts.label),
-      onPressed: reportCallback(context, 'onPressed'),
-    ),
-  ),
+  _withAction,
 ];
 
 StratumToastAction? _noAction(BuildContext context) => null;
@@ -285,9 +287,12 @@ StratumToastHost _frameChild(BuildContext context, ToastKnobsArgs args) =>
     const StratumToastHost(child: SizedBox.shrink());
 
 /// One frame of a frame story: a host of its own, nested under the story's
-/// root host, so it reads this frame's window size and text scale.
-Widget _frame(BuildContext context) => StratumToastHost(
-  child: Builder(builder: (context) => _trigger(context, _fixedKnobs())),
+/// root host, in a stage of its own so the host draws its notice under this
+/// frame's window size, text scale, and direction.
+Widget _frame(BuildContext context) => _toastStage(
+  StratumToastHost(
+    child: Builder(builder: (context) => _trigger(context, _fixedKnobs())),
+  ),
 );
 
 /// [frames] under the one root host; every frame's host nests in it
@@ -307,7 +312,7 @@ StratumToastNotice _noticeOf(
   insets: EdgeInsets.zero,
   pageSnack: null,
   customStyle: null,
-  action: withAction ? _actions.last.build(context) : null,
+  action: withAction ? _withAction.build(context) : null,
   close: reportCallback(context, 'close'),
   closeLabel: _text(context, SampleTexts.close),
   kindLabel: _text(context, _kindSamples[kind]!),
@@ -372,7 +377,7 @@ final $Accessibility = _Story(
 
 final $ExampleErrorWithAction = _Story(
   name: StoryNames.example('error with action'),
-  args: _fixedKnobs(kind: FeedbackState.negative, action: _actions.last),
+  args: _fixedKnobs(kind: FeedbackState.negative, action: _withAction),
   setup: _reportingStage,
   builder: _hostOf,
 );

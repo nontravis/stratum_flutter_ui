@@ -256,13 +256,22 @@ void main() {
     };
     expect(find.byType(StratumToastPlainLook), findsNWidgets(8));
     for (final MapEntry(:key, :value) in labels.entries) {
-      expect(find.text(key.name), findsOneWidget, reason: key.name);
-      expect(
-        find.text('${key.name} with action'),
-        findsOneWidget,
-        reason: key.name,
-      );
-      expect(find.bySemanticsLabel(value), findsNWidgets(2), reason: key.name);
+      for (final frame in [key.name, '${key.name} with action']) {
+        expect(find.text(frame), findsOneWidget, reason: frame);
+        expect(
+          find.descendant(
+            of: find
+                .ancestor(
+                  of: find.text(frame),
+                  matching: find.byType(ColumnLayout),
+                )
+                .first,
+            matching: find.bySemanticsLabel(value),
+          ),
+          findsOneWidget,
+          reason: frame,
+        );
+      }
     }
     expect(find.text('Label'), findsNWidgets(4));
 
@@ -273,8 +282,8 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('fo11/us04/fr03: the Variants close button reports close called, '
-      'and an action closes its notice after it runs', (tester) async {
+  testWidgets('fo11/us04/fr03: the Variants close button reports close '
+      'called', (tester) async {
     await openStory<StratumToastPlainLook>(tester, 'Feedback/Toast/Variants');
     expect(find.text('close called'), findsNothing);
 
@@ -282,5 +291,34 @@ void main() {
     await tester.tap(find.byIcon(Icons.close).first);
     await tester.pump();
     expect(find.text('close called'), findsOneWidget);
+  });
+
+  testWidgets('fo11/us03/fr02: the Accessibility 200% text frame draws its '
+      'notice at twice the text scale', (tester) async {
+    await openStory<StratumToastHost>(tester, 'Feedback/Toast/Accessibility');
+
+    await tester.tap(find.text('Show toast').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 1));
+
+    final notice = tester.element(find.text(_message));
+    expect(MediaQuery.textScalerOf(notice).scale(10), 20);
+    await _closeStory(tester);
+  });
+
+  testWidgets('fo11/us03/fr02: the Accessibility right-to-left frame draws '
+      'its notice right to left', (tester) async {
+    await openStory<StratumToastHost>(tester, 'Feedback/Toast/Accessibility');
+
+    await tester.tap(find.text('Show toast').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 1));
+
+    final notice = tester.element(find.text(_message));
+    expect(Directionality.of(notice), TextDirection.rtl);
+    expect(MediaQuery.textScalerOf(notice).scale(10), 10);
+    await _closeStory(tester);
   });
 }

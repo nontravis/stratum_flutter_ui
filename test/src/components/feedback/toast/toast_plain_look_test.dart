@@ -24,6 +24,29 @@ StratumToastNotice _notice({
   action: action,
 );
 
+/// Records every `announce` message of [SystemChannels.accessibility].
+List<String> _announceRecorder(WidgetTester tester) {
+  final announced = <String>[];
+  tester.binding.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
+    SystemChannels.accessibility,
+    (message) async {
+      final map = message! as Map;
+      if (map['type'] == 'announce') {
+        announced.add((map['data'] as Map)['message'] as String);
+      }
+      return null;
+    },
+  );
+  addTearDown(
+    () => tester.binding.defaultBinaryMessenger
+        .setMockDecodedMessageHandler<Object?>(
+          SystemChannels.accessibility,
+          null,
+        ),
+  );
+  return announced;
+}
+
 Widget _app(Widget Function(BuildContext context) home) => MaterialApp(
   builder: (context, child) => StratumThemeApplication(
     themes: StratumThemeSet(light: fakeTheme),
@@ -40,6 +63,7 @@ void main() {
     'target',
     (tester) async {
       final handle = tester.ensureSemantics();
+      final announced = _announceRecorder(tester);
       var closed = 0;
       await tester.pumpWidget(
         _app(
@@ -72,6 +96,8 @@ void main() {
       await tester.tap(find.bySemanticsLabel('Close it'));
       await tester.pump();
       expect(closed, 1);
+      // Drawn alone, it makes no announcement: the host owns that (E07).
+      expect(announced, isEmpty);
       handle.dispose();
     },
   );
