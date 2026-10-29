@@ -75,17 +75,12 @@ List<Widget>? _slotSlivers(BuildContext context) => const [
   SliverToBoxAdapter(child: StratumSlot(name: 'footer')),
 ];
 
-final _controllers = <Preset<ScrollController>>[
-  const Preset.none(),
-  Preset('Start at item 2', (_) => ScrollController(initialScrollOffset: 80)),
-];
-
 /// A fresh set of knobs: one per constructor param, in constructor order.
 CustomScrollViewLayoutKnobsArgs _knobs() => CustomScrollViewLayoutKnobsArgs(
   style: styleKnob(),
   slivers: presetKnob('slivers', _sliversBuilders),
   children: slotCountKnob('children', initial: 3),
-  controller: presetKnob('controller', _controllers),
+  controller: presetKnob('controller', scrollControllerPresets),
   physics: presetKnob('physics', scrollPhysicsPresets),
   semanticsLabel: presetKnob('semanticsLabel', scrollSemanticsLabelPresets),
   scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
@@ -96,7 +91,7 @@ CustomScrollViewLayoutKnobsArgs _fixedKnobs() =>
     CustomScrollViewLayoutKnobsArgs.fixed(
       style: widgetStylePresets.first,
       slivers: _sliversBuilders.first,
-      controller: _controllers.first,
+      controller: scrollControllerPresets.first,
       physics: scrollPhysicsPresets.first,
       semanticsLabel: scrollSemanticsLabelPresets.first,
       scrollFocusStyle: scrollFocusStylePresets.first,
@@ -123,9 +118,11 @@ Widget _sample(BuildContext context) =>
 
 final $Playground = _Story(
   args: _knobs(),
-  setup: (context, child, args) => SizedBox(
-    height: _height,
-    child: Story.defaultSetup(context, child, args),
+  setup: (context, child, args) => LayoutStoryScope(
+    child: SizedBox(
+      height: _height,
+      child: Story.defaultSetup(context, child, args),
+    ),
   ),
   builder: (context, args) {
     final slivers = args.slivers.build(context);

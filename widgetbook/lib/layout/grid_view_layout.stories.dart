@@ -75,7 +75,7 @@ SliverGridDelegate _max120(BuildContext context) =>
 GridViewLayoutKnobsArgs _knobs() => GridViewLayoutKnobsArgs(
   style: styleKnob(),
   gridDelegate: presetKnob('gridDelegate', _gridDelegates),
-  controller: presetKnob('controller', _controllers),
+  controller: presetKnob('controller', scrollControllerPresets),
   physics: presetKnob('physics', scrollPhysicsPresets),
   itemCount: slotCountKnob('itemCount', initial: 3),
   itemBuilder: presetKnob('itemBuilder', slotItemBuilders),
@@ -88,18 +88,11 @@ GridViewLayoutKnobsArgs _knobs() => GridViewLayoutKnobsArgs(
   scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
 );
 
-/// The scroll controllers this page offers: the default null, then a
-/// controller that starts the view scrolled.
-final _controllers = <Preset<ScrollController>>[
-  const Preset.none(),
-  Preset('Start at item 2', (_) => ScrollController(initialScrollOffset: 80)),
-];
-
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 GridViewLayoutKnobsArgs _fixedKnobs() => GridViewLayoutKnobsArgs.fixed(
   style: widgetStylePresets.first,
   gridDelegate: _gridDelegates.first,
-  controller: _controllers.first,
+  controller: scrollControllerPresets.first,
   physics: scrollPhysicsPresets.first,
   itemBuilder: slotItemBuilders.first,
   findChildIndexCallback: findChildIndexPresets.first,
@@ -131,9 +124,11 @@ Widget _sample(BuildContext context) =>
 
 final $Playground = _BuilderStory(
   args: _knobs(),
-  setup: (context, child, args) => SizedBox(
-    height: _height,
-    child: Story.defaultSetup(context, child, args),
+  setup: (context, child, args) => LayoutStoryScope(
+    child: SizedBox(
+      height: _height,
+      child: Story.defaultSetup(context, child, args),
+    ),
   ),
   builder: (context, args) {
     final controller = args.controller.build(context);

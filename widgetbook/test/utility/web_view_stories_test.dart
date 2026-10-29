@@ -11,6 +11,8 @@ import 'package:stratum_ui_widgetbook/kit/preset.dart';
 import 'package:stratum_ui_widgetbook/utility/web_view.stories.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
+import '../support/knob_probe.dart';
+
 void main() {
   test('fo11/us04/fr01: the Web view Playground has one knob per constructor '
       'param', () {
@@ -68,6 +70,28 @@ void main() {
     expect(StratumWebViewComponent.path, 'Utility');
     expect(components, contains(StratumWebViewComponent));
   });
+
+  for (final (language, text) in const [('th', 'สวัสดี'), ('en', 'Hello')]) {
+    testWidgets('fo11/us04/fr05: the HTML sample greets in $language under '
+        'that toolbar language', (tester) async {
+      final sources =
+          $Playground.args.sourceArg as PresetArg<StratumWebViewSource>;
+      late StratumWebViewSource built;
+      await tester.pumpWidget(
+        probeApp(
+          locale: Locale(language),
+          child: Builder(
+            builder: (context) {
+              built = sources.values.first.valueOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(built, StratumWebViewSource.html('<p>$text</p>'));
+    });
+  }
 
   testWidgets('fo11/us03/fr02: the Playground lays out in a bounded story '
       'area', (tester) async {

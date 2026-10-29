@@ -56,8 +56,11 @@ final _sources = <Preset<StratumWebViewSource>>[
   ),
 ];
 
+/// The greeting the `HTML sample` page shows, in both toolbar languages.
+const _greeting = SampleText(th: 'สวัสดี', en: 'Hello');
+
 StratumWebViewSource _htmlSample(BuildContext context) =>
-    const StratumWebViewSource.html('<p>สวัสดี Hello</p>');
+    StratumWebViewSource.html('<p>${_greeting.of(context)}</p>');
 
 final _controllers = <Preset<StratumWebViewController>>[
   const Preset.none(),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
@@ -288,3 +290,126 @@ abstract final class ScrollKnobGuards {
     required List<Widget>? slivers,
   }) => slivers != null && style?.padding != null ? null : style;
 }
+
+/// Holds what a layout Playground builds once per story: the controllers its
+/// presets hand out, and, with [withSettings], the settings controller of the
+/// `StratumWidgetSettings` above the page. Disposes all of them with the
+/// story.
+///
+/// Sits in the Playground's `setup`, outside Widgetbook's `KeyedSubtree`, so
+/// a knob change rebuilds the page below and keeps every held controller (a
+/// split keeps the position the EndUser dragged it to); a preset that built
+/// a new controller on each build would leave the old one undisposed.
+class LayoutStoryScope extends StatefulWidget {
+  const LayoutStoryScope({
+    super.key,
+    this.withSettings = false,
+    required this.child,
+  });
+
+  /// Whether to place a `StratumWidgetSettings` with an in-memory store above
+  /// [child], for a preset that binds a setting key.
+  final bool withSettings;
+
+  final Widget child;
+
+  /// The [T] the nearest scope above [context] holds, made by [create] on the
+  /// first ask. A scope holds one controller of each type, since a page
+  /// offers one kind.
+  static T held<T extends ChangeNotifier>(
+    BuildContext context,
+    T Function() create,
+  ) => _of(context)._hold(create);
+
+  /// Whether [value] differs from the last one asked for [key] in the
+  /// nearest scope above [context], and remembers it: a page refits a held
+  /// controller only when the knob it fits to changed.
+  static bool changed(BuildContext context, Object key, Object? value) =>
+      _of(context)._changed(key, value);
+
+  static _LayoutStoryScopeState _of(BuildContext context) {
+    final state = context.findAncestorStateOfType<_LayoutStoryScopeState>();
+    if (state == null) {
+      throw StateError('The story controllers need the Playground setup');
+    }
+    return state;
+  }
+
+  @override
+  State<LayoutStoryScope> createState() => _LayoutStoryScopeState();
+}
+
+class _LayoutStoryScopeState extends State<LayoutStoryScope> {
+  final _held = <Type, ChangeNotifier>{};
+  final _seen = <Object, Object?>{};
+  StratumWidgetSettingsController? _settings;
+  bool _settingsLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.withSettings) {
+      _settings = StratumWidgetSettingsController(
+        store: StratumMemorySettingStore(),
+      );
+      unawaited(_loadSettings());
+    }
+  }
+
+  /// Reads the in-memory store once; a page that binds a setting asserts the
+  /// controller is loaded, so the story builds only after this ends.
+  Future<void> _loadSettings() async {
+    await _settings!.load();
+    if (mounted) setState(() => _settingsLoaded = true);
+  }
+
+  T _hold<T extends ChangeNotifier>(T Function() create) =>
+      (_held[T] ??= create()) as T;
+
+  bool _changed(Object key, Object? value) {
+    if (_seen.containsKey(key) && _seen[key] == value) return false;
+    _seen[key] = value;
+    return true;
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _held.values) {
+      controller.dispose();
+    }
+    _settings?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = _settings;
+    if (settings == null) return widget.child;
+    return _settingsLoaded
+        ? StratumWidgetSettings(controller: settings, child: widget.child)
+        : const SizedBox.shrink();
+  }
+}
+
+/// The `controller` knob of the scroll layouts that take a
+/// `ScrollController`: the default null, then one held by the story that
+/// starts the view at the second item.
+final List<Preset<ScrollController>> scrollControllerPresets = [
+  const Preset.none(),
+  Preset(
+    'Start at item 2',
+    (context) => LayoutStoryScope.held(
+      context,
+      () => ScrollController(initialScrollOffset: 80),
+    ),
+  ),
+];
+
+/// The setting keys a layout page offers; a keyed one needs the
+/// `StratumWidgetSettings` a [LayoutStoryScope] with `withSettings` places
+/// above the page.
+final List<Preset<WidgetSettingKey>> widgetSettingPresets = [
+  const Preset.none(),
+  Preset('Global', (_) => const WidgetSettingKey.global()),
+  Preset('Catalog id', (_) => const WidgetSettingKey.id('catalog')),
+];

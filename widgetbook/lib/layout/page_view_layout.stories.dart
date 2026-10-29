@@ -59,11 +59,15 @@ final componentMeta = ComponentMeta(
   ),
 );
 
-/// The page controllers this page offers: the default null, then one that
-/// starts on the second page.
+/// The page controllers this page offers: the default null, then one held by
+/// the story that starts on the second page.
 final _controllers = <Preset<PageController>>[
   const Preset.none(),
-  Preset('Start at page 2', (_) => PageController(initialPage: 1)),
+  Preset(
+    'Start at page 2',
+    (context) =>
+        LayoutStoryScope.held(context, () => PageController(initialPage: 1)),
+  ),
 ];
 
 /// A fresh set of knobs: one per constructor param, in constructor order.
@@ -112,8 +116,9 @@ Widget _sample(BuildContext context) =>
 
 final $Playground = _BuilderStory(
   args: _knobs(),
-  setup: (context, child, args) =>
-      SizedBox(height: 240, child: reportingSetup(context, child, args)),
+  setup: (context, child, args) => LayoutStoryScope(
+    child: SizedBox(height: 240, child: reportingSetup(context, child, args)),
+  ),
   builder: (context, args) => PageViewLayout.builder(
     style: args.style.build(context),
     scrollDirection: args.scrollDirection,

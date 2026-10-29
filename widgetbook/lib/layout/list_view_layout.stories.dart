@@ -60,7 +60,7 @@ final componentMeta = ComponentMeta(
 /// A fresh set of knobs: one per constructor param, in constructor order.
 ListViewLayoutKnobsArgs _knobs() => ListViewLayoutKnobsArgs(
   style: styleKnob(),
-  controller: presetKnob('controller', _controllers),
+  controller: presetKnob('controller', scrollControllerPresets),
   physics: presetKnob('physics', scrollPhysicsPresets),
   prototypeItem: EnumArg<SlotPreset>(
     SlotPreset.none,
@@ -78,17 +78,10 @@ ListViewLayoutKnobsArgs _knobs() => ListViewLayoutKnobsArgs(
   scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
 );
 
-/// The scroll controllers a layout page offers: the default null, then a
-/// controller that starts the view at the second item.
-final _controllers = <Preset<ScrollController>>[
-  const Preset.none(),
-  Preset('Start at item 2', (_) => ScrollController(initialScrollOffset: 80)),
-];
-
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 ListViewLayoutKnobsArgs _fixedKnobs() => ListViewLayoutKnobsArgs.fixed(
   style: widgetStylePresets.first,
-  controller: _controllers.first,
+  controller: scrollControllerPresets.first,
   physics: scrollPhysicsPresets.first,
   itemBuilder: slotItemBuilders.first,
   findChildIndexCallback: findChildIndexPresets.first,
@@ -119,9 +112,11 @@ ListViewLayout _frameChild(
 
 final $Playground = _BuilderStory(
   args: _knobs(),
-  setup: (context, child, args) => SizedBox(
-    height: _height,
-    child: Story.defaultSetup(context, child, args),
+  setup: (context, child, args) => LayoutStoryScope(
+    child: SizedBox(
+      height: _height,
+      child: Story.defaultSetup(context, child, args),
+    ),
   ),
   builder: (context, args) {
     final itemBuilder = args.itemBuilder.build(context);

@@ -68,12 +68,15 @@ SplitLayoutKnobsArgs _knobs() => SplitLayoutKnobsArgs(
   dividerLabel: presetKnob('dividerLabel', _dividerLabels),
   dividerBuilder: presetKnob('dividerBuilder', _dividerBuilders),
   customStyle: presetKnob('customStyle', _customStyles),
-  setting: presetKnob('setting', _settings),
+  setting: presetKnob('setting', widgetSettingPresets),
 );
 
 final _controllers = <Preset<SplitLayoutController>>[
   const Preset.none(),
-  Preset('Start pane 30%', (_) => SplitLayoutController()),
+  Preset(
+    'Start pane 30%',
+    (context) => LayoutStoryScope.held(context, SplitLayoutController.new),
+  ),
 ];
 
 /// The share the `Start pane 30%` preset gives the first pane.
@@ -82,12 +85,15 @@ const _startShare = 0.3;
 /// [controller] holding [_startShare] for the first of [panes] panes and an
 /// even share of the rest for each other, so the preset keeps its meaning at
 /// every pane count; a split discards a list whose length differs from its
-/// panes'.
+/// panes'. Refits only when [panes] changed since the last fit, so a knob
+/// change keeps the position the EndUser dragged the divider to.
 SplitLayoutController? _fitToPanes(
+  BuildContext context,
   SplitLayoutController? controller,
   int panes,
 ) {
   if (controller == null) return null;
+  if (!LayoutStoryScope.changed(context, 'panes', panes)) return controller;
   final rest = (1 - _startShare) / (panes - 1);
   return controller
     ..fractions = [_startShare, for (var i = 1; i < panes; i++) rest];
@@ -122,18 +128,13 @@ final _customStyles = <Preset<SplitLayoutStyle>>[
   ),
 ];
 
-/// The `None` choice only: a setting key needs a `StratumWidgetSettings`
-/// above the split, which this Playground does not place (the PageLayout
-/// Playground does).
-final _settings = <Preset<WidgetSettingKey>>[const Preset.none()];
-
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 SplitLayoutKnobsArgs _fixedKnobs() => SplitLayoutKnobsArgs.fixed(
   controller: _controllers.first,
   dividerLabel: _dividerLabels.first,
   dividerBuilder: _dividerBuilders.first,
   customStyle: _customStyles.first,
-  setting: _settings.first,
+  setting: widgetSettingPresets.first,
 );
 
 /// [count] panes, each holding one named slot.
@@ -152,15 +153,22 @@ Widget _sample(BuildContext context) =>
 
 final $Playground = _Story(
   args: _knobs(),
-  setup: (context, child, args) => SizedBox(
-    height: _height,
-    child: Story.defaultSetup(context, child, args),
+  setup: (context, child, args) => LayoutStoryScope(
+    withSettings: true,
+    child: SizedBox(
+      height: _height,
+      child: Story.defaultSetup(context, child, args),
+    ),
   ),
   builder: (context, args) => SplitLayout(
     panes: _panes(args.panes),
     axis: args.axis,
     resizable: args.resizable,
-    controller: _fitToPanes(args.controller.build(context), args.panes),
+    controller: _fitToPanes(
+      context,
+      args.controller.build(context),
+      args.panes,
+    ),
     dividerLabel: args.dividerLabel.build(context),
     dividerBuilder: args.dividerBuilder.build(context),
     customStyle: args.customStyle.build(context),
