@@ -10,6 +10,14 @@ final class Preset<T> {
   final T? Function(BuildContext context) build;
 }
 
+/// Reads the value of a [Preset] a knob always offers.
+extension PresetValue<T extends Object> on Preset<T> {
+  /// The value built for [context]; throws a [StateError] when the preset
+  /// builds none.
+  T valueOf(BuildContext context) =>
+      build(context) ?? (throw StateError('Preset "$name" has no value'));
+}
+
 /// A knob that picks one [Preset] from a dropdown; the query value is the
 /// preset's name (s03 INV-10).
 class PresetArg<T> extends Arg<Preset<T>> with SingleFieldOnly {

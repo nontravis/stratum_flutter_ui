@@ -241,6 +241,10 @@ void main() {
         expect(find.text('200% text'), findsOneWidget);
         expect(find.text('Right to left'), findsOneWidget);
         expect(find.text('Disabled'), findsNothing);
+        expect(
+          find.text('Loading'),
+          p.name == 'PageLayout' ? findsOneWidget : findsNothing,
+        );
       });
     });
   }
@@ -262,10 +266,40 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('❖ left').hitTestable(), findsOneWidget);
     });
+
+    for (final knob in const [
+      MapEntry('controller', 'Story controller'),
+      MapEntry('setting', 'Catalog id'),
+    ]) {
+      testWidgets('fo11/us06/fr01/e01: the ${knob.key} preset '
+          '"${knob.value}" opens with its slots painted', (tester) async {
+        await pageLayout.open(
+          tester,
+          pageLayout.playground,
+          knobs: {knob.key: knob.value},
+        );
+
+        expect(tester.takeException(), isNull);
+        for (final name in ['header', 'body', 'footer']) {
+          expect(find.text('❖ $name'), findsOneWidget, reason: name);
+        }
+      });
+    }
   });
 
   group('ModalLayout', () {
     final modalLayout = _pages.last;
+
+    testWidgets('fo11/us04/fr03/e01: the close button reports onClose '
+        'called', (tester) async {
+      await modalLayout.open(tester, modalLayout.playground);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('onClose called'), findsOneWidget);
+    });
 
     testWidgets('fo11/us06/fr03/e01: the modal layout rearranges from mobile '
         'to tablet', (tester) async {

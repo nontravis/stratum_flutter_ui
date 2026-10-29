@@ -84,11 +84,6 @@ StratumNavigationDecision Function(Uri url)? _noDecider(BuildContext context) =>
 StratumNavigationDecision _preventAll(Uri url) =>
     StratumNavigationDecision.prevent;
 
-/// The value of [preset], for a preset knob that always has one.
-T _valueOf<T extends Object>(Preset<T> preset, BuildContext context) =>
-    preset.build(context) ??
-    (throw StateError('Preset "${preset.name}" has no value'));
-
 /// A fresh set of knobs: one per constructor param, in constructor order.
 WebViewKnobsArgs _knobs() => WebViewKnobsArgs(
   source: PresetArg(_sources.first, name: 'source', values: _sources),
@@ -120,7 +115,7 @@ WebViewKnobsArgs _fixedKnobs() => WebViewKnobsArgs.fixed(
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumWebView _frameChild(BuildContext context, WebViewKnobsArgs args) =>
-    StratumWebView(source: _valueOf(_sources.first, context));
+    StratumWebView(source: _sources.first.valueOf(context));
 
 /// [source] in a fixed box, since a web view needs a bounded size.
 Widget _boxedView(StratumWebViewSource source) => ContainerLayout(
@@ -133,9 +128,9 @@ final $Playground = _Story(
   setup: (context, child, args) =>
       _StoryControllerScope(child: reportingSetup(context, child, args)),
   builder: (context, args) => StratumWebView(
-    source: _valueOf(args.source, context),
+    source: args.source.valueOf(context),
     controller: args.controller.build(context),
-    allowedOrigins: _valueOf(args.allowedOrigins, context),
+    allowedOrigins: args.allowedOrigins.valueOf(context),
     javaScriptEnabled: args.javaScriptEnabled,
     onMessage: args.onMessage
         ? reportValue<StratumWebViewMessage>(context, 'onMessage')
@@ -167,9 +162,7 @@ final $Variants = _Story(
           gap: 4,
           children: [
             Text(preset.name),
-            Builder(
-              builder: (context) => _boxedView(_valueOf(preset, context)),
-            ),
+            Builder(builder: (context) => _boxedView(preset.valueOf(context))),
           ],
         ),
     ],
@@ -180,7 +173,7 @@ final $Responsive = _Story(
   args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => responsiveFrames(
-    (context) => _boxedView(_valueOf(_sources.first, context)),
+    (context) => _boxedView(_sources.first.valueOf(context)),
   ),
 );
 
@@ -188,7 +181,7 @@ final $Accessibility = _Story(
   args: _fixedKnobs(),
   builder: _frameChild,
   setup: (_, _, _) => accessibilityFrames(
-    build: (context) => _boxedView(_valueOf(_sources.first, context)),
+    build: (context) => _boxedView(_sources.first.valueOf(context)),
   ),
 );
 

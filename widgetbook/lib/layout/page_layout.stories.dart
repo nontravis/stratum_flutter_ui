@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
@@ -200,11 +202,6 @@ WidgetSettingKey? _globalSetting(BuildContext context) =>
 WidgetSettingKey? _catalogSetting(BuildContext context) =>
     const WidgetSettingKey.id('catalog');
 
-/// The value of [preset], for a preset knob that always has one.
-T _valueOf<T extends Object>(Preset<T> preset, BuildContext context) =>
-    preset.build(context) ??
-    (throw StateError('Preset "${preset.name}" has no value'));
-
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 PageLayoutKnobsArgs _fixedKnobs() => PageLayoutKnobsArgs.fixed(
   safeArea: _safeAreas.first,
@@ -236,6 +233,23 @@ const _samplePage = PageLayout(
 Widget _sample(BuildContext context) =>
     const SizedBox(height: _height, child: _samplePage);
 
+/// The sample page with its blocking loading layer on; the layer shows a
+/// slot, since a spinner never lets a test settle.
+Widget _loadingSample(BuildContext context) => const SizedBox(
+  height: _height,
+  child: PageLayout(
+    header: StratumSlot(name: 'header'),
+    left: StratumSlot(name: 'left'),
+    body: StratumSlot(name: 'body'),
+    footer: StratumSlot(name: 'footer'),
+    loading: true,
+    loadingBuilder: _loadingSlot,
+  ),
+);
+
+Widget _loadingSlot(BuildContext context) =>
+    const StratumSlot(name: 'loading layer');
+
 final $Playground = _Story(
   args: _knobs(),
   setup: (context, child, args) => _StoryScope(
@@ -254,13 +268,13 @@ final $Playground = _Story(
     right: slotFor(context, args.right, name: 'right'),
     footer: slotFor(context, args.footer, name: 'footer'),
     snack: slotFor(context, args.snack, name: 'snack'),
-    safeArea: _valueOf(args.safeArea, context),
+    safeArea: args.safeArea.valueOf(context),
     resizeToAvoidKeyboard: args.resizeToAvoidKeyboard,
     loading: args.loading,
     loadingBuilder: args.loadingBuilder.build(context),
     controller: args.controller.build(context),
-    leftSide: _valueOf(args.leftSide, context),
-    rightSide: _valueOf(args.rightSide, context),
+    leftSide: args.leftSide.valueOf(context),
+    rightSide: args.rightSide.valueOf(context),
     drawerCut: args.drawerCut,
     rightAsOverlay: args.rightAsOverlay,
     minCenterWidth: args.minCenterWidth,
@@ -320,7 +334,8 @@ final $Responsive = _Story(
 final $Accessibility = _Story(
   args: _fixedKnobs(),
   builder: _frameChild,
-  setup: (_, _, _) => accessibilityFrames(build: _sample),
+  setup: (_, _, _) =>
+      accessibilityFrames(build: _sample, states: {'Loading': _loadingSample}),
 );
 
 final $ExampleScreenWithABottomBar = _Story(
@@ -352,7 +367,7 @@ class _StoryScope extends StatefulWidget {
   static PageLayoutController controllerOf(BuildContext context) =>
       _of(context).controller;
 
-  /// The settings controller of the nearest scope above [context].
+  /// The nearest scope above [context].
   static _StoryScopeState _of(BuildContext context) {
     final state = context.findAncestorStateOfType<_StoryScopeState>();
     if (state == null) {
@@ -367,23 +382,37 @@ class _StoryScope extends StatefulWidget {
 
 class _StoryScopeState extends State<_StoryScope> {
   PageLayoutController? _controller;
-  StratumWidgetSettingsController? _settings;
+  late final StratumWidgetSettingsController _settings;
+  bool _settingsLoaded = false;
 
   /// The page controller, created on first use.
   PageLayoutController get controller => _controller ??= PageLayoutController();
 
-  /// The settings controller over an in-memory store, created on first use.
-  StratumWidgetSettingsController get settings => _settings ??=
-      StratumWidgetSettingsController(store: StratumMemorySettingStore());
+  @override
+  void initState() {
+    super.initState();
+    _settings = StratumWidgetSettingsController(
+      store: StratumMemorySettingStore(),
+    );
+    unawaited(_loadSettings());
+  }
+
+  /// Reads the in-memory store once; a page that binds a setting asserts
+  /// the controller is loaded, so the story builds only after this ends.
+  Future<void> _loadSettings() async {
+    await _settings.load();
+    if (mounted) setState(() => _settingsLoaded = true);
+  }
 
   @override
   void dispose() {
     _controller?.dispose();
-    _settings?.dispose();
+    _settings.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) =>
-      StratumWidgetSettings(controller: settings, child: widget.child);
+  Widget build(BuildContext context) => _settingsLoaded
+      ? StratumWidgetSettings(controller: _settings, child: widget.child)
+      : const SizedBox.shrink();
 }
