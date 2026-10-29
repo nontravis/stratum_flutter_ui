@@ -16,8 +16,8 @@ const _docs = CatalogDocs(
   figma: null,
   usage: '''
 StratumWebView(
-  source: StratumWebViewSource.url(Uri.parse('https://flutter.dev')),
-  allowedOrigins: {Uri.parse('https://flutter.dev')},
+  source: StratumWebViewSource.url(Uri.parse('https://example.com')),
+  allowedOrigins: {Uri.parse('https://example.com')},
   onError: (error) => debugPrint(error.description),
 )''',
   dos: [
@@ -48,11 +48,15 @@ final componentMeta = ComponentMeta(
   ),
 );
 
+/// The URL preset is a site that allows framing: the catalog's web build
+/// draws a web view as an iframe, and a site that sends
+/// `X-Frame-Options: DENY` (flutter.dev does) shows only the browser's
+/// blocked-frame page.
 final _sources = <Preset<StratumWebViewSource>>[
   const Preset('HTML sample', _htmlSample),
   Preset(
-    'flutter.dev',
-    (context) => StratumWebViewSource.url(Uri.parse('https://flutter.dev')),
+    'example.com',
+    (context) => StratumWebViewSource.url(Uri.parse('https://example.com')),
   ),
 ];
 
@@ -69,7 +73,7 @@ final _controllers = <Preset<StratumWebViewController>>[
 
 final _origins = <Preset<Set<Uri>>>[
   const Preset('Default', _defaultOrigins),
-  Preset('flutter.dev', (context) => {Uri.parse('https://flutter.dev')}),
+  Preset('example.com', (context) => {Uri.parse('https://example.com')}),
 ];
 
 Set<Uri> _defaultOrigins(BuildContext context) => const <Uri>{};

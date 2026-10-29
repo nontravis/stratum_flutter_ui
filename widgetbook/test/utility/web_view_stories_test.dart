@@ -43,7 +43,7 @@ void main() {
         for (final p in (source as PresetArg<StratumWebViewSource>).values)
           p.name,
       ],
-      ['HTML sample', 'flutter.dev'],
+      ['HTML sample', 'example.com'],
     );
   });
 
