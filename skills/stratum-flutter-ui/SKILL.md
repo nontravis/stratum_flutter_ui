@@ -166,8 +166,11 @@ Figma pages that no phase builds.
 ## Planned or missing components
 
 - **A `planned (<phase slug>)` component you need now**: build a temporary widget in the app from `*Layout`
-  primitives, `WidgetStyle`, theme tokens, and `StratumInkWell`, with no `Stratum` prefix. Tag it with the comment
+  primitives, `WidgetStyle`, theme tokens, and `StratumInkWell`, with no `Stratum` prefix. A name Flutter already uses
+  (`Checkbox`, `Divider`, `Slider`, `Tooltip`) takes your app's own prefix or suffix, for example AppCheckbox, so it never
+  clashes with `package:flutter/material.dart`. Tag it with the comment
   `// STRATUM-PENDING: <CO id> <Name>`, for example `// STRATUM-PENDING: CO-02-02 Button`. When the component ships,
   grep the tag and swap in the Stratum widget.
 - **A component Stratum lacks** (absent from the index, or `ruled out`): build it as a permanent component of the app,
-  under the same build rules and with no `Stratum` prefix. It takes no tag, and Stratum gets no request for it.
+  under the same build rules and with no `Stratum` prefix; a name Flutter already uses takes your app's own prefix or
+  suffix, as above. It takes no tag, and Stratum gets no request for it.
