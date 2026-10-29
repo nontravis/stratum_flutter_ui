@@ -272,33 +272,26 @@ StratumToastHost _hostOf(BuildContext context, ToastKnobsArgs args) =>
       child: _app(args),
     );
 
-/// [child] in an [Overlay] of its own.
-///
-/// An app mounts the host in `MaterialApp.builder`, above its navigator, so
-/// the host draws a notice in its own wrapper. The catalog mounts it under
-/// Widgetbook's navigator, whose overlay sits above the theme, direction,
-/// and viewport addons, so a notice would draw outside them; this overlay
-/// is the nearest one, under the addons.
-Widget _toastStage(Widget child) => Overlay.wrap(child: child);
-
 /// The page widget Widgetbook's builder must return; the frame stories show
 /// their own layout through `setup`, which drops this child.
 StratumToastHost _frameChild(BuildContext context, ToastKnobsArgs args) =>
     const StratumToastHost(child: SizedBox.shrink());
 
 /// One frame of a frame story: a host of its own, nested under the story's
-/// root host, in a stage of its own so the host draws its notice under this
-/// frame's window size, text scale, and direction.
-Widget _frame(BuildContext context) => _toastStage(
-  StratumToastHost(
+/// root host, in an [Overlay] of its own so the host draws its notice under
+/// this frame's window size, text scale, and direction.
+///
+/// The frame sets those inside the story, under the stage's overlay, so a
+/// notice drawn on the stage would read the toolbar's settings instead.
+Widget _frame(BuildContext context) => Overlay.wrap(
+  child: StratumToastHost(
     child: Builder(builder: (context) => _trigger(context, _fixedKnobs())),
   ),
 );
 
 /// [frames] under the one root host; every frame's host nests in it
 /// (toast_host.dart: a second root host throws in a debug build).
-Widget _underRootHost(Widget frames) =>
-    _toastStage(StratumToastHost(child: frames));
+Widget _underRootHost(Widget frames) => StratumToastHost(child: frames);
 
 /// One notice that stays where it is drawn: no host, so no timer.
 StratumToastNotice _noticeOf(
@@ -344,16 +337,9 @@ Widget _variantsGrid() => CallbackReport(
   ),
 );
 
-/// The `setup:` of a story with a trigger: the report line under the stage.
-Widget _reportingStage(
-  BuildContext context,
-  Widget child,
-  StoryArgs<Widget> args,
-) => _toastStage(reportingSetup(context, child, args));
-
 final $Playground = _Story(
   args: _knobs(),
-  setup: _reportingStage,
+  setup: reportingSetup,
   builder: _hostOf,
 );
 
@@ -378,6 +364,6 @@ final $Accessibility = _Story(
 final $ExampleErrorWithAction = _Story(
   name: StoryNames.example('error with action'),
   args: _fixedKnobs(kind: FeedbackState.negative, action: _withAction),
-  setup: _reportingStage,
+  setup: reportingSetup,
   builder: _hostOf,
 );

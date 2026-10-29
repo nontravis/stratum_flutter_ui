@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:stratum_ui_widgetbook/shell/catalog_config.dart';
 import 'package:stratum_ui_widgetbook/shell/grid_overlay_addon.dart';
 import 'package:stratum_ui_widgetbook/shell/rtl_addon.dart';
+import 'package:stratum_ui_widgetbook/shell/stage_addon.dart';
 import 'package:stratum_ui_widgetbook/shell/window_size_addon.dart';
 import 'package:widgetbook/src/core/widgetbook_app.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
@@ -37,7 +40,7 @@ class _ProbeStory extends Story<_Probe, _NoArgs> {
 
 /// Reads every setting the toolbar changes and holds a labelled node.
 class _Probe extends StatelessWidget {
-  const _Probe(this.onRead);
+  const _Probe(this.onRead, {super.key});
 
   final ValueChanged<_Reading> onRead;
 
@@ -57,6 +60,16 @@ class _Probe extends StatelessWidget {
   }
 }
 
+/// A story whose page holds [key], the context a test opens a dialog from.
+class _OpenerStory extends Story<_Probe, _NoArgs> {
+  _OpenerStory(GlobalKey key)
+    : super(
+        name: 'OpenerStory',
+        args: const _NoArgs(),
+        builder: (_, _) => _Probe((_) {}, key: key),
+      );
+}
+
 Component _page(String name, ValueChanged<_Reading> onRead) => Component(
   name: name,
   path: 'Foundation',
@@ -64,35 +77,44 @@ Component _page(String name, ValueChanged<_Reading> onRead) => Component(
 );
 
 /// A route that opens [story] with the toolbar settings in [groups], keyed
-/// as Widgetbook keys them: by `slugify(addon name)`.
-String _route(String story, Map<String, String> groups) => Uri(
+/// as Widgetbook keys them: by `slugify(addon name)`, each to that addon's
+/// own query fields.
+String _route(String story, Map<String, Map<String, String>> groups) => Uri(
   path: '/',
   queryParameters: {
     'path': story,
     for (final MapEntry(:key, :value) in groups.entries)
-      key: QueryGroup({'name': value}).toParam(),
+      key: QueryGroup(value).toParam(),
   },
 ).toString();
 
+/// Sizes the test view to a desktop window, so Widgetbook lays out its
+/// desktop panels.
+void _desktopView(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1200, 800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 void main() {
-  test(
-    'fo11/us02/fr01: catalogAddons holds the seven addons in order',
-    () async {
-      final set = await loadDefaultThemeSet();
+  test('fo11/us02/fr01: catalogAddons holds the seven toolbar addons in order, '
+      'then the stage', () async {
+    final set = await loadDefaultThemeSet();
 
-      final addons = catalogAddons({'default': set});
+    final addons = catalogAddons({'default': set});
 
-      expect(addons, [
-        isA<WindowSizeAddon>(),
-        isA<LocaleAddon>(),
-        isA<RtlAddon>(),
-        isA<TextScaleAddon>(),
-        isA<ThemeAddon<dynamic>>(),
-        isA<GridOverlayAddon>(),
-        isA<SemanticsAddon>(),
-      ]);
-    },
-  );
+    expect(addons, [
+      isA<WindowSizeAddon>(),
+      isA<LocaleAddon>(),
+      isA<RtlAddon>(),
+      isA<TextScaleAddon>(),
+      isA<ThemeAddon<dynamic>>(),
+      isA<GridOverlayAddon>(),
+      isA<SemanticsAddon>(),
+      isA<StageAddon>(),
+    ]);
+  });
 
   test('fo11/us02/fr01: catalogConfig orders the pages by section', () async {
     final set = await loadDefaultThemeSet();
@@ -108,36 +130,29 @@ void main() {
     );
 
     expect(config.components.map((c) => c.path), ['Foundation', 'Overlay']);
-    expect(config.addons, hasLength(7));
+    expect(config.addons, hasLength(8));
   });
 
   testWidgets(
     'fo11/us02/fr01/e02, fo11/us02/s1: the settings follow the Developer '
     'across pages',
     (tester) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
+      _desktopView(tester);
       final set = await loadDefaultThemeSet();
       final readings = <String, _Reading>{};
 
       await tester.pumpWidget(
         WidgetbookApp(
-          config: Config(
-            components: catalogConfig(
-              components: [
-                _page('Alpha', (r) => readings['Alpha'] = r),
-                _page('Beta', (r) => readings['Beta'] = r),
-              ],
-              themes: {'default': set},
-            ).components,
-            addons: catalogAddons({'default': set}),
+          config: catalogConfig(
+            components: [
+              _page('Alpha', (r) => readings['Alpha'] = r),
+              _page('Beta', (r) => readings['Beta'] = r),
+            ],
+            themes: {'default': set},
             initialRoute: _route('Foundation/Alpha/AlphaStory', {
-              'theme': 'default · Dark',
-              'viewport': WindowSize.tablet.name,
-              'locale': 'th',
+              'theme': {'name': 'default · Dark'},
+              'viewport': {'name': WindowSize.tablet.name},
+              'locale': {'name': 'th'},
             }),
           ),
         ),
@@ -154,6 +169,54 @@ void main() {
       expect(readings['Beta']!.theme, set.dark);
       expect(readings['Beta']!.windowSize, WindowSize.tablet);
       expect(readings['Beta']!.locale, const Locale('th'));
+    },
+  );
+
+  testWidgets(
+    'fo11/us02/fr01: a dialog a story opens renders under the toolbar '
+    'settings',
+    (tester) async {
+      _desktopView(tester);
+      final set = await loadDefaultThemeSet();
+      final opener = GlobalKey();
+      _Reading? reading;
+
+      await tester.pumpWidget(
+        WidgetbookApp(
+          config: catalogConfig(
+            components: [
+              Component(
+                name: 'Opener',
+                path: 'Foundation',
+                stories: [_OpenerStory(opener)],
+              ),
+            ],
+            themes: {'default': set},
+            initialRoute: _route('Foundation/Opener/OpenerStory', {
+              'theme': {'name': 'default · Dark'},
+              'locale': {'name': 'th'},
+              'right-to-left': {'enabled': 'true'},
+              'text-scale': {'factor': '2.0'},
+            }),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      unawaited(
+        showDialog<void>(
+          context: opener.currentContext!,
+          useRootNavigator: false,
+          builder: (_) => _Probe((r) => reading = r),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(reading, isNotNull);
+      expect(reading!.theme, same(set.dark));
+      expect(reading!.locale, const Locale('th'));
+      expect(reading!.direction, TextDirection.rtl);
+      expect(reading!.textScaler, const TextScaler.linear(2));
+      expect(reading!.windowSize, WindowSize.mobile);
     },
   );
 }

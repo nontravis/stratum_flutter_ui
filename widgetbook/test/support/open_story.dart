@@ -41,12 +41,9 @@ Future<void> openStory<T extends Widget>(
   await tester.pumpWidget(
     WidgetbookApp(
       key: UniqueKey(),
-      config: Config(
-        components: catalogConfig(
-          components: components,
-          themes: {'default': set},
-        ).components,
-        addons: catalogAddons({'default': set}),
+      config: catalogConfig(
+        components: components,
+        themes: {'default': set},
         initialRoute: route,
       ),
     ),
