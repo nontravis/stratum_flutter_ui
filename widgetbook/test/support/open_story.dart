@@ -18,11 +18,12 @@ import 'catalog_theme.dart';
 ///
 /// [catalog] replaces the generated components, for a test-only story.
 ///
-/// Fails right after the story opens, and on the first frame after any later
-/// one, when a route sits on Widgetbook's root navigator (see
+/// Fails right after the story opens, and on any later frame the test pumps,
+/// when a route sits on Widgetbook's root navigator (see
 /// [expectNoRootRoute]). A frame callback does the later check, as a test
-/// teardown runs after the tree is gone; a test that expects the failure takes
-/// it with `tester.takeException()`.
+/// teardown runs after the tree is gone; so a route opened by a test's last
+/// action shows only if the test pumps after it. A test that expects the
+/// failure takes it with `tester.takeException()`.
 ///
 /// Uses `dart:io` through the theme loader, so it runs on the VM only.
 Future<void> openStory<T extends Widget>(
