@@ -83,8 +83,8 @@ CaretKnobsArgs _fixedKnobs() =>
 StratumCaret _frameChild(BuildContext context, CaretKnobsArgs args) =>
     const StratumCaret();
 
-/// The Variants grid in the order of the Figma page: glyph rows Regular,
-/// Light, Fill; direction rows Down, Up, Right, Left.
+/// The Variants grid in the order of the Figma page (node 56236:100390):
+/// glyph columns Regular, Light, Fill; direction rows Down, Right, Up, Left.
 const _glyphOrder = [
   StratumCaretGlyph.regular,
   StratumCaretGlyph.light,
@@ -92,8 +92,8 @@ const _glyphOrder = [
 ];
 const _directionOrder = [
   StratumCaretDirection.down,
-  StratumCaretDirection.up,
   StratumCaretDirection.end,
+  StratumCaretDirection.up,
   StratumCaretDirection.start,
 ];
 

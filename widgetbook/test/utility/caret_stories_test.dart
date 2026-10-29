@@ -104,6 +104,35 @@ void main() {
     expect(disabled, hasLength(3 * 4 * 7));
   });
 
+  testWidgets('fo11/us03/s2: the caret Variants follow the Figma page order', (
+    tester,
+  ) async {
+    await openStory<StratumCaret>(tester, 'Utility/Caret/Variants');
+
+    // Figma node 56236:100390 lays its glyph columns out Regular, Light,
+    // Fill and its direction rows Down, Right, Up, Left.
+    final carets = tester.widgetList<StratumCaret>(find.byType(StratumCaret));
+    final seen = <(StratumCaretGlyph, StratumCaretDirection)>[];
+    for (final caret in carets) {
+      final pair = (caret.style, caret.direction);
+      if (!seen.contains(pair)) seen.add(pair);
+    }
+    expect(seen, [
+      for (final glyph in [
+        StratumCaretGlyph.regular,
+        StratumCaretGlyph.light,
+        StratumCaretGlyph.fill,
+      ])
+        for (final direction in [
+          StratumCaretDirection.down,
+          StratumCaretDirection.end,
+          StratumCaretDirection.up,
+          StratumCaretDirection.start,
+        ])
+          (glyph, direction),
+    ]);
+  });
+
   test('fo11/us03/fr01: the Caret docs follow INV-3', () {
     final blocks = StratumCaretComponent.docsBuilder!([]);
 
