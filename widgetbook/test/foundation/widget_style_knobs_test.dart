@@ -134,6 +134,49 @@ void main() {
     expect(style.backgroundBlur, const ImageBlurFilter(sigmaX: 6, sigmaY: 6));
   });
 
+  testWidgets('fo11/us05/fr02, fo11/us05/s3: every remaining knob lands in '
+      'its own field', (tester) async {
+    await openStory<ContainerLayout>(
+      tester,
+      _playground,
+      knobs: {
+        'opacity': '0.5',
+        'margin': '4.0',
+        'height': '180.0',
+        'minWidth': '150.0',
+        'maxWidth': '300.0',
+        'minHeight': '120.0',
+        'maxHeight': '400.0',
+        'foregroundColor': 'ff0000ff',
+        'foregroundGradient': 'brand.normal to brand.active',
+        'backgroundImage': 'sample_image.png',
+        'foregroundBlur': '6.0',
+        'clipBehavior': 'hardEdge',
+      },
+    );
+    final style = _sampleStyle(tester)!;
+    final theme = _theme(tester);
+
+    expect(style.opacity, 0.5);
+    expect(style.margin, const EdgeInsets.all(4));
+    expect(style.height, 180);
+    expect(style.minWidth, 150);
+    expect(style.maxWidth, 300);
+    expect(style.minHeight, 120);
+    expect(style.maxHeight, 400);
+    expect(style.foregroundColor, const Color(0xff0000ff));
+    expect((style.foregroundGradient! as LinearGradient).colors, [
+      theme.color.brand.normal,
+      theme.color.brand.active,
+    ]);
+    expect(
+      (style.backgroundImage!.image as AssetImage).assetName,
+      'assets/sample_image.png',
+    );
+    expect(style.foregroundBlur, const ImageBlurFilter(sigmaX: 6, sigmaY: 6));
+    expect(style.clipBehavior, Clip.hardEdge);
+  });
+
   testWidgets('fo11/us05/fr02: the animation knob sets a sine-curve '
       'animation style', (tester) async {
     await openStory<ContainerLayout>(tester, _playground);
@@ -153,6 +196,16 @@ void main() {
       knobs.toStyle(context).animationStyle,
       AnimationStyle(
         duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutSine,
+      ),
+    );
+
+    // The story line `animationStyle: args.animationStyle` must wire the
+    // knob through: the sample box carries the story's 200 ms sine default.
+    expect(
+      _sampleStyle(tester)!.animationStyle,
+      AnimationStyle(
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOutSine,
       ),
     );
