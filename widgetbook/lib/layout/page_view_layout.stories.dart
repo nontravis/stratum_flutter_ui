@@ -68,130 +68,32 @@ final _controllers = <Preset<PageController>>[
 
 PageController? _noController(BuildContext context) => null;
 
-final _physicsPresets = <Preset<ScrollPhysics>>[
-  const Preset('None', _noPhysics),
-  const Preset('Bouncing', _bouncingPhysics),
-  const Preset('Never scroll', _neverPhysics),
-];
-
-ScrollPhysics? _noPhysics(BuildContext context) => null;
-ScrollPhysics? _bouncingPhysics(BuildContext context) =>
-    const BouncingScrollPhysics();
-ScrollPhysics? _neverPhysics(BuildContext context) =>
-    const NeverScrollableScrollPhysics();
-
-/// The page builders this page offers: the default slot builder that names
-/// each page by its index (fo11/us06/fr01).
-final _itemBuilders = <Preset<Widget? Function(BuildContext, int)>>[
-  Preset(
-    'Slot builder',
-    (_) =>
-        (context, index) => StratumSlot(name: 'item ${index + 1}'),
-  ),
-  Preset(
-    'Text builder',
-    (context) =>
-        (context, index) => Text(
-          '${SampleTexts.title.resolve(Localizations.localeOf(context))} '
-          '${index + 1}',
-        ),
-  ),
-];
-
-final _findChildCallbacks = <Preset<ChildIndexGetter>>[
-  const Preset('None', _noFindChild),
-];
-
-ChildIndexGetter? _noFindChild(BuildContext context) => null;
-
-final _cacheExtents = <Preset<ScrollCacheExtent>>[
-  const Preset('None', _noCacheExtent),
-  const Preset('200 px', _cache200),
-  const Preset('2 viewports', _cacheTwoViewports),
-];
-
-ScrollCacheExtent? _noCacheExtent(BuildContext context) => null;
-ScrollCacheExtent? _cache200(BuildContext context) =>
-    const ScrollCacheExtent.pixels(200);
-ScrollCacheExtent? _cacheTwoViewports(BuildContext context) =>
-    const ScrollCacheExtent.viewport(2);
-
-final _semanticsLabels = <Preset<String>>[
-  const Preset('None', _noSemanticsLabel),
-  Preset(
-    'Title',
-    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
-  ),
-];
-
-String? _noSemanticsLabel(BuildContext context) => null;
-
-final _focusStyles = <Preset<ScrollFocusStyle>>[
-  const Preset('None', _noFocusStyle),
-  Preset(
-    'Gray 4 ring',
-    (context) => ScrollFocusStyle(
-      focus: StratumFocusBorderStyle(
-        width: const WidgetStatePropertyAll(4),
-        color: WidgetStatePropertyAll(context.theme.color.border.color.gray),
-      ),
-    ),
-  ),
-];
-
-ScrollFocusStyle? _noFocusStyle(BuildContext context) => null;
-
 /// A fresh set of knobs: one per constructor param, in constructor order.
 PageViewLayoutKnobsArgs _knobs() => PageViewLayoutKnobsArgs(
   style: styleKnob(),
-  controller: PresetArg(
-    _controllers.first,
-    name: 'controller',
-    values: _controllers,
-  ),
-  physics: PresetArg(
-    _physicsPresets.first,
-    name: 'physics',
-    values: _physicsPresets,
-  ),
-  itemBuilder: PresetArg(
-    _itemBuilders.first,
-    name: 'itemBuilder',
-    values: _itemBuilders,
-  ),
-  findChildIndexCallback: PresetArg(
-    _findChildCallbacks.first,
-    name: 'findChildIndexCallback',
-    values: _findChildCallbacks,
+  controller: presetKnob('controller', _controllers),
+  physics: presetKnob('physics', scrollPhysicsPresets),
+  itemBuilder: presetKnob('itemBuilder', slotItemBuilders),
+  findChildIndexCallback: presetKnob(
+    'findChildIndexCallback',
+    findChildIndexPresets,
   ),
   itemCount: slotCountKnob('itemCount', initial: 3),
-  scrollCacheExtent: PresetArg(
-    _cacheExtents.first,
-    name: 'scrollCacheExtent',
-    values: _cacheExtents,
-  ),
-  semanticsLabel: PresetArg(
-    _semanticsLabels.first,
-    name: 'semanticsLabel',
-    values: _semanticsLabels,
-  ),
-  scrollFocusStyle: PresetArg(
-    _focusStyles.first,
-    name: 'scrollFocusStyle',
-    values: _focusStyles,
-  ),
+  scrollCacheExtent: presetKnob('scrollCacheExtent', scrollCacheExtentPresets),
+  semanticsLabel: presetKnob('semanticsLabel', scrollSemanticsLabelPresets),
+  scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
 );
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
 PageViewLayoutKnobsArgs _fixedKnobs() => PageViewLayoutKnobsArgs.fixed(
   style: widgetStylePresets.first,
   controller: _controllers.first,
-  physics: _physicsPresets.first,
-  itemBuilder: _itemBuilders.first,
-  findChildIndexCallback: _findChildCallbacks.first,
-  scrollCacheExtent: _cacheExtents.first,
-  semanticsLabel: _semanticsLabels.first,
-  scrollFocusStyle: _focusStyles.first,
+  physics: scrollPhysicsPresets.first,
+  itemBuilder: slotItemBuilders.first,
+  findChildIndexCallback: findChildIndexPresets.first,
+  scrollCacheExtent: scrollCacheExtentPresets.first,
+  semanticsLabel: scrollSemanticsLabelPresets.first,
+  scrollFocusStyle: scrollFocusStylePresets.first,
 );
 
 /// The page widget Widgetbook's builder must return; the frame stories show
@@ -202,7 +104,7 @@ PageViewLayout _frameChild(
 ) => PageViewLayout.builder(
   itemCount: 3,
   itemBuilder: (context, index) =>
-      _itemBuilders.first.build(context)!(context, index),
+      slotItemBuilders.first.build(context)!(context, index),
 );
 
 /// A page view of three slot pages in a bounded height, the layout every

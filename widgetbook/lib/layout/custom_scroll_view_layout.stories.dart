@@ -83,76 +83,15 @@ final _controllers = <Preset<ScrollController>>[
 
 ScrollController? _noController(BuildContext context) => null;
 
-final _physicsPresets = <Preset<ScrollPhysics>>[
-  const Preset('None', _noPhysics),
-  const Preset('Bouncing', _bouncingPhysics),
-  const Preset('Never scroll', _neverPhysics),
-];
-
-ScrollPhysics? _noPhysics(BuildContext context) => null;
-ScrollPhysics? _bouncingPhysics(BuildContext context) =>
-    const BouncingScrollPhysics();
-ScrollPhysics? _neverPhysics(BuildContext context) =>
-    const NeverScrollableScrollPhysics();
-
-final _semanticsLabels = <Preset<String>>[
-  const Preset('None', _noSemanticsLabel),
-  Preset(
-    'Title',
-    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
-  ),
-  Preset(
-    'Message',
-    (context) => SampleTexts.message.resolve(Localizations.localeOf(context)),
-  ),
-];
-
-String? _noSemanticsLabel(BuildContext context) => null;
-
-final _focusStyles = <Preset<ScrollFocusStyle>>[
-  const Preset('None', _noFocusStyle),
-  Preset(
-    'Gray 4 ring',
-    (context) => ScrollFocusStyle(
-      focus: StratumFocusBorderStyle(
-        width: const WidgetStatePropertyAll(4),
-        color: WidgetStatePropertyAll(context.theme.color.border.color.gray),
-      ),
-    ),
-  ),
-];
-
-ScrollFocusStyle? _noFocusStyle(BuildContext context) => null;
-
 /// A fresh set of knobs: one per constructor param, in constructor order.
 CustomScrollViewLayoutKnobsArgs _knobs() => CustomScrollViewLayoutKnobsArgs(
   style: styleKnob(),
-  slivers: PresetArg(
-    _sliversBuilders.first,
-    name: 'slivers',
-    values: _sliversBuilders,
-  ),
+  slivers: presetKnob('slivers', _sliversBuilders),
   children: slotCountKnob('children', initial: 3),
-  controller: PresetArg(
-    _controllers.first,
-    name: 'controller',
-    values: _controllers,
-  ),
-  physics: PresetArg(
-    _physicsPresets.first,
-    name: 'physics',
-    values: _physicsPresets,
-  ),
-  semanticsLabel: PresetArg(
-    _semanticsLabels.first,
-    name: 'semanticsLabel',
-    values: _semanticsLabels,
-  ),
-  scrollFocusStyle: PresetArg(
-    _focusStyles.first,
-    name: 'scrollFocusStyle',
-    values: _focusStyles,
-  ),
+  controller: presetKnob('controller', _controllers),
+  physics: presetKnob('physics', scrollPhysicsPresets),
+  semanticsLabel: presetKnob('semanticsLabel', scrollSemanticsLabelPresets),
+  scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
 );
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
@@ -161,25 +100,24 @@ CustomScrollViewLayoutKnobsArgs _fixedKnobs() =>
       style: widgetStylePresets.first,
       slivers: _sliversBuilders.first,
       controller: _controllers.first,
-      physics: _physicsPresets.first,
-      semanticsLabel: _semanticsLabels.first,
-      scrollFocusStyle: _focusStyles.first,
+      physics: scrollPhysicsPresets.first,
+      semanticsLabel: scrollSemanticsLabelPresets.first,
+      scrollFocusStyle: scrollFocusStylePresets.first,
     );
 
-/// The page widget Widgetbook's builder must return; the frame stories show
-/// their own layout through `setup`, which drops this child.
 /// The height the scroll stories give the view, since a vertical scroll
 /// needs a bounded height.
 const _height = 320.0;
 
+/// The height of each slot child, tall enough that six overflow the view.
+const _childHeight = 48.0;
+
+/// The page widget Widgetbook's builder must return; the frame stories show
+/// their own layout through `setup`, which drops this child.
 CustomScrollViewLayout _frameChild(
   BuildContext context,
   CustomScrollViewLayoutKnobsArgs args,
-) => CustomScrollViewLayout(
-  children: [
-    for (var i = 1; i <= 6; i++) StratumSlot(name: 'item $i', height: 48),
-  ],
-);
+) => CustomScrollViewLayout(children: slotChildren(6, height: _childHeight));
 
 /// A list of six slots in a bounded height, the layout every frame story
 /// shows.
@@ -211,10 +149,7 @@ final $Playground = _Story(
       semanticsLabel: args.semanticsLabel.build(context),
       scrollFocusStyle: args.scrollFocusStyle.build(context),
       children: slivers == null
-          ? [
-              for (var i = 1; i <= args.children; i++)
-                StratumSlot(name: 'item $i', height: 48),
-            ]
+          ? slotChildren(args.children, height: _childHeight)
           : null,
     );
   },

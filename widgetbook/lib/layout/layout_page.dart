@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
@@ -193,3 +194,92 @@ TextBaseline? baselineFor(
 ) =>
     baseline ??
     (alignment == CrossAxisAlignment.baseline ? TextBaseline.alphabetic : null);
+
+/// A knob that picks one of [values], the first by default, named [name].
+PresetArg<T> presetKnob<T>(String name, List<Preset<T>> values) =>
+    PresetArg(values.first, name: name, values: values);
+
+/// The `physics` knob of a scroll layout: the default null, then two named
+/// choices.
+final List<Preset<ScrollPhysics>> scrollPhysicsPresets = [
+  const Preset('None', _noPhysics),
+  const Preset('Bouncing', _bouncingPhysics),
+  const Preset('Never scroll', _neverPhysics),
+];
+
+ScrollPhysics? _noPhysics(BuildContext context) => null;
+ScrollPhysics? _bouncingPhysics(BuildContext context) =>
+    const BouncingScrollPhysics();
+ScrollPhysics? _neverPhysics(BuildContext context) =>
+    const NeverScrollableScrollPhysics();
+
+/// The `itemBuilder` knob of a scroll layout: the default slot builder that
+/// names each item by its index, then one that counts from zero
+/// (fo11/us06/fr01).
+final List<Preset<Widget? Function(BuildContext, int)>> slotItemBuilders = [
+  Preset(
+    'Slot builder',
+    (_) =>
+        (context, index) => StratumSlot(name: 'item ${index + 1}'),
+  ),
+  Preset(
+    'Slot builder from 0',
+    (_) =>
+        (context, index) => StratumSlot(name: 'item $index'),
+  ),
+];
+
+/// The `findChildIndexCallback` knob of a scroll layout: null, then one that
+/// reads a key-to-index map the data keeps in sync.
+final List<Preset<ChildIndexGetter>> findChildIndexPresets = [
+  const Preset('None', _noFindChild),
+  const Preset('By key', _findChildByKey),
+];
+
+ChildIndexGetter? _noFindChild(BuildContext context) => null;
+ChildIndexGetter? _findChildByKey(BuildContext context) =>
+    (key) => null; // a real app reads its own key-to-index map here
+
+/// The `scrollCacheExtent` knob of a scroll layout.
+final List<Preset<ScrollCacheExtent>> scrollCacheExtentPresets = [
+  const Preset('None', _noCacheExtent),
+  const Preset('200 px', _cache200),
+  const Preset('2 viewports', _cacheTwoViewports),
+];
+
+ScrollCacheExtent? _noCacheExtent(BuildContext context) => null;
+ScrollCacheExtent? _cache200(BuildContext context) =>
+    const ScrollCacheExtent.pixels(200);
+ScrollCacheExtent? _cacheTwoViewports(BuildContext context) =>
+    const ScrollCacheExtent.viewport(2);
+
+/// The `semanticsLabel` knob of a scroll layout.
+final List<Preset<String>> scrollSemanticsLabelPresets = [
+  const Preset('None', _noSemanticsLabel),
+  Preset(
+    'Title',
+    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
+  ),
+  Preset(
+    'Message',
+    (context) => SampleTexts.message.resolve(Localizations.localeOf(context)),
+  ),
+];
+
+String? _noSemanticsLabel(BuildContext context) => null;
+
+/// The `scrollFocusStyle` knob of a scroll layout.
+final List<Preset<ScrollFocusStyle>> scrollFocusStylePresets = [
+  const Preset('None', _noFocusStyle),
+  Preset(
+    'Gray 4 ring',
+    (context) => ScrollFocusStyle(
+      focus: StratumFocusBorderStyle(
+        width: const WidgetStatePropertyAll(4),
+        color: WidgetStatePropertyAll(context.theme.color.border.color.gray),
+      ),
+    ),
+  ),
+];
+
+ScrollFocusStyle? _noFocusStyle(BuildContext context) => null;

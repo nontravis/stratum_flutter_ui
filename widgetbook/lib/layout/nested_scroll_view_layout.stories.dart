@@ -76,10 +76,10 @@ final _headerBuilders = <Preset<NestedScrollViewHeaderSliversBuilder>>[
         ],
   ),
   Preset(
-    'Pinned slot',
+    'Second slot',
     (_) =>
         (context, innerBoxIsScrolled) => [
-          const SliverToBoxAdapter(child: StratumSlot(name: 'pinned header')),
+          const SliverToBoxAdapter(child: StratumSlot(name: 'second header')),
         ],
   ),
 ];
@@ -90,36 +90,12 @@ final _controllers = <Preset<ScrollController>>[
 
 ScrollController? _noController(BuildContext context) => null;
 
-final _physicsPresets = <Preset<ScrollPhysics>>[
-  const Preset('None', _noPhysics),
-  const Preset('Bouncing', _bouncingPhysics),
-  const Preset('Never scroll', _neverPhysics),
-];
-
-ScrollPhysics? _noPhysics(BuildContext context) => null;
-ScrollPhysics? _bouncingPhysics(BuildContext context) =>
-    const BouncingScrollPhysics();
-ScrollPhysics? _neverPhysics(BuildContext context) =>
-    const NeverScrollableScrollPhysics();
-
 /// A fresh set of knobs: one per constructor param, in constructor order.
 NestedScrollViewLayoutKnobsArgs _knobs() => NestedScrollViewLayoutKnobsArgs(
   style: styleKnob(),
-  controller: PresetArg(
-    _controllers.first,
-    name: 'controller',
-    values: _controllers,
-  ),
-  physics: PresetArg(
-    _physicsPresets.first,
-    name: 'physics',
-    values: _physicsPresets,
-  ),
-  headerSliverBuilder: PresetArg(
-    _headerBuilders.first,
-    name: 'headerSliverBuilder',
-    values: _headerBuilders,
-  ),
+  controller: presetKnob('controller', _controllers),
+  physics: presetKnob('physics', scrollPhysicsPresets),
+  headerSliverBuilder: presetKnob('headerSliverBuilder', _headerBuilders),
   body: EnumArg<SlotPreset>(
     SlotPreset.slot,
     name: 'body',
@@ -132,7 +108,7 @@ NestedScrollViewLayoutKnobsArgs _fixedKnobs() =>
     NestedScrollViewLayoutKnobsArgs.fixed(
       style: widgetStylePresets.first,
       controller: _controllers.first,
-      physics: _physicsPresets.first,
+      physics: scrollPhysicsPresets.first,
       headerSliverBuilder: _headerBuilders.first,
     );
 
@@ -155,18 +131,8 @@ NestedScrollViewLayout _frameChild(
 Widget _body(BuildContext context) => ListViewLayout.builder(
   itemCount: 3,
   itemBuilder: (context, index) =>
-      _itemBuilders.first.build(context)!(context, index),
+      slotItemBuilders.first.build(context)!(context, index),
 );
-
-/// The item builders this page offers: the default slot builder that names
-/// each item by its index (fo11/us06/fr01).
-final _itemBuilders = <Preset<Widget? Function(BuildContext, int)>>[
-  Preset(
-    'Slot builder',
-    (_) =>
-        (context, index) => StratumSlot(name: 'item ${index + 1}'),
-  ),
-];
 
 final $Playground = _Story(
   args: _knobs(),

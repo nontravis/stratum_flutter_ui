@@ -72,18 +72,6 @@ final _controllers = <Preset<ScrollController>>[
 
 ScrollController? _noController(BuildContext context) => null;
 
-final _physicsPresets = <Preset<ScrollPhysics>>[
-  const Preset('None', _noPhysics),
-  const Preset('Bouncing', _bouncingPhysics),
-  const Preset('Never scroll', _neverPhysics),
-];
-
-ScrollPhysics? _noPhysics(BuildContext context) => null;
-ScrollPhysics? _bouncingPhysics(BuildContext context) =>
-    const BouncingScrollPhysics();
-ScrollPhysics? _neverPhysics(BuildContext context) =>
-    const NeverScrollableScrollPhysics();
-
 /// The item builders this page offers: the default slot builder that names
 /// and keys each item by its index (fo11/us06/fr01).
 final _itemBuilders = <Preset<Widget Function(BuildContext, int)>>[
@@ -128,46 +116,6 @@ Widget Function(BuildContext, Animation<double>, Widget)? _noTransitionBuilder(
   BuildContext context,
 ) => null;
 
-final _cacheExtents = <Preset<ScrollCacheExtent>>[
-  const Preset('None', _noCacheExtent),
-  const Preset('200 px', _cache200),
-];
-
-ScrollCacheExtent? _noCacheExtent(BuildContext context) => null;
-ScrollCacheExtent? _cache200(BuildContext context) =>
-    const ScrollCacheExtent.pixels(200);
-
-final _semanticsLabels = <Preset<String>>[
-  const Preset('None', _noSemanticsLabel),
-  Preset(
-    'Title',
-    (context) => SampleTexts.title.resolve(Localizations.localeOf(context)),
-  ),
-];
-
-String? _noSemanticsLabel(BuildContext context) => null;
-
-final _focusStyles = <Preset<ScrollFocusStyle>>[
-  const Preset('None', _noFocusStyle),
-  Preset(
-    'Gray 4 ring',
-    (context) => ScrollFocusStyle(
-      focus: StratumFocusBorderStyle(
-        width: const WidgetStatePropertyAll(4),
-        color: WidgetStatePropertyAll(context.theme.color.border.color.gray),
-      ),
-    ),
-  ),
-];
-
-ScrollFocusStyle? _noFocusStyle(BuildContext context) => null;
-
-final _findChildCallbacks = <Preset<ChildIndexGetter>>[
-  const Preset('None', _noFindChild),
-];
-
-ChildIndexGetter? _noFindChild(BuildContext context) => null;
-
 /// The move announcements this page offers: null, then one in the toolbar
 /// language.
 final _moveAnnouncements = <Preset<String Function(int position, int count)>>[
@@ -208,82 +156,38 @@ String? _noAtEnd(BuildContext context) => null;
 ReorderableListViewLayoutKnobsArgs _knobs() =>
     ReorderableListViewLayoutKnobsArgs(
       style: styleKnob(),
-      controller: PresetArg(
-        _controllers.first,
-        name: 'controller',
-        values: _controllers,
-      ),
-      physics: PresetArg(
-        _physicsPresets.first,
-        name: 'physics',
-        values: _physicsPresets,
-      ),
-      itemExtentBuilder: PresetArg(
-        _itemExtentBuilders.first,
-        name: 'itemExtentBuilder',
-        values: _itemExtentBuilders,
-      ),
+      controller: presetKnob('controller', _controllers),
+      physics: presetKnob('physics', scrollPhysicsPresets),
+      itemExtentBuilder: presetKnob('itemExtentBuilder', _itemExtentBuilders),
       prototypeItem: EnumArg<SlotPreset>(
         SlotPreset.none,
         name: 'prototypeItem',
         values: SlotPreset.values,
       ),
       itemCount: slotCountKnob('itemCount', initial: 3),
-      itemBuilder: PresetArg(
-        _itemBuilders.first,
-        name: 'itemBuilder',
-        values: _itemBuilders,
+      itemBuilder: presetKnob('itemBuilder', _itemBuilders),
+      dragStyle: presetKnob('dragStyle', _dragStyles),
+      itemsController: presetKnob('itemsController', _itemsControllers),
+      itemTransitionBuilder: presetKnob(
+        'itemTransitionBuilder',
+        _itemTransitionBuilders,
       ),
-      dragStyle: PresetArg(
-        _dragStyles.first,
-        name: 'dragStyle',
-        values: _dragStyles,
+      scrollCacheExtent: presetKnob(
+        'scrollCacheExtent',
+        scrollCacheExtentPresets,
       ),
-      itemsController: PresetArg(
-        _itemsControllers.first,
-        name: 'itemsController',
-        values: _itemsControllers,
+      semanticsLabel: presetKnob('semanticsLabel', scrollSemanticsLabelPresets),
+      scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
+      findChildIndexCallback: presetKnob(
+        'findChildIndexCallback',
+        findChildIndexPresets,
       ),
-      itemTransitionBuilder: PresetArg(
-        _itemTransitionBuilders.first,
-        name: 'itemTransitionBuilder',
-        values: _itemTransitionBuilders,
+      moveAnnouncement: presetKnob('moveAnnouncement', _moveAnnouncements),
+      atStartAnnouncement: presetKnob(
+        'atStartAnnouncement',
+        _atStartAnnouncements,
       ),
-      scrollCacheExtent: PresetArg(
-        _cacheExtents.first,
-        name: 'scrollCacheExtent',
-        values: _cacheExtents,
-      ),
-      semanticsLabel: PresetArg(
-        _semanticsLabels.first,
-        name: 'semanticsLabel',
-        values: _semanticsLabels,
-      ),
-      scrollFocusStyle: PresetArg(
-        _focusStyles.first,
-        name: 'scrollFocusStyle',
-        values: _focusStyles,
-      ),
-      findChildIndexCallback: PresetArg(
-        _findChildCallbacks.first,
-        name: 'findChildIndexCallback',
-        values: _findChildCallbacks,
-      ),
-      moveAnnouncement: PresetArg(
-        _moveAnnouncements.first,
-        name: 'moveAnnouncement',
-        values: _moveAnnouncements,
-      ),
-      atStartAnnouncement: PresetArg(
-        _atStartAnnouncements.first,
-        name: 'atStartAnnouncement',
-        values: _atStartAnnouncements,
-      ),
-      atEndAnnouncement: PresetArg(
-        _atEndAnnouncements.first,
-        name: 'atEndAnnouncement',
-        values: _atEndAnnouncements,
-      ),
+      atEndAnnouncement: presetKnob('atEndAnnouncement', _atEndAnnouncements),
     );
 
 /// Knobs for a story that has no Playground: fixed, so the panel hides them.
@@ -291,16 +195,16 @@ ReorderableListViewLayoutKnobsArgs _fixedKnobs() =>
     ReorderableListViewLayoutKnobsArgs.fixed(
       style: widgetStylePresets.first,
       controller: _controllers.first,
-      physics: _physicsPresets.first,
+      physics: scrollPhysicsPresets.first,
       itemBuilder: _itemBuilders.first,
       itemExtentBuilder: _itemExtentBuilders.first,
       dragStyle: _dragStyles.first,
       itemsController: _itemsControllers.first,
       itemTransitionBuilder: _itemTransitionBuilders.first,
-      scrollCacheExtent: _cacheExtents.first,
-      semanticsLabel: _semanticsLabels.first,
-      scrollFocusStyle: _focusStyles.first,
-      findChildIndexCallback: _findChildCallbacks.first,
+      scrollCacheExtent: scrollCacheExtentPresets.first,
+      semanticsLabel: scrollSemanticsLabelPresets.first,
+      scrollFocusStyle: scrollFocusStylePresets.first,
+      findChildIndexCallback: findChildIndexPresets.first,
       moveAnnouncement: _moveAnnouncements.first,
       atStartAnnouncement: _atStartAnnouncements.first,
       atEndAnnouncement: _atEndAnnouncements.first,

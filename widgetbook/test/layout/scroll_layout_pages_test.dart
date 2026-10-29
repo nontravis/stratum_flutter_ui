@@ -190,6 +190,7 @@ class _Page {
     required this.example,
     required this.slots,
     required this.knobChange,
+    required this.expectChanged,
     this.countKnob = 'itemCount',
   });
 
@@ -210,6 +211,9 @@ class _Page {
 
   /// One layout knob and a value that keeps the slot count.
   final MapEntry<String, String> knobChange;
+
+  /// Expects the built layout to carry the [knobChange] value.
+  final void Function(WidgetTester tester) expectChanged;
 
   /// The knob that sets how many slots the Playground builds, over the
   /// count [pageCount] it then carries.
@@ -243,6 +247,12 @@ final _pages = <_Page>[
     example: 'styled list',
     slots: ['item 1', 'item 2', 'item 3'],
     knobChange: const MapEntry('scrollDirection', 'horizontal'),
+    expectChanged: (tester) => expect(
+      tester
+          .widget<ListViewLayout>(find.byType(ListViewLayout))
+          .scrollDirection,
+      Axis.horizontal,
+    ),
   ),
   _Page(
     name: 'GridViewLayout',
@@ -253,6 +263,16 @@ final _pages = <_Page>[
     example: 'photo grid',
     slots: ['item 1', 'item 2', 'item 3'],
     knobChange: const MapEntry('gridDelegate', '4 columns'),
+    expectChanged: (tester) {
+      final delegate = tester
+          .widget<GridViewLayout>(find.byType(GridViewLayout))
+          .gridDelegate;
+      expect(delegate, isA<SliverGridDelegateWithFixedCrossAxisCount>());
+      expect(
+        (delegate as SliverGridDelegateWithFixedCrossAxisCount).crossAxisCount,
+        4,
+      );
+    },
   ),
   _Page(
     name: 'CustomScrollViewLayout',
@@ -261,8 +281,14 @@ final _pages = <_Page>[
     knobs: [for (final arg in custom.$Playground.args.list) arg?.name],
     expectedKnobs: _customKnobs,
     example: 'pinned header list',
-    slots: ['item 1', 'item 2', 'item 3'],
+    slots: ['child 1', 'child 2', 'child 3'],
     knobChange: const MapEntry('scrollDirection', 'horizontal'),
+    expectChanged: (tester) => expect(
+      tester
+          .widget<CustomScrollViewLayout>(find.byType(CustomScrollViewLayout))
+          .scrollDirection,
+      Axis.horizontal,
+    ),
     countKnob: 'children',
   ),
   _Page(
@@ -274,6 +300,12 @@ final _pages = <_Page>[
     example: 'collapsing header',
     slots: ['header', 'body'],
     knobChange: const MapEntry('floatHeaderSlivers', 'true'),
+    expectChanged: (tester) => expect(
+      tester
+          .widget<NestedScrollViewLayout>(find.byType(NestedScrollViewLayout))
+          .floatHeaderSlivers,
+      isTrue,
+    ),
     countKnob: '',
   ),
   _Page(
@@ -285,6 +317,12 @@ final _pages = <_Page>[
     example: 'paged sections',
     slots: ['item 1'],
     knobChange: const MapEntry('scrollDirection', 'vertical'),
+    expectChanged: (tester) => expect(
+      tester
+          .widget<PageViewLayout>(find.byType(PageViewLayout))
+          .scrollDirection,
+      Axis.vertical,
+    ),
   ),
   _Page(
     name: 'ReorderableListViewLayout',
@@ -295,6 +333,14 @@ final _pages = <_Page>[
     example: 'reorderable settings',
     slots: ['item 1', 'item 2', 'item 3'],
     knobChange: const MapEntry('longPressDrag', 'false'),
+    expectChanged: (tester) => expect(
+      tester
+          .widget<ReorderableListViewLayout>(
+            find.byType(ReorderableListViewLayout),
+          )
+          .longPressDrag,
+      isFalse,
+    ),
   ),
 ];
 
@@ -323,6 +369,26 @@ int _countOf(WidgetTester tester, _Page page) => switch (page.type) {
         )
         .itemCount,
   _ => throw StateError('no count for ${page.type}'),
+};
+
+/// Long-presses the slot [name] and drags it down past its neighbors in
+/// 10 px steps; the returned gesture is still down.
+Future<TestGesture> _liftAndDrag(WidgetTester tester, String name) async {
+  final gesture = await tester.startGesture(tester.getCenter(_slot(name)));
+  await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+  for (var i = 0; i < 15; i++) {
+    await gesture.moveBy(const Offset(0, 10));
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  return gesture;
+}
+
+/// The reorder report knobs, all off: a test turns on the one it checks, so
+/// the single report line on screen is that callback's.
+const _reportsOff = {
+  'onReorderItem': 'false',
+  'onReorderStart': 'false',
+  'onReorderEnd': 'false',
 };
 
 void main() {
@@ -373,9 +439,8 @@ void main() {
         }
       });
 
-      testWidgets('fo11/us06/fr01/e01: a knob change keeps the slot names', (
-        tester,
-      ) async {
+      testWidgets('fo11/us06/fr01/e01: a knob change reaches the layout and '
+          'keeps the slot names', (tester) async {
         await page.open(
           tester,
           page.playground,
@@ -383,6 +448,7 @@ void main() {
         );
 
         expect(tester.takeException(), isNull);
+        page.expectChanged(tester);
         for (final name in page.slots) {
           expect(_slot(name), findsOneWidget, reason: name);
         }
@@ -459,5 +525,147 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('onPageChanged called'), findsOneWidget);
+  });
+
+  group('knob guards and presets', () {
+    final list = _pages.firstWhere((page) => page.name == 'ListViewLayout');
+    final custom = _pages.firstWhere(
+      (page) => page.name == 'CustomScrollViewLayout',
+    );
+    final reorder = _pages.firstWhere(
+      (page) => page.name == 'ReorderableListViewLayout',
+    );
+
+    for (final conflict in const [
+      MapEntry('itemExtent', '60.0'),
+      MapEntry('prototypeItem', 'slot'),
+      MapEntry('semanticChildCount', '3'),
+    ]) {
+      testWidgets('fo11/us06/fr01/e01: gap drops beside ${conflict.key}, so '
+          'the layout assert does not fire', (tester) async {
+        await list.open(
+          tester,
+          list.playground,
+          knobs: {'gap': '8.0', conflict.key: conflict.value},
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.widget<ListViewLayout>(find.byType(ListViewLayout)).gap,
+          isNull,
+        );
+      });
+    }
+
+    testWidgets('fo11/us06/fr01: the Header and slots slivers paint named '
+        'slots', (tester) async {
+      await custom.open(
+        tester,
+        custom.playground,
+        knobs: {'slivers': 'Header and slots'},
+      );
+
+      expect(tester.takeException(), isNull);
+      for (final name in ['header', 'body', 'footer']) {
+        expect(_slot(name), findsOneWidget, reason: name);
+      }
+    });
+
+    testWidgets('fo11/us06/fr01/e01: a padded style drops beside slivers, so '
+        'the layout assert does not fire', (tester) async {
+      await custom.open(
+        tester,
+        custom.playground,
+        knobs: {'slivers': 'Header and slots', 'style': 'Padded'},
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(_slot('header'), findsOneWidget);
+      expect(
+        tester
+            .widget<CustomScrollViewLayout>(find.byType(CustomScrollViewLayout))
+            .style,
+        isNull,
+      );
+    });
+
+    for (final name in ['ListViewLayout', 'GridViewLayout', 'PageViewLayout']) {
+      testWidgets('fo11/us06/fr01: $name offers a slot builder that counts '
+          'from zero', (tester) async {
+        final page = _pages.firstWhere((page) => page.name == name);
+        await page.open(
+          tester,
+          page.playground,
+          knobs: {'itemBuilder': 'Slot builder from 0'},
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(_slot('item 0'), findsOneWidget);
+      });
+    }
+
+    testWidgets('fo11/us06/fr01: the second header preset paints its own '
+        'slot', (tester) async {
+      final nested = _pages.firstWhere(
+        (page) => page.name == 'NestedScrollViewLayout',
+      );
+      await nested.open(
+        tester,
+        nested.playground,
+        knobs: {'headerSliverBuilder': 'Second slot'},
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(_slot('second header'), findsOneWidget);
+      expect(_slot('header'), findsNothing);
+    });
+
+    testWidgets('fo11/us04/fr03/e01: a reorder drop reports onReorderItem '
+        'called', (tester) async {
+      await reorder.open(
+        tester,
+        reorder.playground,
+        knobs: {..._reportsOff, 'onReorderItem': 'true'},
+      );
+
+      final gesture = await _liftAndDrag(tester, 'item 1');
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('onReorderItem called'), findsOneWidget);
+    });
+
+    testWidgets('fo11/us04/fr03/e01: a reorder lift reports onReorderStart '
+        'called', (tester) async {
+      await reorder.open(
+        tester,
+        reorder.playground,
+        knobs: {..._reportsOff, 'onReorderStart': 'true'},
+      );
+
+      final gesture = await _liftAndDrag(tester, 'item 1');
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('onReorderStart called'), findsOneWidget);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('fo11/us04/fr03/e01: a reorder drop reports onReorderEnd '
+        'called', (tester) async {
+      await reorder.open(
+        tester,
+        reorder.playground,
+        knobs: {..._reportsOff, 'onReorderEnd': 'true'},
+      );
+
+      final gesture = await _liftAndDrag(tester, 'item 1');
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('onReorderEnd called'), findsOneWidget);
+    });
   });
 }
