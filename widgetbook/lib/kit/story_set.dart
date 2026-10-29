@@ -98,9 +98,19 @@ Widget responsiveFrames(WidgetBuilder build) => ColumnLayout(
   ],
 );
 
+/// The logical size every accessibility frame's stage shows its content at:
+/// the catalog's mobile width, so a stage that sizes itself to its content
+/// (an `Overlay.wrap` the Toast page builds) never reads the unbounded
+/// height the frames column gives it and lays its entries out 0 px wide.
+const Size _accessibilityStageSize = Size(390, 480);
+
 /// The accessibility frames of a component page: `200% text`,
 /// `Right to left`, `Disabled` when [disabled] is set, then one frame per
 /// [states] key (`Loading`, `Error`, or `Empty`) (s03 INV-5).
+///
+/// Each frame's stage is bounded to [_accessibilityStageSize] and publishes
+/// that size as its `MediaQuery.size`, so a frame's overlays size and place
+/// their entries as they would in a window of that size.
 ///
 /// Throws an [ArgumentError] for a [states] key outside that set.
 ///
@@ -127,24 +137,21 @@ Widget accessibilityFrames({
     children: [
       _Frame(
         label: '200% text',
-        child: _Scaled(builder: build),
+        child: _Stage(textScaler: const TextScaler.linear(2), builder: build),
       ),
       _Frame(
         label: 'Right to left',
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Builder(builder: build),
-        ),
+        child: _Stage(textDirection: TextDirection.rtl, builder: build),
       ),
       if (disabled != null)
         _Frame(
           label: 'Disabled',
-          child: Builder(builder: disabled),
+          child: _Stage(builder: disabled),
         ),
       for (final MapEntry(:key, :value) in states.entries)
         _Frame(
           label: key,
-          child: Builder(builder: value),
+          child: _Stage(builder: value),
         ),
     ],
   );
@@ -165,17 +172,41 @@ class _Frame extends StatelessWidget {
   );
 }
 
-/// [build] under a text scale of 2.
-class _Scaled extends StatelessWidget {
-  const _Scaled({required this.builder});
+/// [builder] on the bounded [_accessibilityStageSize] stage, under the
+/// frame's [textScaler] and [textDirection].
+class _Stage extends StatelessWidget {
+  const _Stage({this.textScaler, this.textDirection, required this.builder});
 
+  final TextScaler? textScaler;
+  final TextDirection? textDirection;
   final WidgetBuilder builder;
 
   @override
-  Widget build(BuildContext context) => MediaQuery(
-    data: MediaQuery.of(context)
-        .copyWith(textScaler: const TextScaler.linear(2)),
-    child: Builder(builder: builder),
+  Widget build(BuildContext context) => ContainerLayout(
+    fit: BoxFit.contain,
+    style: WidgetStyle(
+      width: _accessibilityStageSize.width,
+      height: _accessibilityStageSize.height,
+      clipBehavior: Clip.hardEdge,
+    ),
+    child: SizedBox.fromSize(
+      size: _accessibilityStageSize,
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          size: _accessibilityStageSize,
+          textScaler: textScaler ?? MediaQuery.textScalerOf(context),
+        ),
+        child: WindowSizeScope(
+          child: Align(
+            alignment: AlignmentDirectional.topStart,
+            child: Directionality(
+              textDirection: textDirection ?? TextDirection.ltr,
+              child: Builder(builder: builder),
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
 

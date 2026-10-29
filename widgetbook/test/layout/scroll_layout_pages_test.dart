@@ -394,6 +394,13 @@ const _reportsOff = {
   'onReorderEnd': 'false',
 };
 
+/// The knob pair that makes Flutter's `ScrollView` assert: an explicit
+/// controller beside `primary` = true.
+const _controllerPlusPrimary = {
+  'controller': 'Start at item 2',
+  'primary': 'true',
+};
+
 void main() {
   for (final page in _pages) {
     group(page.name, () {
@@ -593,6 +600,104 @@ void main() {
         isNull,
       );
     });
+
+    final grid = _pages.firstWhere((page) => page.name == 'GridViewLayout');
+
+    for (final page in [list, grid]) {
+      testWidgets('fo11/us04/fr01/e01: ${page.name} drops primary beside an '
+          'explicit controller, so the ScrollView assert does not fire', (
+        tester,
+      ) async {
+        await page.open(tester, page.playground, knobs: _controllerPlusPrimary);
+
+        expect(tester.takeException(), isNull);
+        expect(_slot('item 1'), findsOneWidget, reason: page.name);
+      });
+    }
+
+    testWidgets('fo11/us04/fr01/e01: the list drops prototypeItem beside '
+        'itemExtent, so the builder assert does not fire', (tester) async {
+      await list.open(
+        tester,
+        list.playground,
+        knobs: {'itemExtent': '60.0', 'prototypeItem': 'slot'},
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.widget<ListViewLayout>(find.byType(ListViewLayout)).itemExtent,
+        60.0,
+      );
+    });
+
+    testWidgets('fo11/us04/fr01/e01: the list clamps semanticChildCount to '
+        'itemCount, so the builder assert does not fire', (tester) async {
+      await list.open(
+        tester,
+        list.playground,
+        knobs: {'itemCount': '3', 'semanticChildCount': '5'},
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester
+            .widget<ListViewLayout>(find.byType(ListViewLayout))
+            .semanticChildCount,
+        3,
+      );
+    });
+
+    testWidgets('fo11/us04/fr01/e01: the grid clamps semanticChildCount to '
+        'itemCount, so the builder assert does not fire', (tester) async {
+      await grid.open(
+        tester,
+        grid.playground,
+        knobs: {'itemCount': '3', 'semanticChildCount': '5'},
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester
+            .widget<GridViewLayout>(find.byType(GridViewLayout))
+            .semanticChildCount,
+        3,
+      );
+    });
+
+    for (final case_ in [
+      (
+        knobs: {'itemExtent': '60.0', 'itemExtentBuilder': 'Fixed 64 px'},
+        keepsExtent: true,
+        keepsBuilder: false,
+      ),
+      (
+        knobs: {'itemExtent': '60.0', 'prototypeItem': 'slot'},
+        keepsExtent: true,
+        keepsBuilder: false,
+      ),
+      (
+        knobs: {'itemExtentBuilder': 'Fixed 64 px', 'prototypeItem': 'slot'},
+        keepsExtent: false,
+        keepsBuilder: true,
+      ),
+    ]) {
+      testWidgets('fo11/us04/fr01/e01: the reorderable list keeps one of '
+          'itemExtent, itemExtentBuilder, and prototypeItem '
+          '(${case_.knobs.keys.join(' + ')})', (tester) async {
+        await reorder.open(tester, reorder.playground, knobs: case_.knobs);
+
+        final layout = tester.widget<ReorderableListViewLayout>(
+          find.byType(ReorderableListViewLayout),
+        );
+        expect(tester.takeException(), isNull);
+        expect(_slot('item 1'), findsOneWidget);
+        expect(layout.itemExtent, case_.keepsExtent ? 60.0 : null);
+        expect(
+          layout.itemExtentBuilder,
+          case_.keepsBuilder ? isNotNull : isNull,
+        );
+      });
+    }
 
     for (final name in ['ListViewLayout', 'GridViewLayout', 'PageViewLayout']) {
       testWidgets('fo11/us06/fr01: $name offers a slot builder that counts '

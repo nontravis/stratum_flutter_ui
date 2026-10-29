@@ -43,6 +43,9 @@ ReorderableListViewLayout.builder(
         'a live sync needs the callback so focus follows the item.',
     'Hand one ReorderableItemsController to two lists at once; hand it over '
         'only after the first list drops it.',
+    'Set itemExtent beside itemExtentBuilder or prototypeItem; the sliver '
+        'asserts on more than one, so the Playground keeps itemExtent, then '
+        'itemExtentBuilder, and drops the rest.',
   ],
   accessibility: [
     'While the list holds focus, Alt and an arrow key move the focused '
@@ -238,47 +241,69 @@ final $Playground = _BuilderStory(
   args: _knobs(),
   setup: (context, child, args) =>
       SizedBox(height: _height, child: reportingSetup(context, child, args)),
-  builder: (context, args) => ReorderableListViewLayout.builder(
-    style: args.style.build(context),
-    scrollDirection: args.scrollDirection,
-    reverse: args.reverse,
-    controller: args.controller.build(context),
-    primary: args.primary,
-    physics: args.physics.build(context),
-    showScrollbar: args.showScrollbar,
-    shrinkWrap: args.shrinkWrap,
-    itemExtent: args.itemExtent,
-    itemExtentBuilder: args.itemExtentBuilder.build(context),
-    prototypeItem: slotFor(context, args.prototypeItem, name: 'prototypeItem'),
-    itemCount: args.itemCount,
-    itemBuilder: args.itemBuilder.build(context)!,
-    onReorderItem: args.onReorderItem
-        ? (_, _) => CallbackReport.report(context, 'onReorderItem')
-        : (_, _) {},
-    onReorderStart: args.onReorderStart
-        ? (_) => CallbackReport.report(context, 'onReorderStart')
-        : null,
-    onReorderEnd: args.onReorderEnd
-        ? (_) => CallbackReport.report(context, 'onReorderEnd')
-        : null,
-    dragStyle: args.dragStyle.build(context),
-    longPressDrag: args.longPressDrag,
-    itemsController: args.itemsController.build(context),
-    itemTransitionBuilder: args.itemTransitionBuilder.build(context),
-    scrollCacheExtent: args.scrollCacheExtent.build(context),
-    dragStartBehavior: args.dragStartBehavior,
-    keyboardDismissBehavior: args.keyboardDismissBehavior,
-    restorationId: args.restorationId,
-    clipBehavior: args.clipBehavior,
-    autoScrollerVelocityScalar: args.autoScrollerVelocityScalar,
-    focusable: args.focusable,
-    semanticsLabel: args.semanticsLabel.build(context),
-    scrollFocusStyle: args.scrollFocusStyle.build(context),
-    findChildIndexCallback: args.findChildIndexCallback.build(context),
-    moveAnnouncement: args.moveAnnouncement.build(context),
-    atStartAnnouncement: args.atStartAnnouncement.build(context),
-    atEndAnnouncement: args.atEndAnnouncement.build(context),
-  ),
+  builder: (context, args) {
+    final controller = args.controller.build(context);
+    // One of the three item-extent knobs, by priority: itemExtent, then
+    // itemExtentBuilder, then prototypeItem, since
+    // `SliverReorderableList` asserts on more than one.
+    final itemExtent = args.itemExtent;
+    final itemExtentBuilder = itemExtent == null
+        ? args.itemExtentBuilder.build(context)
+        : null;
+    final prototype = ScrollKnobGuards.prototypeItem(
+      prototypeItem: args.prototypeItem,
+      itemExtent: itemExtent,
+      itemExtentBuilder: itemExtentBuilder,
+    );
+    return ReorderableListViewLayout.builder(
+      style: args.style.build(context),
+      scrollDirection: args.scrollDirection,
+      reverse: args.reverse,
+      controller: controller,
+      primary: ScrollKnobGuards.primary(
+        primary: args.primary,
+        controller: controller,
+      ),
+      physics: args.physics.build(context),
+      showScrollbar: args.showScrollbar,
+      shrinkWrap: args.shrinkWrap,
+      itemExtent: itemExtent,
+      itemExtentBuilder: itemExtentBuilder,
+      prototypeItem: slotFor(
+        context,
+        prototype ?? SlotPreset.none,
+        name: 'prototypeItem',
+      ),
+      itemCount: args.itemCount,
+      itemBuilder: args.itemBuilder.build(context)!,
+      onReorderItem: args.onReorderItem
+          ? (_, _) => CallbackReport.report(context, 'onReorderItem')
+          : (_, _) {},
+      onReorderStart: args.onReorderStart
+          ? (_) => CallbackReport.report(context, 'onReorderStart')
+          : null,
+      onReorderEnd: args.onReorderEnd
+          ? (_) => CallbackReport.report(context, 'onReorderEnd')
+          : null,
+      dragStyle: args.dragStyle.build(context),
+      longPressDrag: args.longPressDrag,
+      itemsController: args.itemsController.build(context),
+      itemTransitionBuilder: args.itemTransitionBuilder.build(context),
+      scrollCacheExtent: args.scrollCacheExtent.build(context),
+      dragStartBehavior: args.dragStartBehavior,
+      keyboardDismissBehavior: args.keyboardDismissBehavior,
+      restorationId: args.restorationId,
+      clipBehavior: args.clipBehavior,
+      autoScrollerVelocityScalar: args.autoScrollerVelocityScalar,
+      focusable: args.focusable,
+      semanticsLabel: args.semanticsLabel.build(context),
+      scrollFocusStyle: args.scrollFocusStyle.build(context),
+      findChildIndexCallback: args.findChildIndexCallback.build(context),
+      moveAnnouncement: args.moveAnnouncement.build(context),
+      atStartAnnouncement: args.atStartAnnouncement.build(context),
+      atEndAnnouncement: args.atEndAnnouncement.build(context),
+    );
+  },
 );
 
 final $RecipeFormRow = _BuilderStory(

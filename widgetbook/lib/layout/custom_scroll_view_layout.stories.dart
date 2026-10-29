@@ -132,12 +132,11 @@ final $Playground = _Story(
   ),
   builder: (context, args) {
     final slivers = args.slivers.build(context);
-    // The layout asserts a padding style beside slivers, so the Playground
-    // keeps the style only while it carries no padding.
-    final style = args.style.build(context);
-    final paddedSlivers = slivers != null && style?.padding != null;
     return CustomScrollViewLayout(
-      style: paddedSlivers ? null : style,
+      style: ScrollKnobGuards.style(
+        style: args.style.build(context),
+        slivers: slivers,
+      ),
       slivers: slivers,
       controller: args.controller.build(context),
       scrollDirection: args.scrollDirection,

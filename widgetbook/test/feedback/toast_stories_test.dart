@@ -307,6 +307,27 @@ void main() {
     await _closeStory(tester);
   });
 
+  testWidgets('fo11/us03/fr02: the Accessibility 200% text frame draws its '
+      'notice wider than zero', (tester) async {
+    await openStory<StratumToastHost>(
+      tester,
+      'Feedback/Toast/Accessibility',
+      toolbar: const {
+        'viewport': {'name': 'desktop'},
+      },
+    );
+
+    await tester.tap(find.text('Show toast').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 1));
+
+    final size = tester.getSize(find.text(_message));
+    expect(size.width, greaterThan(0), reason: 'the notice must be visible');
+    expect(size.height, greaterThan(0), reason: 'the notice must be visible');
+    await _closeStory(tester);
+  });
+
   testWidgets('fo11/us03/fr02: the Accessibility right-to-left frame draws '
       'its notice right to left', (tester) async {
     await openStory<StratumToastHost>(tester, 'Feedback/Toast/Accessibility');

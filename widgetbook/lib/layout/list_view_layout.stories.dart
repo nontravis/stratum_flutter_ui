@@ -33,6 +33,9 @@ ListViewLayout.builder(
     'Set gap without an itemCount, or beside itemExtent, prototypeItem, or '
         'semanticChildCount; the constructor asserts it, so the Playground '
         'drops the gap while those are set.',
+    'Set primary beside an explicit controller, prototypeItem beside '
+        'itemExtent, or semanticChildCount above itemCount; the builders '
+        'assert on each, so the Playground drops or clamps the losing knob.',
     'Put the list inside an unbounded height along its scroll direction; '
         'give the page or column a bounded height first.',
   ],
@@ -124,26 +127,38 @@ final $Playground = _BuilderStory(
   ),
   builder: (context, args) {
     final itemBuilder = args.itemBuilder.build(context);
-    final gap =
-        args.itemExtent == null &&
-            args.prototypeItem == SlotPreset.none &&
-            args.semanticChildCount == null
-        ? args.gap
-        : null;
+    final controller = args.controller.build(context);
+    final picked = args.prototypeItem == SlotPreset.none
+        ? null
+        : args.prototypeItem;
+    final prototype = ScrollKnobGuards.prototypeItem(
+      prototypeItem: picked,
+      itemExtent: args.itemExtent,
+      itemExtentBuilder: null,
+    );
+    final gap = ScrollKnobGuards.gap(
+      gap: args.gap,
+      itemExtent: args.itemExtent,
+      prototypeItem: prototype,
+      semanticChildCount: args.semanticChildCount,
+    );
     return ListViewLayout.builder(
       style: args.style.build(context),
       gap: gap,
       scrollDirection: args.scrollDirection,
       reverse: args.reverse,
-      controller: args.controller.build(context),
-      primary: args.primary,
+      controller: controller,
+      primary: ScrollKnobGuards.primary(
+        primary: args.primary,
+        controller: controller,
+      ),
       physics: args.physics.build(context),
       showScrollbar: args.showScrollbar,
       shrinkWrap: args.shrinkWrap,
       itemExtent: args.itemExtent,
       prototypeItem: slotFor(
         context,
-        args.prototypeItem,
+        prototype ?? SlotPreset.none,
         name: 'prototypeItem',
       ),
       itemCount: args.itemCount,
@@ -153,7 +168,10 @@ final $Playground = _BuilderStory(
       addRepaintBoundaries: args.addRepaintBoundaries,
       addSemanticIndexes: args.addSemanticIndexes,
       scrollCacheExtent: args.scrollCacheExtent.build(context),
-      semanticChildCount: args.semanticChildCount,
+      semanticChildCount: ScrollKnobGuards.semanticChildCount(
+        count: args.semanticChildCount,
+        itemCount: args.itemCount,
+      ),
       dragStartBehavior: args.dragStartBehavior,
       keyboardDismissBehavior: args.keyboardDismissBehavior,
       restorationId: args.restorationId,

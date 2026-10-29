@@ -283,3 +283,57 @@ final List<Preset<ScrollFocusStyle>> scrollFocusStylePresets = [
 ];
 
 ScrollFocusStyle? _noFocusStyle(BuildContext context) => null;
+
+/// The scroll-view knob pairs that Flutter and the layouts assert on, each
+/// resolved once for every page (fo11/us04/fr01; us06/fr01).
+///
+/// A Playground never builds an asserting pair: `primary` drops beside an
+/// explicit controller, the item-extent knobs keep one by priority
+/// (`itemExtent`, then `itemExtentBuilder`, then `prototypeItem`),
+/// `semanticChildCount` clamps to `itemCount`, `gap` drops beside any
+/// item-extent knob or `semanticChildCount`, and a padded style drops beside
+/// slivers.
+abstract final class ScrollKnobGuards {
+  /// [primary] while no explicit [controller] is picked, else null: the
+  /// `ScrollView` constructor asserts on both.
+  static bool? primary({required bool? primary, required Object? controller}) =>
+      controller != null ? null : primary;
+
+  /// [prototypeItem] while neither [itemExtent] nor [itemExtentBuilder] is
+  /// set, else null: the item builders take only one of the three, and the
+  /// prototype holds the lowest priority.
+  static T? prototypeItem<T>({
+    required T? prototypeItem,
+    required double? itemExtent,
+    required Object? itemExtentBuilder,
+  }) => itemExtent == null && itemExtentBuilder == null ? prototypeItem : null;
+
+  /// [count] clamped to [itemCount], so the semantic count never exceeds the
+  /// items the builder builds.
+  static int? semanticChildCount({
+    required int? count,
+    required int itemCount,
+  }) {
+    if (count == null) return null;
+    return count < itemCount ? count : itemCount;
+  }
+
+  /// [gap] while no [itemExtent], [prototypeItem], or [semanticChildCount]
+  /// is set, else null: `ListViewLayout` asserts on each beside a gap.
+  static double? gap({
+    required double? gap,
+    required double? itemExtent,
+    required Object? prototypeItem,
+    required int? semanticChildCount,
+  }) =>
+      itemExtent == null && prototypeItem == null && semanticChildCount == null
+      ? gap
+      : null;
+
+  /// [style] while it carries no padding or no [slivers] are set, else null:
+  /// `CustomScrollViewLayout` asserts on `style.padding` beside slivers.
+  static WidgetStyle? style({
+    required WidgetStyle? style,
+    required List<Widget>? slivers,
+  }) => slivers != null && style?.padding != null ? null : style;
+}

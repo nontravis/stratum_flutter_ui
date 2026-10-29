@@ -32,6 +32,9 @@ GridViewLayout.builder(
   donts: [
     'Build a grid from a raw GridView; the layout carries the style, the '
         'scroll behavior, and the keyboard scrolling.',
+    'Set primary beside an explicit controller or semanticChildCount above '
+        'itemCount; the builders assert on each, so the Playground drops or '
+        'clamps the losing knob.',
     'Give the grid an unbounded cross axis; it needs a bounded width for a '
         'vertical scroll and a bounded height for a horizontal one.',
   ],
@@ -134,32 +137,41 @@ final $Playground = _BuilderStory(
     height: _height,
     child: Story.defaultSetup(context, child, args),
   ),
-  builder: (context, args) => GridViewLayout.builder(
-    style: args.style.build(context),
-    gridDelegate: args.gridDelegate.build(context)!,
-    scrollDirection: args.scrollDirection,
-    reverse: args.reverse,
-    controller: args.controller.build(context),
-    primary: args.primary,
-    physics: args.physics.build(context),
-    showScrollbar: args.showScrollbar,
-    shrinkWrap: args.shrinkWrap,
-    itemCount: args.itemCount,
-    itemBuilder: args.itemBuilder.build(context) ?? (_, _) => null,
-    findChildIndexCallback: args.findChildIndexCallback.build(context),
-    addAutomaticKeepAlives: args.addAutomaticKeepAlives,
-    addRepaintBoundaries: args.addRepaintBoundaries,
-    addSemanticIndexes: args.addSemanticIndexes,
-    scrollCacheExtent: args.scrollCacheExtent.build(context),
-    semanticChildCount: args.semanticChildCount,
-    dragStartBehavior: args.dragStartBehavior,
-    keyboardDismissBehavior: args.keyboardDismissBehavior,
-    restorationId: args.restorationId,
-    clipBehavior: args.clipBehavior,
-    focusable: args.focusable,
-    semanticsLabel: args.semanticsLabel.build(context),
-    scrollFocusStyle: args.scrollFocusStyle.build(context),
-  ),
+  builder: (context, args) {
+    final controller = args.controller.build(context);
+    return GridViewLayout.builder(
+      style: args.style.build(context),
+      gridDelegate: args.gridDelegate.build(context)!,
+      scrollDirection: args.scrollDirection,
+      reverse: args.reverse,
+      controller: controller,
+      primary: ScrollKnobGuards.primary(
+        primary: args.primary,
+        controller: controller,
+      ),
+      physics: args.physics.build(context),
+      showScrollbar: args.showScrollbar,
+      shrinkWrap: args.shrinkWrap,
+      itemCount: args.itemCount,
+      itemBuilder: args.itemBuilder.build(context) ?? (_, _) => null,
+      findChildIndexCallback: args.findChildIndexCallback.build(context),
+      addAutomaticKeepAlives: args.addAutomaticKeepAlives,
+      addRepaintBoundaries: args.addRepaintBoundaries,
+      addSemanticIndexes: args.addSemanticIndexes,
+      scrollCacheExtent: args.scrollCacheExtent.build(context),
+      semanticChildCount: ScrollKnobGuards.semanticChildCount(
+        count: args.semanticChildCount,
+        itemCount: args.itemCount,
+      ),
+      dragStartBehavior: args.dragStartBehavior,
+      keyboardDismissBehavior: args.keyboardDismissBehavior,
+      restorationId: args.restorationId,
+      clipBehavior: args.clipBehavior,
+      focusable: args.focusable,
+      semanticsLabel: args.semanticsLabel.build(context),
+      scrollFocusStyle: args.scrollFocusStyle.build(context),
+    );
+  },
 );
 
 final $RecipeFormRow = _BuilderStory(

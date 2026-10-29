@@ -79,6 +79,49 @@ void main() {
     },
   );
 
+  testWidgets(
+    'fo11/us02/fr01: the addon paints the dark theme background and its '
+    'default text style under the story',
+    (tester) async {
+      final set = await loadDefaultThemeSet();
+      final themes = catalogThemes({'default': set});
+      final addon = stratumThemeAddon(themes);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => addon.apply(
+              context,
+              const Text('story text'),
+              themes['default · Dark']!,
+            ),
+          ),
+        ),
+      );
+
+      final dark = set.dark!;
+      expect(
+        find.ancestor(
+          of: find.text('story text'),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is DecoratedBox &&
+                widget.decoration is StyleDecoration &&
+                (widget.decoration as StyleDecoration).color ==
+                    dark.color.background.defaults.normal,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        DefaultTextStyle.of(tester.element(find.text('story text')))
+            .style
+            .color,
+        dark.color.text.defaults.primary,
+      );
+    },
+  );
+
   test('fo11/us02/fr01: loadCatalogThemes keys each bundled theme', () async {
     final yaml = File('../assets/themes/default/theme.yaml').readAsStringSync();
 
