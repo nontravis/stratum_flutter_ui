@@ -56,7 +56,9 @@ class _Page {
     tester,
     path,
     knobs: knobs,
-    toolbar: {'viewport': viewport},
+    toolbar: {
+      'viewport': {'name': viewport},
+    },
   );
 }
 
@@ -337,7 +339,9 @@ void main() {
         tester,
         'Layout/SplitLayout/Playground',
         knobs: {'panes': '3', 'controller': 'Start pane 30%'},
-        toolbar: {'viewport': WindowSize.desktop.name},
+        toolbar: {
+          'viewport': {'name': WindowSize.desktop.name},
+        },
       );
 
       expect(tester.takeException(), isNull);

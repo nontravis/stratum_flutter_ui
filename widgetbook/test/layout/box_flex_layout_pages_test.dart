@@ -103,12 +103,15 @@ class _Page {
     WidgetTester tester,
     String path, {
     Map<String, String> knobs = const {},
-    Map<String, String> toolbar = const {},
+    Map<String, Map<String, String>> toolbar = const {},
   }) => openStory<StratumSlot>(
     tester,
     path,
     knobs: knobs,
-    toolbar: {'viewport': WindowSize.desktop.name, ...toolbar},
+    toolbar: {
+      'viewport': {'name': WindowSize.desktop.name},
+      ...toolbar,
+    },
   );
 }
 
@@ -333,7 +336,9 @@ void main() {
           await page.open(
             tester,
             'Layout/${page.name}/Recipe: card',
-            toolbar: {'viewport': size.name},
+            toolbar: {
+              'viewport': {'name': size.name},
+            },
           );
 
           expect(tester.takeException(), isNull, reason: size.name);
@@ -391,7 +396,9 @@ void main() {
     await openStory<StratumSlot>(
       tester,
       'Layout/ColumnLayout/Recipe: page with drawer',
-      toolbar: {'viewport': WindowSize.desktop.name},
+      toolbar: {
+        'viewport': {'name': WindowSize.desktop.name},
+      },
     );
 
     expect(tester.takeException(), isNull);

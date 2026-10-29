@@ -11,15 +11,16 @@ import 'catalog_theme.dart';
 /// [knobs] (arg name to field value), and asserts that a [T] shows, so a
 /// test never runs against a story that did not open.
 ///
-/// [toolbar] sets toolbar addons by their query key (`viewport` to a window
-/// size name, `locale` to a language code).
+/// [toolbar] sets toolbar addons by their query key, each to that addon's own
+/// query fields: `{'viewport': {'name': 'desktop'}}`,
+/// `{'locale': {'name': 'th'}}`, `{'right-to-left': {'enabled': 'true'}}`.
 ///
 /// Uses `dart:io` through the theme loader, so it runs on the VM only.
 Future<void> openStory<T extends Widget>(
   WidgetTester tester,
   String path, {
   Map<String, String> knobs = const {},
-  Map<String, String> toolbar = const {},
+  Map<String, Map<String, String>> toolbar = const {},
 }) async {
   tester.view.physicalSize = const Size(1200, 800);
   tester.view.devicePixelRatio = 1.0;
@@ -34,7 +35,7 @@ Future<void> openStory<T extends Widget>(
       for (final MapEntry(:key, :value) in knobs.entries)
         key: QueryGroup({'value': value}).toParam(),
       for (final MapEntry(:key, :value) in toolbar.entries)
-        key: QueryGroup({'name': value}).toParam(),
+        key: QueryGroup(value).toParam(),
     },
   ).toString();
   await tester.pumpWidget(
