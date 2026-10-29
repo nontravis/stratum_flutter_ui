@@ -102,7 +102,7 @@ touched.
 **Related:** App assembly in [setup.md](setup.md) passes `noticeHost:`. The Figma page Toast (Notification, Snackbar)
 holds the designed look; the index in [SKILL.md](../SKILL.md) gives its status.
 
-**Catalog path:** —
+**Catalog path:** Feedback / Toast
 
 ## Placeholder page (CO-05-08)
 
@@ -132,7 +132,7 @@ the text wraps and the page scrolls.
 
 **Related:** Slot (CO-01-01) marks one place inside a layout instead of a whole screen.
 
-**Catalog path:** —
+**Catalog path:** Feedback / Placeholder page
 
 ## Update gate (CO-05-09)
 
@@ -205,7 +205,7 @@ Android back button closes it, and Esc calls `dismiss`.
 
 **Related:** App assembly in [setup.md](setup.md) passes `updateGate:`.
 
-**Catalog path:** —
+**Catalog path:** Feedback / Update gate
 
 ## Planned
 

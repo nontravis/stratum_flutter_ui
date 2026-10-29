@@ -22,7 +22,7 @@ outline and that area, default 12 on every side).
 
 **Related:** Placeholder page (CO-05-08) marks a whole screen not built yet.
 
-**Catalog path:** —
+**Catalog path:** Utility / Slot
 
 ## Web view (CO-01-02)
 
@@ -76,7 +76,7 @@ is outside that.
 **Related:** Web zoom (CO-01-04) leaves the page inside the web view unzoomed. On the web, a Stratum overlay above the
 web view takes no pointer input; Overlay (CO-08) owns that.
 
-**Catalog path:** —
+**Catalog path:** Utility / Web view
 
 ## Caret (CO-01-03)
 
@@ -118,7 +118,7 @@ collapsed; under reduced motion it shows the new direction at once.
 
 **Related:** Disclosure (CO-03) and Dropdown (CO-06-03) are the components a caret marks open or closed.
 
-**Catalog path:** —
+**Catalog path:** Utility / Caret
 
 ## Web zoom (CO-01-04)
 
@@ -147,7 +147,7 @@ motion.
 
 **Related:** Web view (CO-01-02) keeps its page unzoomed inside the zoomed app.
 
-**Catalog path:** —
+**Catalog path:** Utility / Web zoom
 
 ## Planned
 
