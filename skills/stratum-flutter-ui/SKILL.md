@@ -32,13 +32,13 @@ Open only the reference your task needs.
 | Utilities (CO-01): Slot, Web view, Caret, Web zoom | [references/utility.md](references/utility.md) |
 | Built-in labels: Thai labels and supportedLocales | [references/accessibility.md](references/accessibility.md) |
 | Disabled components, Named colors | [references/customize.md](references/customize.md) |
-| Control components (CO-02), all planned | [references/control.md](references/control.md) |
-| Disclosure components (CO-03), all planned | [references/disclosure.md](references/disclosure.md) |
-| Display components (CO-04), all planned | [references/display.md](references/display.md) |
-| Feedback (CO-05): Toast (Notices), Placeholder page, Update gate, and the planned rest | [references/feedback.md](references/feedback.md) |
-| Form components (CO-06), all planned | [references/form.md](references/form.md) |
-| Navigation components (CO-07), all planned | [references/navigation.md](references/navigation.md) |
-| Overlay components (CO-08), all planned | [references/overlay.md](references/overlay.md) |
+| Control components (CO-02) | [references/control.md](references/control.md) |
+| Disclosure components (CO-03) | [references/disclosure.md](references/disclosure.md) |
+| Display components (CO-04) | [references/display.md](references/display.md) |
+| Feedback components (CO-05): Toast (Notices), Placeholder page, Update gate | [references/feedback.md](references/feedback.md) |
+| Form components (CO-06) | [references/form.md](references/form.md) |
+| Navigation components (CO-07) | [references/navigation.md](references/navigation.md) |
+| Overlay components (CO-08) | [references/overlay.md](references/overlay.md) |
 
 ## Component index
 
