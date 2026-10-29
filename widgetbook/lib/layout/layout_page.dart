@@ -217,6 +217,21 @@ ScrollCacheExtent? _cache200(BuildContext context) =>
 ScrollCacheExtent? _cacheTwoViewports(BuildContext context) =>
     const ScrollCacheExtent.viewport(2);
 
+/// The `implicitScrolling` knob of a page view layout.
+final List<Preset<ImplicitScrolling>> implicitScrollingPresets = [
+  const Preset.none(),
+  const Preset('One viewport', _implicitOneViewport),
+  const Preset('200 px', _implicit200),
+  const Preset('2 viewports', _implicitTwoViewports),
+];
+
+ImplicitScrolling? _implicitOneViewport(BuildContext context) =>
+    ImplicitScrolling();
+ImplicitScrolling? _implicit200(BuildContext context) =>
+    ImplicitScrolling(scrollCacheExtent: const ScrollCacheExtent.pixels(200));
+ImplicitScrolling? _implicitTwoViewports(BuildContext context) =>
+    ImplicitScrolling(scrollCacheExtent: const ScrollCacheExtent.viewport(2));
+
 /// The `semanticsLabel` knob of a scroll layout.
 final List<Preset<String>> scrollSemanticsLabelPresets = [
   const Preset.none(),

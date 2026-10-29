@@ -1,4 +1,3 @@
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:stratum_ui/stratum_ui.dart';
 
 import '../kit/preset.dart';
@@ -19,8 +18,7 @@ class PageViewLayoutKnobs {
     required this.findChildIndexCallback,
     this.itemCount,
     this.dragStartBehavior = DragStartBehavior.start,
-    this.allowImplicitScrolling = false,
-    required this.scrollCacheExtent,
+    required this.implicitScrolling,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
     this.hitTestBehavior = HitTestBehavior.opaque,
@@ -44,8 +42,7 @@ class PageViewLayoutKnobs {
   final Preset<ChildIndexGetter> findChildIndexCallback;
   final int? itemCount;
   final DragStartBehavior dragStartBehavior;
-  final bool allowImplicitScrolling;
-  final Preset<ScrollCacheExtent> scrollCacheExtent;
+  final Preset<ImplicitScrolling> implicitScrolling;
   final String? restorationId;
   final Clip clipBehavior;
   final HitTestBehavior hitTestBehavior;

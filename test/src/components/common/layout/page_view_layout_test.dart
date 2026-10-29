@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -265,14 +266,14 @@ void main() {
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
-      'with allowImplicitScrolling, Tab visits every node of page 0 before '
-      'page 1, and Tab into page 1 shows it whole',
+      'fo06/us10/fr02/e02: with implicitScrolling, Tab visits every node of '
+      'page 0 before page 1, and Tab into page 1 shows it whole',
       (tester) async {
         final before = _node('before');
         await tester.pumpWidget(
           _keyboardHost(
             PageViewLayout(
-              allowImplicitScrolling: true,
+              implicitScrolling: ImplicitScrolling(),
               children: [_page(0), _page(1), _page(2)],
             ),
             before: before,
@@ -365,5 +366,117 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    group('implicitScrolling', () {
+      PageView pageViewOf(WidgetTester tester) =>
+          tester.widget<PageView>(find.byType(PageView));
+
+      testWidgets(
+        'fo06/us10/fr03: null leaves implicit scrolling off and the extent '
+        'at zero, on both constructors',
+        (tester) async {
+          await tester.pumpWidget(
+            themedHost(PageViewLayout(children: [_page(0), _page(1)])),
+          );
+          expect(pageViewOf(tester).allowImplicitScrolling, isFalse);
+          expect(
+            pageViewOf(tester).scrollCacheExtent,
+            const ScrollCacheExtent.viewport(0),
+          );
+
+          await tester.pumpWidget(
+            themedHost(
+              PageViewLayout.builder(
+                itemCount: 2,
+                itemBuilder: (context, index) => _page(index),
+              ),
+            ),
+          );
+          expect(pageViewOf(tester).allowImplicitScrolling, isFalse);
+          expect(
+            pageViewOf(tester).scrollCacheExtent,
+            const ScrollCacheExtent.viewport(0),
+          );
+        },
+      );
+
+      testWidgets(
+        'fo06/us10/fr03: a value turns implicit scrolling on with one '
+        'viewport of cache extent by default, on both constructors',
+        (tester) async {
+          await tester.pumpWidget(
+            themedHost(
+              PageViewLayout(
+                implicitScrolling: ImplicitScrolling(),
+                children: [_page(0), _page(1)],
+              ),
+            ),
+          );
+          expect(pageViewOf(tester).allowImplicitScrolling, isTrue);
+          expect(
+            pageViewOf(tester).scrollCacheExtent,
+            const ScrollCacheExtent.viewport(1),
+          );
+
+          await tester.pumpWidget(
+            themedHost(
+              PageViewLayout.builder(
+                implicitScrolling: ImplicitScrolling(),
+                itemCount: 2,
+                itemBuilder: (context, index) => _page(index),
+              ),
+            ),
+          );
+          expect(pageViewOf(tester).allowImplicitScrolling, isTrue);
+          expect(
+            pageViewOf(tester).scrollCacheExtent,
+            const ScrollCacheExtent.viewport(1),
+          );
+        },
+      );
+
+      testWidgets(
+        'fo06/us10/fr03: the value passes its scroll cache extent to the '
+        'page view',
+        (tester) async {
+          await tester.pumpWidget(
+            themedHost(
+              PageViewLayout(
+                implicitScrolling: ImplicitScrolling(
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(120),
+                ),
+                children: [_page(0), _page(1)],
+              ),
+            ),
+          );
+
+          expect(pageViewOf(tester).allowImplicitScrolling, isTrue);
+          expect(
+            pageViewOf(tester).scrollCacheExtent,
+            const ScrollCacheExtent.pixels(120),
+          );
+        },
+      );
+
+      test('fo06/us10/fr03/e03: a cache extent of zero or below fails the '
+          'assertion with a message that names the extent', () {
+        for (final extent in const [
+          ScrollCacheExtent.viewport(0),
+          ScrollCacheExtent.pixels(0),
+          ScrollCacheExtent.viewport(-1),
+        ]) {
+          expect(
+            () => ImplicitScrolling(scrollCacheExtent: extent),
+            throwsA(
+              isA<AssertionError>().having(
+                (error) => error.message,
+                'message',
+                contains('scrollCacheExtent'),
+              ),
+            ),
+          );
+        }
+      });
+    });
   });
 }

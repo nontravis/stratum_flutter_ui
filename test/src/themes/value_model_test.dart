@@ -72,6 +72,8 @@ const _valueModelFiles = [
   'lib/src/components/common/model/caret/stratum_caret_style.dart',
   // M1-T4: the setting key of FO-10.
   'lib/src/components/common/model/widget_setting/widget_setting_key.dart',
+  // The page view layout's implicit scrolling value of FO-06 US-10.
+  'lib/src/components/common/model/page_view_layout/implicit_scrolling.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

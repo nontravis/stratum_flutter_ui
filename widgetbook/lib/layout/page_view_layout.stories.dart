@@ -1,4 +1,3 @@
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
@@ -43,7 +42,7 @@ PageViewLayout.builder(
     'A focusable page view, by default on web and desktop, is a Tab stop; '
         'its arrows page it, Page Up and Page Down go one page, Home and '
         'End go to the ends.',
-    'With allowImplicitScrolling a screen reader reaches the neighbor '
+    'With implicitScrolling a screen reader reaches the neighbor '
         'pages, and the view shows the page it entered whole.',
   ],
 );
@@ -81,7 +80,7 @@ PageViewLayoutKnobsArgs _knobs() => PageViewLayoutKnobsArgs(
     findChildIndexPresets,
   ),
   itemCount: slotCountKnob('itemCount', initial: 3),
-  scrollCacheExtent: presetKnob('scrollCacheExtent', scrollCacheExtentPresets),
+  implicitScrolling: presetKnob('implicitScrolling', implicitScrollingPresets),
   semanticsLabel: presetKnob('semanticsLabel', scrollSemanticsLabelPresets),
   scrollFocusStyle: presetKnob('scrollFocusStyle', scrollFocusStylePresets),
 );
@@ -93,7 +92,7 @@ PageViewLayoutKnobsArgs _fixedKnobs() => PageViewLayoutKnobsArgs.fixed(
   physics: scrollPhysicsPresets.first,
   itemBuilder: slotItemBuilders.first,
   findChildIndexCallback: findChildIndexPresets.first,
-  scrollCacheExtent: scrollCacheExtentPresets.first,
+  implicitScrolling: implicitScrollingPresets.first,
   semanticsLabel: scrollSemanticsLabelPresets.first,
   scrollFocusStyle: scrollFocusStylePresets.first,
 );
@@ -133,8 +132,7 @@ final $Playground = _BuilderStory(
     findChildIndexCallback: args.findChildIndexCallback.build(context),
     itemCount: args.itemCount,
     dragStartBehavior: args.dragStartBehavior,
-    allowImplicitScrolling: _implicitScrolling(context, args),
-    scrollCacheExtent: args.scrollCacheExtent.build(context),
+    implicitScrolling: args.implicitScrolling.build(context),
     restorationId: args.restorationId,
     clipBehavior: args.clipBehavior,
     hitTestBehavior: args.hitTestBehavior,
@@ -145,14 +143,6 @@ final $Playground = _BuilderStory(
     scrollFocusStyle: args.scrollFocusStyle.build(context),
   ),
 );
-
-/// Whether the playground's page view scrolls implicitly: the
-/// `allowImplicitScrolling` knob, or any `scrollCacheExtent` preset, since
-/// `PageView` asserts that a cache extent above zero comes with implicit
-/// scrolling.
-bool _implicitScrolling(BuildContext context, PageViewLayoutKnobsArgs args) =>
-    args.allowImplicitScrolling ||
-    args.scrollCacheExtent.build(context) != null;
 
 final $RecipeFormRow = _BuilderStory(
   name: StoryNames.recipes[0],

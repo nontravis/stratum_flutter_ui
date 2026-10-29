@@ -36,7 +36,7 @@ and last page; End needs a page count. A key page change slides over
 300 ms, or jumps when the app or the platform asks for less motion.
 While a node inside a page holds focus, Page Up, Page Down, Home, and End
 still change the page and move focus to the new page's first node. Tab
-finishes one page before the next; with [allowImplicitScrolling] it
+finishes one page before the next; with [implicitScrolling] it
 reaches the neighbor pages, and the view then shows the page it entered
 whole.
 
@@ -88,8 +88,7 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
     required Arg<Preset<int? Function(Key)>> findChildIndexCallback,
     Arg<int?>? itemCount,
     Arg<DragStartBehavior>? dragStartBehavior,
-    Arg<bool>? allowImplicitScrolling,
-    required Arg<Preset<ScrollCacheExtent>> scrollCacheExtent,
+    required Arg<Preset<ImplicitScrolling>> implicitScrolling,
     Arg<String?>? restorationId,
     Arg<Clip>? clipBehavior,
     Arg<HitTestBehavior>? hitTestBehavior,
@@ -136,14 +135,9 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
            values: DragStartBehavior.values,
          ),
        )!,
-       this.allowImplicitScrollingArg = $initArg(
-         'allowImplicitScrolling',
-         allowImplicitScrolling,
-         BoolArg(false),
-       )!,
-       this.scrollCacheExtentArg = $initArg(
-         'scrollCacheExtent',
-         scrollCacheExtent,
+       this.implicitScrollingArg = $initArg(
+         'implicitScrolling',
+         implicitScrolling,
          null,
        )!,
        this.restorationIdArg = $initArg(
@@ -198,8 +192,7 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
     required Preset<int? Function(Key)> findChildIndexCallback,
     int? itemCount = null,
     DragStartBehavior dragStartBehavior = DragStartBehavior.start,
-    bool allowImplicitScrolling = false,
-    required Preset<ScrollCacheExtent> scrollCacheExtent,
+    required Preset<ImplicitScrolling> implicitScrolling,
     String? restorationId = null,
     Clip clipBehavior = Clip.hardEdge,
     HitTestBehavior hitTestBehavior = HitTestBehavior.opaque,
@@ -251,14 +244,9 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
          Arg.fixed(dragStartBehavior),
          null,
        )!,
-       this.allowImplicitScrollingArg = $initArg(
-         'allowImplicitScrolling',
-         Arg.fixed(allowImplicitScrolling),
-         null,
-       )!,
-       this.scrollCacheExtentArg = $initArg(
-         'scrollCacheExtent',
-         Arg.fixed(scrollCacheExtent),
+       this.implicitScrollingArg = $initArg(
+         'implicitScrolling',
+         Arg.fixed(implicitScrolling),
          null,
        )!,
        this.restorationIdArg = $initArg(
@@ -320,9 +308,7 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
 
   final Arg<DragStartBehavior> dragStartBehaviorArg;
 
-  final Arg<bool> allowImplicitScrollingArg;
-
-  final Arg<Preset<ScrollCacheExtent>> scrollCacheExtentArg;
+  final Arg<Preset<ImplicitScrolling>> implicitScrollingArg;
 
   final Arg<String?>? restorationIdArg;
 
@@ -364,9 +350,7 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
 
   DragStartBehavior get dragStartBehavior => dragStartBehaviorArg.value;
 
-  bool get allowImplicitScrolling => allowImplicitScrollingArg.value;
-
-  Preset<ScrollCacheExtent> get scrollCacheExtent => scrollCacheExtentArg.value;
+  Preset<ImplicitScrolling> get implicitScrolling => implicitScrollingArg.value;
 
   String? get restorationId => restorationIdArg?.value;
 
@@ -397,8 +381,7 @@ class PageViewLayoutKnobsArgs extends StoryArgs<PageViewLayout> {
     findChildIndexCallbackArg,
     itemCountArg,
     dragStartBehaviorArg,
-    allowImplicitScrollingArg,
-    scrollCacheExtentArg,
+    implicitScrollingArg,
     restorationIdArg,
     clipBehaviorArg,
     hitTestBehaviorArg,

@@ -21,7 +21,7 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`:
 `StratumThemeData`, `StratumThemeSet`, `StratumAppPalette`, `StratumMotionLevels`, `StratumAnimation`,
 `StratumRemoteTheme`, `StratumFontData`, `StratumThemeTransitions`, `StratumTextStyle`, `WidgetStyle`, `Interaction`,
-`InteractionState`, `Scroll`, `FocusGroup`, `StratumFocusTokens`, `StratumFocusBorderStyle`, `StratumInkWellStyle`,
+`InteractionState`, `Scroll`, `ImplicitScrolling`, `FocusGroup`, `StratumFocusTokens`, `StratumFocusBorderStyle`, `StratumInkWellStyle`,
 `ScrollFocusStyle`, `StratumCaretStyle`, the page, split, modal, and toast values, and the web view values. A
 `StratumFocusBorderStyle` compares by value for its `.all` and `.fromMap` properties, by identity for a
 `resolveWith` one. A theme data's `*Tokens` groups compare by identity and carry no `copyWith` (`StratumColorTokens`
@@ -146,7 +146,10 @@ beside `style`, which draws the box.
   Keyboard: K4 line-mode scrolling, each key over the theme's `fast` level (125 ms in the package default) on its
   `standard` curve, or a jump when `MediaQuery` or the platform asks for reduced motion.
 - **`PageViewLayout`** (children or `.builder`) — one page per viewport, with `scrollDirection`, `controller`,
-  `pageSnapping`, `onPageChanged`; `style.padding` insets the viewport rather than scrolling.
+  `pageSnapping`, `onPageChanged`; `style.padding` insets the viewport rather than scrolling. Null `implicitScrolling`
+  builds no neighbor page ahead; `implicitScrolling: ImplicitScrolling()` turns it on with a cache extent of one
+  viewport, or pass `ImplicitScrolling(scrollCacheExtent: ...)`; the extent must be above zero. It replaces Flutter's
+  `allowImplicitScrolling` and `scrollCacheExtent`, which the layout no longer takes.
   Keyboard: an arrow along the axis, Page Up/Page Down, Home, and End move one whole page; a change slides over the
   theme's `slow` level (300 ms in the package default) on its `standard` curve, or jumps when `MediaQuery` or the
   platform asks for reduced motion or the level has no duration; focus moves to the new page's first Tab-order node.
