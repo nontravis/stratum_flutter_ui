@@ -16,8 +16,11 @@ Duration? toastCloseTime({
 /// action, and the close button, every visual value from theme tokens
 /// (US-01 FR-06; s03 INV-12).
 ///
-/// Internal: the barrel keeps this inside the toast folder; the host builds
-/// it unless an app `builder` replaces it.
+/// The host builds it unless an app `builder` replaces it; an app also draws
+/// it on its own, outside any host, or inside its own look. Drawn alone it
+/// starts no timer and makes no announcement: the close button, running the
+/// notice's `close`, is the one way to remove it (FR-06 E07, E08; s03
+/// INV-21).
 class StratumToastPlainLook extends StatelessWidget {
   const new({super.key, required this.notice, this.corners});
 
