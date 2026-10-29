@@ -91,8 +91,8 @@ touched.
   its `z` key beside the notice's Undo, since a notice can close, or sit under a pushed route, before the end user
   reaches it.
 
-**Related:** App assembly in [setup.md](setup.md) passes `noticeHost:`. The Figma Toast look is planned in
-`stratum-feedback-composite`.
+**Related:** App assembly in [setup.md](setup.md) passes `noticeHost:`. The Figma page Toast (Notification, Snackbar)
+holds the designed look; the index in [SKILL.md](../SKILL.md) gives its status.
 
 **Catalog path:** —
 

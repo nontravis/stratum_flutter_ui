@@ -116,7 +116,7 @@ under When to use and not.
 **Accessibility:** It adds nothing to the semantics tree, so the component that holds it announces expanded or
 collapsed; under reduced motion it shows the new direction at once.
 
-**Related:** Disclosure (CO-03) and Dropdown (CO-06-03), both planned, are the components a caret marks open or closed.
+**Related:** Disclosure (CO-03) and Dropdown (CO-06-03) are the components a caret marks open or closed.
 
 **Catalog path:** —
 
