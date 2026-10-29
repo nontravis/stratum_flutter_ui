@@ -1,0 +1,124 @@
+@TestOn('browser')
+library;
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/stratum_ui.dart';
+import 'package:stratum_ui_widgetbook/components.g.dart';
+import 'package:stratum_ui_widgetbook/kit/docs/accessibility_notes_doc_block.dart';
+import 'package:stratum_ui_widgetbook/kit/docs/figma_link_doc_block.dart';
+import 'package:stratum_ui_widgetbook/kit/docs/usage_doc_block.dart';
+import 'package:stratum_ui_widgetbook/kit/preset.dart';
+import 'package:stratum_ui_widgetbook/utility/web_view.stories.dart';
+import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
+
+import '../support/knob_probe.dart';
+
+void main() {
+  test('fo11/us04/fr01: the Web view Playground has one knob per constructor '
+      'param', () {
+    expect(
+      [for (final arg in $Playground.args.list) arg?.name],
+      [
+        'source',
+        'controller',
+        'allowedOrigins',
+        'javaScriptEnabled',
+        'onMessage',
+        'onNavigationRequest',
+        'onPageStarted',
+        'onPageFinished',
+        'onError',
+      ],
+    );
+  });
+
+  test('fo11/us04/fr01/e03: slot, callback, and style params take their kit '
+      'knobs', () {
+    final source = $Playground.args.sourceArg;
+
+    expect($Playground.args.onErrorArg, isA<BoolArg>());
+    expect(source, isA<RequiredPresetArg<StratumWebViewSource>>());
+    expect(
+      [
+        for (final p
+            in (source as RequiredPresetArg<StratumWebViewSource>).values)
+          p.name,
+      ],
+      ['HTML sample', 'example.com'],
+    );
+  });
+
+  test('fo11/us03/fr01: the Web view docs follow INV-3', () {
+    final blocks = StratumWebViewComponent.docsBuilder!([]);
+
+    expect(blocks.map((b) => b.runtimeType), [
+      ComponentNameDocBlock,
+      FigmaLinkDocBlock,
+      DartCommentDocBlock,
+      UsageDocBlock,
+      AccessibilityNotesDocBlock,
+      ArgsDocBlock,
+    ]);
+  });
+
+  test('fo11/us03/fr01/e03: Web view has no Figma node', () {
+    final blocks = StratumWebViewComponent.docsBuilder!([]);
+
+    expect((blocks[1] as FigmaLinkDocBlock).figma, isNull);
+  });
+
+  test('fo11/us01/fr02: the Web view page sits under Utility', () {
+    expect(StratumWebViewComponent.path, 'Utility');
+    expect(components, contains(StratumWebViewComponent));
+  });
+
+  for (final (language, text) in const [('th', 'สวัสดี'), ('en', 'Hello')]) {
+    testWidgets('fo11/us04/fr05: the HTML sample greets in $language under '
+        'that toolbar language', (tester) async {
+      final sources =
+          $Playground.args.sourceArg as RequiredPresetArg<StratumWebViewSource>;
+      late StratumWebViewSource built;
+      await tester.pumpWidget(
+        probeApp(
+          locale: Locale(language),
+          child: Builder(
+            builder: (context) {
+              built = sources.values.first.valueOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(built, StratumWebViewSource.html('<p>$text</p>'));
+    });
+  }
+
+  testWidgets('fo11/us03/fr02: the Playground lays out in a bounded story '
+      'area', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 600,
+            child: Builder(
+              builder: (context) => $Playground.setup(
+                context,
+                Builder(
+                  builder: (inner) =>
+                      $Playground.builder(inner, $Playground.args),
+                ),
+                $Playground.args,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(StratumWebView), findsOneWidget);
+  });
+}

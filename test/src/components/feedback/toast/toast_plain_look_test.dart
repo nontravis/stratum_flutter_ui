@@ -1,0 +1,245 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/stratum_ui.dart';
+
+import '../../common/fakes/fake_stratum_theme.dart';
+
+// The plain look drawn alone (US-01 FR-06 E07, E08; s03 INV-21): the toast
+// symbols come through the public barrel only, so a missing export fails to
+// compile.
+
+StratumToastNotice _notice({
+  FeedbackState kind = FeedbackState.negative,
+  VoidCallback? close,
+  StratumToastAction? action,
+}) => StratumToastNotice(
+  message: 'Could not save',
+  kind: kind,
+  placement: const StratumToastPlacement.float(StratumToastCorner.bottomEnd),
+  insets: EdgeInsets.zero,
+  pageSnack: null,
+  customStyle: null,
+  close: close ?? () {},
+  closeLabel: 'Close it',
+  kindLabel: 'Error',
+  action: action,
+);
+
+/// Records every `announce` message of [SystemChannels.accessibility].
+List<String> _announceRecorder(WidgetTester tester) {
+  final announced = <String>[];
+  tester.binding.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
+    SystemChannels.accessibility,
+    (message) async {
+      final map = message! as Map;
+      if (map['type'] == 'announce') {
+        announced.add((map['data'] as Map)['message'] as String);
+      }
+      return null;
+    },
+  );
+  addTearDown(
+    () => tester.binding.defaultBinaryMessenger
+        .setMockDecodedMessageHandler<Object?>(
+          SystemChannels.accessibility,
+          null,
+        ),
+  );
+  return announced;
+}
+
+Widget _app(Widget Function(BuildContext context) home) => MaterialApp(
+  builder: (context, child) => StratumThemeApplication(
+    themes: StratumThemeSet(light: fakeTheme),
+    themeMode: ThemeMode.light,
+    child: child!,
+  ),
+  home: Scaffold(body: Builder(builder: home)),
+);
+
+void main() {
+  testWidgets(
+    'NFR-U01: NFR-U05: co05_07/us01/fr06/e07: co05_07/us01/s23: drawn alone, '
+    'outside any host, it keeps the kind name, the close label, and the tap '
+    'target',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      final announced = _announceRecorder(tester);
+      var closed = 0;
+      await tester.pumpWidget(
+        _app(
+          (_) => Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 360,
+              child: StratumToastPlainLook(
+                notice: _notice(close: () => closed++),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Could not save'), findsOneWidget);
+      expect(find.bySemanticsLabel('Error'), findsOneWidget);
+      expect(find.bySemanticsLabel('Close it'), findsOneWidget);
+      // No timer runs: the notice stays and no frame is left scheduled.
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('Could not save'), findsOneWidget);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(closed, 0);
+
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+
+      await tester.tap(find.bySemanticsLabel('Close it'));
+      await tester.pump();
+      expect(closed, 1);
+      // Drawn alone, it makes no announcement: the host owns that (E07).
+      expect(announced, isEmpty);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr06/e07: drawn alone in a bounded width, a long message '
+    'wraps and the close button keeps its label and tap target',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(
+          (_) => Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 320,
+              child: StratumToastPlainLook(
+                notice: StratumToastNotice(
+                  message: 'long ' * 100,
+                  kind: FeedbackState.negative,
+                  placement: const StratumToastPlacement.float(
+                    StratumToastCorner.bottomEnd,
+                  ),
+                  insets: EdgeInsets.zero,
+                  pageSnack: null,
+                  customStyle: null,
+                  close: () {},
+                  closeLabel: 'Close it',
+                  kindLabel: 'Error',
+                  action: null,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(StratumToastPlainLook)).width, 320);
+      expect(find.bySemanticsLabel('Close it'), findsOneWidget);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr06/e07: drawn alone in an unbounded width, it reports a '
+    'layout error, as its doc says',
+    (tester) async {
+      // One bad constraint cascades into later layout errors; the first
+      // one names the cause.
+      final reported = <String>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) =>
+          reported.add(details.exceptionAsString());
+      addTearDown(() => FlutterError.onError = previous);
+
+      await tester.pumpWidget(
+        _app((_) => Row(children: [StratumToastPlainLook(notice: _notice())])),
+      );
+
+      expect(reported, isNotEmpty);
+      expect(reported.first, contains('BoxConstraints forces an infinite'));
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr06/e07: the action runs its callback, then closes the '
+    'notice, as the close button does',
+    (tester) async {
+      var closed = 0;
+      var pressed = 0;
+      await tester.pumpWidget(
+        _app(
+          (_) => Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 360,
+              child: StratumToastPlainLook(
+                notice: _notice(
+                  close: () => closed++,
+                  action: StratumToastAction(
+                    label: 'Undo',
+                    onPressed: () => pressed++,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+
+      expect(pressed, 1);
+      expect(closed, 1);
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr06/e08: an app builder that wraps the plain look renders '
+    'it inside the host',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => StratumThemeApplication(
+            themes: StratumThemeSet(light: fakeTheme),
+            themeMode: ThemeMode.light,
+            child: StratumToastHost(
+              builder: (context, notice) => Padding(
+                padding: const EdgeInsets.all(3),
+                child: StratumToastPlainLook(notice: notice),
+              ),
+              child: child!,
+            ),
+          ),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => context.showToast(message: 'Wrapped'),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Wrapped'), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.text('Wrapped'),
+          matching: find.byType(StratumToastPlainLook),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(find.text('Wrapped'), findsNothing);
+    },
+  );
+}

@@ -1,0 +1,170 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/stratum_ui.dart';
+import 'package:stratum_ui_widgetbook/kit/preset.dart';
+import 'package:stratum_ui_widgetbook/kit/sample_text.dart';
+import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
+
+import '../support/knob_probe.dart';
+
+const _filled = Color(0xFF123456);
+const _outlined = Color(0xFF654321);
+
+final _presets = <Preset<WidgetStyle>>[
+  const Preset('None', _none),
+  Preset(
+    'Filled',
+    (context) =>
+        const WidgetStyle(width: 40, height: 40, backgroundColor: _filled),
+  ),
+  Preset(
+    'Outlined',
+    (context) =>
+        const WidgetStyle(width: 40, height: 40, backgroundColor: _outlined),
+  ),
+];
+
+WidgetStyle? _none(BuildContext context) => null;
+
+String _fixed(BuildContext context) => 'fixed';
+
+/// Pumps the probe with the style [preset] picked.
+Future<void> _pump(WidgetTester tester, Preset<WidgetStyle> preset) =>
+    tester.pumpWidget(
+      probeApp(
+        child: Builder(
+          builder: (context) => KnobProbe(customStyle: preset.build(context)),
+        ),
+      ),
+    );
+
+Color? _paintedColor(WidgetTester tester) => tester
+    .widget<ContainerLayout>(find.byKey(probeStyledKey))
+    .style
+    ?.backgroundColor;
+
+void main() {
+  testWidgets('fo11/us04/fr04, fo11/us04/s4: a style preset restyles the '
+      'probe', (tester) async {
+    final arg = PresetArg<WidgetStyle>(_presets.first, values: _presets);
+
+    expect(arg.fields, hasLength(1));
+    expect(arg.fields.single, isA<ObjectDropdownField<Preset<WidgetStyle>>>());
+
+    await _pump(tester, _presets.first);
+    expect(_paintedColor(tester), isNull);
+
+    await _pump(tester, _presets[1]);
+    expect(_paintedColor(tester), _filled);
+  });
+
+  testWidgets('fo11/us04/fr04/e01: another preset renders again with its '
+      'style', (tester) async {
+    await _pump(tester, _presets[1]);
+    expect(_paintedColor(tester), _filled);
+
+    await _pump(tester, _presets[2]);
+
+    expect(_paintedColor(tester), _outlined);
+  });
+
+  test('fo11/us04/fr04: the query value of a preset is its name', () {
+    final arg = PresetArg<WidgetStyle>(_presets.first, values: _presets);
+    final field = arg.fields.single as ObjectDropdownField<Preset<WidgetStyle>>;
+
+    expect(field.labelBuilder(_presets[1]), 'Filled');
+    expect(arg.valueToQueryGroup(_presets[2]).toParam(), contains('Outlined'));
+  });
+
+  test('fo11/us04/fr04: two presets with the same name are rejected', () {
+    final dup = <Preset<WidgetStyle>>[
+      const Preset('Filled', _none),
+      const Preset('Filled', _none),
+    ];
+
+    expect(
+      () => PresetArg<WidgetStyle>(dup.first, values: dup),
+      throwsAssertionError,
+    );
+  });
+
+  testWidgets('fo11/us04/fr04: Preset.none is named None and builds no '
+      'value', (tester) async {
+    const none = Preset<WidgetStyle>.none();
+    late WidgetStyle? built;
+    await tester.pumpWidget(
+      probeApp(
+        child: Builder(
+          builder: (context) {
+            built = none.build(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(none.name, 'None');
+    expect(built, isNull);
+  });
+
+  testWidgets('fo11/us04/fr05: a preset reads the locale through its '
+      'context', (tester) async {
+    final preset = Preset<String>(
+      'Label',
+      (context) => SampleTexts.label.of(context),
+    );
+    late String shown;
+    await tester.pumpWidget(
+      probeApp(
+        locale: const Locale('th'),
+        child: Builder(
+          builder: (context) {
+            shown = preset.build(context)!;
+            return Text(shown);
+          },
+        ),
+      ),
+    );
+
+    expect(shown, SampleTexts.label.th);
+  });
+
+  testWidgets('fo11/us04/fr04: a required preset builds its value through '
+      'valueOf', (tester) async {
+    const preset = RequiredPreset<String>('Fixed', _fixed);
+    late String built;
+    await tester.pumpWidget(
+      probeApp(
+        child: Builder(
+          builder: (context) {
+            built = preset.valueOf(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(built, 'fixed');
+    expect(preset, isA<Preset<String>>());
+  });
+
+  test('fo11/us04/fr04: a required knob offers its presets by name', () {
+    final presets = <RequiredPreset<String>>[
+      const RequiredPreset('One', _fixed),
+      const RequiredPreset('Two', _fixed),
+    ];
+    final arg = requiredPresetKnob('label', presets);
+    final field =
+        arg.fields.single as ObjectDropdownField<RequiredPreset<String>>;
+
+    expect(arg.name, 'label');
+    expect(arg.value, presets.first);
+    expect(field.labelBuilder(presets[1]), 'Two');
+    expect(
+      () => RequiredPresetArg<String>(
+        presets.first,
+        values: [presets.first, presets.first],
+      ),
+      throwsAssertionError,
+    );
+  });
+}

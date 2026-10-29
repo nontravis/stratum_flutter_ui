@@ -57,6 +57,14 @@ along a screen edge, above every route; never make its action the only way to do
   announcement stay the host's. A solid notice's plain-look fill declares itself under the status bar or home
   indicator, as a page layout's fills do, so the bar icons stay readable over it; your own look declares its own
   fill. `customStyle` on the call wins over the theme and the app-wide notice style, field by field.
+- **`StratumToastPlainLook(notice:)`** — the plain look is public. Wrap it inside your `builder` look
+  (`builder: (context, notice) => Padding(padding: ..., child: StratumToastPlainLook(notice: notice))`) to keep the
+  plain look at the host's placement, timing, and announcement. Or draw one notice alone, outside any host, from a
+  `StratumToastNotice` you build yourself (a catalog page does): it shows the kind's icon, the message, the action, and
+  the close button, with the kind's name and the close label from the notice and the platform tap target, but it
+  starts no timer and makes no announcement, so only the notice's `close` (run by the close button and by the action)
+  removes it. Give it a bounded width: it fills the width it gets, and an unbounded one (a `Row` child, a horizontal
+  list) throws a layout error.
 
 **Slots:** `builder` on the host replaces the look of every notice.
 

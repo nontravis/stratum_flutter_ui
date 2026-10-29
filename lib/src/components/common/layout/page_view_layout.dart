@@ -1,4 +1,3 @@
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -17,7 +16,7 @@ import 'package:stratum_ui/src/src.dart';
 /// 300 ms, or jumps when the app or the platform asks for less motion.
 /// While a node inside a page holds focus, Page Up, Page Down, Home, and End
 /// still change the page and move focus to the new page's first node. Tab
-/// finishes one page before the next; with [allowImplicitScrolling] it
+/// finishes one page before the next; with [implicitScrolling] it
 /// reaches the neighbor pages, and the view then shows the page it entered
 /// whole.
 ///
@@ -37,8 +36,7 @@ class PageViewLayout extends StatelessWidget {
     this.onPageChanged,
     required List<Widget> this.children,
     this.dragStartBehavior = DragStartBehavior.start,
-    this.allowImplicitScrolling = false,
-    this.scrollCacheExtent,
+    this.implicitScrolling,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
     this.hitTestBehavior = HitTestBehavior.opaque,
@@ -64,8 +62,7 @@ class PageViewLayout extends StatelessWidget {
     this.findChildIndexCallback,
     this.itemCount,
     this.dragStartBehavior = DragStartBehavior.start,
-    this.allowImplicitScrolling = false,
-    this.scrollCacheExtent,
+    this.implicitScrolling,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
     this.hitTestBehavior = HitTestBehavior.opaque,
@@ -99,8 +96,10 @@ class PageViewLayout extends StatelessWidget {
   /// end, and End then does nothing.
   final int? itemCount;
   final DragStartBehavior dragStartBehavior;
-  final bool allowImplicitScrolling;
-  final ScrollCacheExtent? scrollCacheExtent;
+
+  /// Null builds no neighbor page ahead; a value turns implicit scrolling on
+  /// with its cache extent.
+  final ImplicitScrolling? implicitScrolling;
   final String? restorationId;
   final Clip clipBehavior;
   final HitTestBehavior hitTestBehavior;
@@ -150,8 +149,8 @@ class PageViewLayout extends StatelessWidget {
             pageSnapping: pageSnapping,
             onPageChanged: onPageChanged,
             dragStartBehavior: dragStartBehavior,
-            allowImplicitScrolling: allowImplicitScrolling,
-            scrollCacheExtent: scrollCacheExtent,
+            allowImplicitScrolling: implicitScrolling != null,
+            scrollCacheExtent: implicitScrolling?.scrollCacheExtent,
             restorationId: restorationId,
             clipBehavior: clipBehavior,
             hitTestBehavior: hitTestBehavior,
@@ -174,8 +173,8 @@ class PageViewLayout extends StatelessWidget {
           findChildIndexCallback: _findChildIndex,
           itemCount: itemCount,
           dragStartBehavior: dragStartBehavior,
-          allowImplicitScrolling: allowImplicitScrolling,
-          scrollCacheExtent: scrollCacheExtent,
+          allowImplicitScrolling: implicitScrolling != null,
+          scrollCacheExtent: implicitScrolling?.scrollCacheExtent,
           restorationId: restorationId,
           clipBehavior: clipBehavior,
           hitTestBehavior: hitTestBehavior,
