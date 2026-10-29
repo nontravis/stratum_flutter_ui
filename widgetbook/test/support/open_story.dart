@@ -3,6 +3,7 @@ import 'package:stratum_ui/stratum_ui.dart';
 import 'package:stratum_ui_widgetbook/components.g.dart';
 import 'package:stratum_ui_widgetbook/shell/catalog_config.dart';
 import 'package:widgetbook/src/core/widgetbook_app.dart';
+import 'package:widgetbook/src/core/workbench/workbench.dart';
 import 'package:widgetbook/widgetbook.dart' hide ThemeMode;
 
 import 'catalog_theme.dart';
@@ -15,12 +16,21 @@ import 'catalog_theme.dart';
 /// query fields: `{'viewport': {'name': 'desktop'}}`,
 /// `{'locale': {'name': 'th'}}`, `{'right-to-left': {'enabled': 'true'}}`.
 ///
+/// [catalog] replaces the generated components, for a test-only story.
+///
+/// Fails right after the story opens, and on the first frame after any later
+/// one, when a route sits on Widgetbook's root navigator (see
+/// [expectNoRootRoute]). A frame callback does the later check, as a test
+/// teardown runs after the tree is gone; a test that expects the failure takes
+/// it with `tester.takeException()`.
+///
 /// Uses `dart:io` through the theme loader, so it runs on the VM only.
 Future<void> openStory<T extends Widget>(
   WidgetTester tester,
   String path, {
   Map<String, String> knobs = const {},
   Map<String, Map<String, String>> toolbar = const {},
+  List<Component>? catalog,
 }) async {
   tester.view.physicalSize = const Size(1200, 800);
   tester.view.devicePixelRatio = 1.0;
@@ -39,20 +49,57 @@ Future<void> openStory<T extends Widget>(
     },
   ).toString();
   final config = catalogConfig(
-    components: components,
+    components: catalog ?? components,
     themes: {'default': set},
     initialRoute: route,
   );
+  NavigatorState? rootNavigator;
+  var watching = true;
+  var reported = false;
+  tester.binding.addPersistentFrameCallback((_) {
+    final navigator = rootNavigator;
+    if (!watching || reported || navigator == null) return;
+    if (!navigator.mounted || !navigator.canPop()) return;
+    reported = true;
+    expectNoRootRoute(navigator, path);
+  });
+  addTearDown(() => watching = false);
   await tester.pumpWidget(WidgetbookApp(key: UniqueKey(), config: config));
   await tester.pumpAndSettle();
 
   expect(find.byType(T), findsWidgets);
+  final story = tester.element(find.byType(T).first);
+  // Workbench is the one page of the root navigator and holds the story; no
+  // public widget sits in that page.
+  rootNavigator = Navigator.of(
+    // ignore: invalid_use_of_internal_member
+    tester.element(find.byType(Workbench)),
+    rootNavigator: true,
+  );
   _expectApplied(
-    WidgetbookState.of(tester.element(find.byType(T).first)),
+    WidgetbookState.of(story),
     config.addons ?? const [],
     knobs: knobs,
     toolbar: toolbar,
   );
+  expectNoRootRoute(rootNavigator, path);
+}
+
+/// Fails when a route sits on Widgetbook's [rootNavigator] above its one
+/// page, for the story at [path].
+///
+/// A route pushed there (a `showDialog` with the default root navigator)
+/// escapes every toolbar setting, and no wrapper can intercept it, so a story
+/// opens its routes with `useRootNavigator: false`. A [rootNavigator] no
+/// longer mounted passes, as it holds no route.
+void expectNoRootRoute(NavigatorState rootNavigator, String path) {
+  if (!rootNavigator.mounted) return;
+  if (rootNavigator.canPop()) {
+    fail(
+      'Story "$path" left a route on the root navigator. Open it with '
+      '`useRootNavigator: false` so it stays under the toolbar settings.',
+    );
+  }
 }
 
 /// Fails when a knob or toolbar value passed to [openStory] did not reach the
